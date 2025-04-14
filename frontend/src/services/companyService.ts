@@ -1,0 +1,223 @@
+// src/services/companyService.ts
+import api from './api';
+import { Company, CompanyFormData } from '../types/interfaces';
+
+// Get all companies
+export const getCompanies = async (): Promise<Company[]> => {
+  try {
+    const response = await api.get<Company[]>('/api/companies');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching companies:', error);
+    throw error;
+  }
+};
+
+// Get company by id
+export const getCompanyById = async (id: string): Promise<Company> => {
+  try {
+    const response = await api.get<Company>(`/api/companies/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching company with id ${id}:`, error);
+    throw error;
+  }
+};
+
+// Create a new company
+export const createCompany = async (companyData: CompanyFormData): Promise<Company> => {
+  try {
+    // Prepare the data for submission
+    const preparedData = {
+      businessName: companyData.businessName?.trim() || '',
+      companyName: companyData.companyName?.trim() || companyData.businessName?.trim() || '',
+      vatNumber: companyData.vatNumber?.trim() || '',
+      fiscalCode: companyData.fiscalCode?.trim() || '',
+      matricola: companyData.matricola?.trim() || '',
+      inpsCode: companyData.inpsCode?.trim() || '',
+      
+      address: {
+        street: companyData.address?.street?.trim() || '',
+        city: companyData.address?.city?.trim() || '',
+        postalCode: companyData.address?.postalCode?.trim() || '',
+        province: companyData.address?.province?.trim() || '',
+        country: companyData.address?.country?.trim() || 'Italy'
+      },
+      
+      contactInfo: {
+        phoneNumber: companyData.contactInfo?.phoneNumber?.trim() || '',
+        mobile: companyData.contactInfo?.mobile?.trim() || '',
+        email: companyData.contactInfo?.email?.trim() || '',
+        pec: companyData.contactInfo?.pec?.trim() || '',
+        referent: companyData.contactInfo?.referent?.trim() || ''
+      },
+      
+      contractDetails: {
+        contractType: companyData.contractDetails?.contractType?.trim() || '',
+        ccnlType: companyData.contractDetails?.ccnlType?.trim() || '',
+        bilateralEntity: companyData.contractDetails?.bilateralEntity?.trim() || '',
+        hasFondoSani: !!companyData.contractDetails?.hasFondoSani,
+        useEbapPayment: !!companyData.contractDetails?.useEbapPayment
+      },
+      
+      industry: companyData.industry?.trim() || '',
+      employees: companyData.employees || 0,
+      signaler: companyData.signaler?.trim() || '',
+      actuator: companyData.actuator?.trim() || '',
+      isActive: companyData.isActive !== undefined ? companyData.isActive : true
+    };
+
+    // Validate required fields
+    if (!preparedData.businessName) {
+      throw new Error("Business name is required");
+    }
+
+    if (!preparedData.vatNumber) {
+      throw new Error("VAT number is required");
+    }
+
+    // Use business name as company name if not provided
+    if (!preparedData.companyName) {
+      preparedData.companyName = preparedData.businessName;
+    }
+
+    const response = await api.post<Company>('/api/companies', preparedData);
+    return response.data;
+  } catch (error: any) {
+    console.error('Error creating company:', error);
+    
+    // Extract and throw meaningful error messages
+    if (error.response?.data?.errors) {
+      throw new Error(error.response.data.errors.join(', '));
+    } else if (error.response?.data?.error) {
+      throw new Error(error.response.data.error);
+    }
+    
+    throw error;
+  }
+};
+
+// Update company
+export const updateCompany = async (id: string, companyData: Partial<CompanyFormData>): Promise<Company> => {
+  try {
+    // Prepare the data for submission (similar to createCompany)
+    const preparedData = {
+      businessName: companyData.businessName?.trim(),
+      companyName: companyData.companyName?.trim(),
+      vatNumber: companyData.vatNumber?.trim(),
+      fiscalCode: companyData.fiscalCode?.trim(),
+      matricola: companyData.matricola?.trim(),
+      inpsCode: companyData.inpsCode?.trim(),
+      
+      address: companyData.address ? {
+        street: companyData.address.street?.trim(),
+        city: companyData.address.city?.trim(),
+        postalCode: companyData.address.postalCode?.trim(),
+        province: companyData.address.province?.trim(),
+        country: companyData.address.country?.trim()
+      } : undefined,
+      
+      contactInfo: companyData.contactInfo ? {
+        phoneNumber: companyData.contactInfo.phoneNumber?.trim(),
+        mobile: companyData.contactInfo.mobile?.trim(),
+        email: companyData.contactInfo.email?.trim(),
+        pec: companyData.contactInfo.pec?.trim(),
+        referent: companyData.contactInfo.referent?.trim()
+      } : undefined,
+      
+      contractDetails: companyData.contractDetails ? {
+        contractType: companyData.contractDetails.contractType?.trim(),
+        ccnlType: companyData.contractDetails.ccnlType?.trim(),
+        bilateralEntity: companyData.contractDetails.bilateralEntity?.trim(),
+        hasFondoSani: companyData.contractDetails.hasFondoSani,
+        useEbapPayment: companyData.contractDetails.useEbapPayment
+      } : undefined,
+      
+      industry: companyData.industry?.trim(),
+      employees: companyData.employees,
+      signaler: companyData.signaler?.trim(),
+      actuator: companyData.actuator?.trim(),
+      isActive: companyData.isActive
+    };
+
+    const response = await api.put<Company>(`/api/companies/${id}`, preparedData);
+    return response.data;
+  } catch (error: any) {
+    console.error(`Error updating company with id ${id}:`, error);
+    
+    // Extract and throw meaningful error messages
+    if (error.response?.data?.errors) {
+      throw new Error(error.response.data.errors.join(', '));
+    } else if (error.response?.data?.error) {
+      throw new Error(error.response.data.error);
+    }
+    
+    throw error;
+  }
+};
+
+// Delete company
+export const deleteCompany = async (id: string): Promise<void> => {
+  try {
+    await api.delete(`/api/companies/${id}`);
+  } catch (error: any) {
+    console.error(`Error deleting company with id ${id}:`, error);
+    
+    // Extract and throw meaningful error messages
+    if (error.response?.data?.errors) {
+      throw new Error(error.response.data.errors.join(', '));
+    } else if (error.response?.data?.error) {
+      throw new Error(error.response.data.error);
+    }
+    
+    throw error;
+  }
+};
+
+/**
+ * Upload companies from Excel file
+ * @param formData The form data containing the Excel file
+ * @returns Array of created companies
+ */
+// src/services/companyService.ts - update the uploadCompaniesFromExcel function
+
+export const uploadCompaniesFromExcel = async (formData: FormData): Promise<Company[]> => {
+  try {
+    console.log("Uploading Excel file...");
+    
+    // Debug FormData contents
+    for (const pair of formData.entries()) {
+      console.log(`FormData contains: ${pair[0]}, ${pair[1] instanceof File ? pair[1].name : pair[1]}`);
+    }
+    
+    const response = await api.post<{
+      message: string;
+      companies: Company[];
+      errors?: string[];
+    }>('/api/companies/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    
+    console.log("Upload response:", response.data);
+    
+    // Check if we have errors in the response
+    if (response.data.errors && response.data.errors.length > 0) {
+      throw new Error(response.data.errors.join(', '));
+    }
+    
+    return response.data.companies || [];
+  } catch (error: any) {
+    console.error('Error uploading companies from Excel:', error);
+    
+    // Extract and throw meaningful error messages
+    if (error.response?.data?.errors) {
+      throw new Error(error.response.data.errors.join(', '));
+    } else if (error.response?.data?.error) {
+      throw new Error(error.response.data.error);
+    }
+    
+    throw error;
+  }
+};

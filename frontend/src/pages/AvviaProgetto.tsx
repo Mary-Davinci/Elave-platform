@@ -14,13 +14,12 @@ const AvviaProgetto: React.FC = () => {
   const [filteredTemplates, setFilteredTemplates] = useState<ProjectTemplate[]>([]);
   const [selectedTemplates, setSelectedTemplates] = useState<{ [key: string]: number }>({});
   
-  // Filter states
+
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedSubcategory, setSelectedSubcategory] = useState('');
   const [selectedType, setSelectedType] = useState('');
 
-  // Load templates from API
   useEffect(() => {
     const fetchTemplates = async () => {
       try {
@@ -40,7 +39,7 @@ const AvviaProgetto: React.FC = () => {
     fetchTemplates();
   }, []);
 
-  // Apply filters whenever filter state changes
+  
   useEffect(() => {
     let result = templates;
     

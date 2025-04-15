@@ -13,10 +13,11 @@ const UserDropdown: React.FC<UserDropdownProps> = ({ className }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+
   // Get user's display name
   const displayName = user?.username || user?.email?.split('@')[0] || 'User';
-  // Get user's role for display
-  const role = user?.role === 'admin' ? 'Amministratore' : 'Attuatore';
+  // Get user's role for display 
+  const role =user?.role === 'admin' ? 'Amministratore' : 'Attuatore';
 
   // Toggle dropdown
   const toggleDropdown = () => {
@@ -37,8 +38,9 @@ const UserDropdown: React.FC<UserDropdownProps> = ({ className }) => {
     };
   }, []);
 
-  // Handle navigation
+  // Handle navigation with console logging for debugging
   const handleNavigation = (path: string) => {
+    console.log('Navigating to:', path);
     navigate(path);
     setIsOpen(false);
   };
@@ -65,19 +67,28 @@ const UserDropdown: React.FC<UserDropdownProps> = ({ className }) => {
       
       {isOpen && (
         <div className="dropdown-menu">
-          <button className="dropdown-item" onClick={() => handleNavigation('/profile')}>
+          <button 
+            className="dropdown-item" 
+            onClick={() => handleNavigation('/profile')}
+          >
             <span className="dropdown-icon">👤</span>
             Profilo
           </button>
           
-          <button className="dropdown-item" onClick={() => handleNavigation('/change-password')}>
+          <button 
+            className="dropdown-item" 
+            onClick={() => handleNavigation('/change-password')}
+          >
             <span className="dropdown-icon">🔒</span>
             Cambio Password
           </button>
           
           <div className="dropdown-divider"></div>
           
-          <button className="dropdown-item logout" onClick={handleLogout}>
+          <button 
+            className="dropdown-item logout" 
+            onClick={handleLogout}
+          >
             <span className="dropdown-icon">🚪</span>
             Esci
           </button>

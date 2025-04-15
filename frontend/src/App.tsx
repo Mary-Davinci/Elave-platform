@@ -25,7 +25,8 @@ import ProjectDetails from './pages/ProjectDetails';
 import Suppliers from './pages/Suppliers';
 import CreateSupplier from './pages/CreateSupplier';
 import EditSupplier from './pages/EditSupplier';
-
+import UserProfile  from './pages/UserProfile';
+ import ChangePasswordPage from './pages/ChangePasswordPage';
 const App: React.FC = () => {
   return (
     <AuthProvider>
@@ -193,7 +194,27 @@ const App: React.FC = () => {
               </MainLayout>
             </ProtectedRoute>
           } />
+
+
+<Route path="/profile"  element={
+            <ProtectedRoute>
+              <MainLayout>
+                <UserProfile />
+              </MainLayout>
+            </ProtectedRoute>
+          } />
           
+          <Route 
+  path="/change-password" 
+  element={
+    <ProtectedRoute>
+      <MainLayout>
+      <ChangePasswordPage />
+      </MainLayout>
+      
+    </ProtectedRoute>
+  } 
+/>
           {/* Default and 404 routes */}
           <Route path="/" element={<Navigate to="/dashboard" />} />
           <Route path="*" element={<NotFound />} />

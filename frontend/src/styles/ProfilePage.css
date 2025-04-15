@@ -1,0 +1,131 @@
+/* src/styles/ProfilePage.css */
+.profile-page {
+    padding: 20px 30px;
+    color: #2a2a2a;
+    animation: fadeIn 0.5s ease-out;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .page-title {
+    margin: 0 0 20px 0;
+    color: #253676;
+    font-size: 24px;
+    font-weight: 600;
+  }
+  
+  .profile-card {
+    background-color: #fff;
+    border-radius: 10px;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    margin-bottom: 30px;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+  
+  .profile-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
+  }
+  
+  .profile-info {
+    padding: 30px;
+  }
+  
+  .company-info {
+    margin-bottom: 30px;
+    border-bottom: 1px solid #f0f0f0;
+    padding-bottom: 20px;
+  }
+  
+  .company-name {
+    margin: 0 0 8px 0;
+    color: #253676;
+    font-size: 22px;
+    font-weight: 600;
+  }
+  
+  .user-role {
+    color: darkgray;
+    font-size: 14px;
+    opacity: 0.8;
+  }
+  
+  .section-title {
+    color: #253676;
+    font-size: 18px;
+    font-weight: 500;
+    margin-bottom: 15px;
+  }
+  
+  .contact-section {
+    margin-bottom: 20px;
+  }
+  
+  .contact-info {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .email-contact {
+    display: flex;
+    align-items: center;
+    font-size: 15px;
+  }
+  
+  .contact-icon {
+    margin-right: 10px;
+    color: #93c020;
+  }
+  
+  .contact-text {
+    color: #555;
+  }
+  
+  /* Extra style for other sections that might be added */
+  .profile-section {
+    margin-bottom: 30px;
+  }
+  
+  .profile-section-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+  }
+  
+  .profile-section-content {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.05);
+  }
+  
+  /* Media queries for mobile responsiveness */
+  @media (max-width: 768px) {
+    .profile-page {
+      padding: 15px;
+    }
+    
+    .page-title {
+      font-size: 22px;
+    }
+    
+    .profile-info {
+      padding: 20px;
+    }
+    
+    .company-name {
+      font-size: 20px;
+    }
+  }

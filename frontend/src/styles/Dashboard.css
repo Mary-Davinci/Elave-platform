@@ -253,7 +253,7 @@ i {
   min-height: calc(100vh - 60px);
 }
 
-/* Style for the dashboard page */
+
 .dashboard-page {
   width: 100%;
 }
@@ -269,6 +269,7 @@ i {
   font-size: 22px;
   font-weight: 600;
   margin-bottom: 1rem;
+  text-transform: capitalize;
 }
 
 .dashboard-tabs {

@@ -38,7 +38,6 @@ const UserDropdown: React.FC<UserDropdownProps> = ({ className }) => {
     };
   }, []);
 
-  // Handle navigation with console logging for debugging
   const handleNavigation = (path: string) => {
     console.log('Navigating to:', path);
     navigate(path);

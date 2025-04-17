@@ -31,18 +31,18 @@ color {
   margin-bottom: 30px;
 }
 
-.form-group {
+.form-group-login {
   margin-bottom: 20px;
 }
 
-.form-group label {
+.form-group-login label {
   display: block;
   font-weight: 500;
   color: #555;
   margin-bottom: 6px;
 }
 
-.form-group input {
+.form-group-login input {
   width: -webkit-fill-available;
   padding: 10px 12px;
   border: 1px solid #ddd;
@@ -51,7 +51,7 @@ color {
   transition: border-color 0.2s;
 }
 
-.form-group input:focus {
+.form-group-login input:focus {
   border-color: #006a4e;
   outline: none;
 }

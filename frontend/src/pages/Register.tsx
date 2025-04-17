@@ -53,7 +53,7 @@ const Register: React.FC = () => {
         )}
         
         <form onSubmit={handleSubmit}>
-          <div className="form-group">
+          <div className="form-group-login">
             <label htmlFor="username">Username</label>
             <input
               type="text"
@@ -65,7 +65,7 @@ const Register: React.FC = () => {
             />
           </div>
           
-          <div className="form-group">
+          <div className="form-group-login">
             <label htmlFor="email">Email</label>
             <input
               type="email"
@@ -77,7 +77,7 @@ const Register: React.FC = () => {
             />
           </div>
           
-          <div className="form-group">
+          <div className="form-group-login">
             <label htmlFor="password">Password</label>
             <input
               type="password"
@@ -89,7 +89,7 @@ const Register: React.FC = () => {
             />
           </div>
           
-          <div className="form-group">
+          <div className="form-group-login">
             <label htmlFor="confirmPassword">Confirm Password</label>
             <input
               type="password"

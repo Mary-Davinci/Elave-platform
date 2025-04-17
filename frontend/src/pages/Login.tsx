@@ -41,7 +41,7 @@ const Login: React.FC = () => {
         )}
         
         <form onSubmit={handleSubmit}>
-          <div className="form-group">
+          <div className="form-group-login">
             <label htmlFor="email">Email</label>
             <input
               type="email"
@@ -53,7 +53,7 @@ const Login: React.FC = () => {
             />
           </div>
           
-          <div className="form-group">
+          <div className="form-group-login">
             <label htmlFor="password">Password</label>
             <input
               type="password"

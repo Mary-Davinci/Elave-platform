@@ -3,7 +3,7 @@ import express from "express";
 import { getDashboardStats, initializeUserDashboard } from "../controllers/dashboardController";
 import { authMiddleware } from "../middleware/authMiddleware";
 // Fix the case sensitivity in the import path
-import { getProfileData } from "../controllers/profilecontroller"; // Changed from "profileController" to "profileController"
+import { getProfileData } from "../controllers/profileController"; // Changed from "profileController" to "profileController"
 
 const router = express.Router();
 

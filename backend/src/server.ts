@@ -48,6 +48,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/auth", authRoutes);
 app.use('/api/messages', messageRoutes);
 app.use("/api/suppliers", supplierRoutes);
+app.use("/api/users", userRoutes); 
 
 // Health check route
 app.get("/health", (req, res) => {

@@ -60,7 +60,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   };
 
 
-  const displayName = user?.username || user?.email?.split('@')[0] || 'User';
 
 
   const isActive = (path: string) => {

@@ -3,7 +3,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import '../styles/ChangePasswordPage.css';
-import { changePassword } from '../services/passwordservice';
+import { changePassword } from '../services/passwordService';
+
 
 const ChangePasswordPage: React.FC = () => {
   const navigate = useNavigate();
@@ -67,7 +68,7 @@ const handleSubmit = async (e: React.FormEvent) => {
     setLoading(true);
     
     // Call password change API
-    const result = await changePassword(currentPassword, newPassword);
+    await changePassword(currentPassword, newPassword);
     
     setSuccess(true);
     setCurrentPassword('');

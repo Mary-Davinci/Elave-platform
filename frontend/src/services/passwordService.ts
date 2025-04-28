@@ -12,7 +12,7 @@ export const changePassword = async (
   newPassword: string
 ): Promise<{success: boolean; message: string}> => {
   try {
-    const response = await api.post('/api/user/change-password', {
+    const response = await api.post('/api/users/change-password', {
       currentPassword,
       newPassword
     });

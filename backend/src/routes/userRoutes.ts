@@ -7,8 +7,9 @@ import {
   getUserById, 
   updateUser, 
   deleteUser, 
-  changePassword 
+
 } from "../controllers/userController";
+import { changePassword } from "../controllers/editpassword"; 
 import { authMiddleware, adminMiddleware } from "../middleware/authMiddleware";
 
 const router = express.Router();
@@ -25,7 +26,8 @@ router.post("/", adminMiddleware, createUser);
 router.get("/:id", getUserById);
 router.put("/:id", updateUser);
 router.delete("/:id", adminMiddleware, deleteUser);
-router.post("/:id/change-password", changePassword);
+router.post('/change-password', changePassword);
+
 
 
 export default router;

@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getCompanyById, updateCompany } from '../services/companyService';
-import { CompanyFormData, Company } from '../types/interfaces';
+import { CompanyFormData } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
 import '../styles/NewCompany.css';
 

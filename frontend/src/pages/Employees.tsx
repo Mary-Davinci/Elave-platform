@@ -1,6 +1,6 @@
 // src/components/Employees.tsx
 import React, { useState, useEffect } from 'react';
-import { Employee, EmployeeStatus } from '../types/interfaces';
+import { Employee} from '../types/interfaces';
 import '../styles/Employees.css';
 
 interface EmployeesProps {

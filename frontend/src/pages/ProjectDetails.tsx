@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
 import { getCompanies } from '../services/companyService';
 import { createProjectsFromTemplates } from '../services/projectService';
 import '../styles/ProjectDetails.css';
@@ -24,7 +23,7 @@ interface Company {
 const ProjectDetails: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useAuth();
+
   
   const [selectedCompany, setSelectedCompany] = useState<string>('');
   const [companies, setCompanies] = useState<Company[]>([]);

@@ -12,7 +12,7 @@ const CompanyDetail: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   const [company, setCompany] = useState<Company | null>(null);
-  const [companyEmployees, setCompanyEmployees] = useState<Employee[]>([]);
+  const [companyEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'employees'>('dashboard');

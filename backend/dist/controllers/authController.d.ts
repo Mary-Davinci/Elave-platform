@@ -1,3 +1,4 @@
-import { RequestHandler } from "express";
-export declare const register: RequestHandler;
-export declare const login: RequestHandler;
+import { CustomRequestHandler } from "../types/express";
+export declare const getCurrentUser: CustomRequestHandler;
+export declare const register: CustomRequestHandler;
+export declare const login: CustomRequestHandler;

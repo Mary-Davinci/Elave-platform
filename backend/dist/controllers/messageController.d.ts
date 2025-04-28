@@ -1,0 +1,13 @@
+import { CustomRequestHandler } from "../types/express";
+import multer from "multer";
+export declare const upload: multer.Multer;
+export declare const getMessages: CustomRequestHandler;
+export declare const getMessageById: CustomRequestHandler;
+export declare const sendMessage: CustomRequestHandler;
+export declare const saveDraft: CustomRequestHandler;
+export declare const moveToTrash: CustomRequestHandler;
+export declare const deleteMessage: CustomRequestHandler;
+export declare const markReadStatus: CustomRequestHandler;
+export declare const searchMessages: CustomRequestHandler;
+export declare const getMessageStats: CustomRequestHandler;
+export declare const downloadAttachment: CustomRequestHandler;

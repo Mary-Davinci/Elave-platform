@@ -33,12 +33,57 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+// src/models/User.ts
 const mongoose_1 = __importStar(require("mongoose"));
 const UserSchema = new mongoose_1.Schema({
-    username: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
-}, { timestamps: true });
+    username: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    email: {
+        type: String,
+        required: true,
+        unique: true,
+        lowercase: true,
+        trim: true
+    },
+    password: {
+        type: String,
+        required: true
+    },
+    role: {
+        type: String,
+        enum: ["user", "attuatore", "admin"],
+        default: "user"
+    },
+    firstName: {
+        type: String,
+        trim: true
+    },
+    lastName: {
+        type: String,
+        trim: true
+    },
+    organization: {
+        type: String,
+        trim: true
+    },
+    managedBy: {
+        type: mongoose_1.Schema.Types.ObjectId,
+        ref: "User"
+    },
+    manages: [{
+            type: mongoose_1.Schema.Types.ObjectId,
+            ref: "User"
+        }]
+}, {
+    timestamps: true
+});
+// Add an index for faster queries
+UserSchema.index({ email: 1 });
+UserSchema.index({ role: 1 });
+UserSchema.index({ managedBy: 1 });
 const User = mongoose_1.default.model("User", UserSchema);
 exports.default = User;
-//# sourceMappingURL=user.js.map
+//# sourceMappingURL=User.js.map

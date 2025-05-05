@@ -1,6 +1,6 @@
 // src/controllers/dashboardController.ts
 import { Request, Response } from "express";
-import Account from "../models/Account";
+import Account, { IAccount } from "../models/Account";
 import Company from "../models/Company";
 import Project from "../models/Project";
 import DashboardStats from "../models/Dashboard";
@@ -16,9 +16,9 @@ export const getDashboardStats: CustomRequestHandler = async (req, res) => {
     const userId = req.user._id;
 
     // Get accounts data
-    const accounts = await Account.find({ user: userId });
-    const proselitismoAccount = accounts.find(acc => acc.type === "proselitismo") || { balance: 0 };
-    const serviziAccount = accounts.find(acc => acc.type === "servizi") || { balance: 0 };
+    const accounts: IAccount[] = await Account.find({ user: userId });
+    const proselitismoAccount = accounts.find((acc: IAccount) => acc.type === "proselitismo") || { balance: 0 };
+    const serviziAccount = accounts.find((acc: IAccount) => acc.type === "servizi") || { balance: 0 };    
 
     // Count companies - real count from database
     const companiesCount = await Company.countDocuments({ user: userId });
@@ -110,7 +110,7 @@ export const initializeUserDashboard: CustomRequestHandler = async (req, res) =>
     const userId = req.user._id;
 
     // Check if user already has accounts
-    const existingAccounts = await Account.find({ user: userId });
+    const existingAccounts: IAccount[] = await Account.find({ user: userId });
     
     if (existingAccounts.length === 0) {
       // Create empty accounts with zero balances

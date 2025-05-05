@@ -10,33 +10,30 @@ import xlsx from 'xlsx';
 
 // Set up multer for file uploads with improved debugging and MIME type handling
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
+  destination: (req: Request, file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => {
     const uploadDir = path.join(__dirname, '../uploads');
-    // Ensure the uploads directory exists
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
     cb(null, uploadDir);
   },
-  filename: (req, file, cb) => {
+  filename: (req: Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
     cb(null, `${Date.now()}-${file.originalname}`);
   }
 });
 
 const upload = multer({
   storage,
-  fileFilter: (req, file, cb) => {
+  fileFilter: (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
     console.log("File upload attempt:", {
       originalname: file.originalname,
       mimetype: file.mimetype,
       extension: path.extname(file.originalname).toLowerCase()
     });
-    
-    // Modified to be more permissive with file extensions
+
     const validExtensions = /\.xlsx$|\.xls$/i;
     const hasValidExtension = validExtensions.test(path.extname(file.originalname).toLowerCase());
-    
-    // These are the common Excel MIME types
+
     const validMimeTypes = [
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'application/vnd.ms-excel',
@@ -44,23 +41,23 @@ const upload = multer({
       'application/x-excel',
       'application/x-msexcel'
     ];
-    
+
     const hasValidMimeType = validMimeTypes.includes(file.mimetype);
-    
-    console.log("Validation results:", { 
-      hasValidExtension, 
+
+    console.log("Validation results:", {
+      hasValidExtension,
       hasValidMimeType,
       mimeTypeCheck: file.mimetype
     });
-    
-    // Accept if extension is valid (more permissive approach)
+
     if (hasValidExtension) {
       return cb(null, true);
     } else {
-      cb(new Error('Only Excel files (.xlsx, .xls) are allowed!'));
+      return cb(new Error('Only Excel files (.xlsx, .xls) are allowed!'));
     }
   }
 }).single('file');
+
 
 // Get all companies for the authenticated user
 export const getCompanies: CustomRequestHandler = async (req, res) => {

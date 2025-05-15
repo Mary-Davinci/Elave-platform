@@ -17,8 +17,8 @@ const getDashboardStats = async (req, res) => {
         const userId = req.user._id;
         // Get accounts data
         const accounts = await Account_1.default.find({ user: userId });
-        const proselitismoAccount = accounts.find(acc => acc.type === "proselitismo") || { balance: 0 };
-        const serviziAccount = accounts.find(acc => acc.type === "servizi") || { balance: 0 };
+        const proselitismoAccount = accounts.find((acc) => acc.type === "proselitismo") || { balance: 0 };
+        const serviziAccount = accounts.find((acc) => acc.type === "servizi") || { balance: 0 };
         // Count companies - real count from database
         const companiesCount = await Company_1.default.countDocuments({ user: userId });
         // Count actuators - use real count instead of hardcoded value

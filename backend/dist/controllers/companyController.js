@@ -14,7 +14,6 @@ const xlsx_1 = __importDefault(require("xlsx"));
 const storage = multer_1.default.diskStorage({
     destination: (req, file, cb) => {
         const uploadDir = path_1.default.join(__dirname, '../uploads');
-        // Ensure the uploads directory exists
         if (!fs_1.default.existsSync(uploadDir)) {
             fs_1.default.mkdirSync(uploadDir, { recursive: true });
         }
@@ -32,10 +31,8 @@ const upload = (0, multer_1.default)({
             mimetype: file.mimetype,
             extension: path_1.default.extname(file.originalname).toLowerCase()
         });
-        // Modified to be more permissive with file extensions
         const validExtensions = /\.xlsx$|\.xls$/i;
         const hasValidExtension = validExtensions.test(path_1.default.extname(file.originalname).toLowerCase());
-        // These are the common Excel MIME types
         const validMimeTypes = [
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'application/vnd.ms-excel',
@@ -49,12 +46,11 @@ const upload = (0, multer_1.default)({
             hasValidMimeType,
             mimeTypeCheck: file.mimetype
         });
-        // Accept if extension is valid (more permissive approach)
         if (hasValidExtension) {
             return cb(null, true);
         }
         else {
-            cb(new Error('Only Excel files (.xlsx, .xls) are allowed!'));
+            return cb(new Error('Only Excel files (.xlsx, .xls) are allowed!'));
         }
     }
 }).single('file');

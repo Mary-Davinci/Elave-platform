@@ -8,8 +8,7 @@
     "build": "tsc",
     "clean": "rimraf dist",
     "lint": "eslint . --ext .ts",
-    "prebuild": "npm run clean",
-    "postinstall": "npm install"
+    "prebuild": "npm run clean"
   },
   "keywords": [],
   "author": "",
@@ -42,7 +41,7 @@
     "@types/multer": "^1.4.12",
     "@types/node": "^22.15.3",
     "nodemon": "^3.1.9",
-    "rimraf": "^6.0.1",
+    "rimraf": "^5.0.5",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.8.3"

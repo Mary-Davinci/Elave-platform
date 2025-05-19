@@ -29,7 +29,7 @@
   text-align: left;
 }
 
-.user-name {
+.user-name-dash {
   font-weight: bold;
   font-size: 0.9rem;
   text-transform: capitalize;
@@ -123,7 +123,7 @@
     padding: 6px 10px;
   }
   
-  .user-name {
+  .user-name-dash {
     font-size: 0.8rem;
   }
   

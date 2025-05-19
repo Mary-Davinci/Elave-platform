@@ -208,17 +208,12 @@ const handleSubmit = async (e: React.FormEvent) => {
           <div className="form-row">
             <div className="form-group">
               <label>Segnalatore</label>
-              <select
+              <input
                 name="signaler"
                 value={formData.signaler}
                 onChange={handleChange}
                 className="form-control"
-              >
-                <option value="">Scegli il segnalatore</option>
-                <option value="agent1">Agente 1</option>
-                <option value="agent2">Agente 2</option>
-                <option value="agent3">Agente 3</option>
-              </select>
+              />
             </div>
 
             <div className="form-group">
@@ -327,14 +322,8 @@ const handleSubmit = async (e: React.FormEvent) => {
               />
             </div>
           </div>
-        </div>
-
-        {/* Contacts Section */}
-        <div className="form-section">
-          <h2 className="section-title">Contatti</h2>
-
           <div className="form-row">
-            <div className="form-group">
+            {/* <div className="form-group">
               <label>Tipo di contatto <span className="required">*</span></label>
               <select
                 name="contactType"
@@ -346,9 +335,9 @@ const handleSubmit = async (e: React.FormEvent) => {
                 <option value="office">Ufficio</option>
                 <option value="consultant">Consulente</option>
               </select>
-            </div>
+            </div> */}
 
-            <div className="form-group">
+            {/* <div className="form-group">
               <label>Referente</label>
               <input
                 type="text"
@@ -357,8 +346,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                 onChange={handleChange}
                 className="form-control"
               />
-            </div>
-
+            </div> */}
             <div className="form-group">
               <label>Cellulare</label>
               <input
@@ -369,9 +357,8 @@ const handleSubmit = async (e: React.FormEvent) => {
                 className="form-control"
               />
             </div>
-          </div>
-
-          <div className="form-row">
+        
+          {/* <div className="form-row">
             <div className="form-group">
               <label>Telefono</label>
               <input
@@ -382,6 +369,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                 className="form-control"
               />
             </div>
+          </div> */}
 
             <div className="form-group">
               <label>Email</label>
@@ -407,41 +395,20 @@ const handleSubmit = async (e: React.FormEvent) => {
           </div>
         </div>
 
+        {/* Contacts Section */}
+        {/* <div className="form-section">
+          <h2 className="section-title">Contatti</h2>          
+        </div> */}
+
         {/* Specifiche Section */}
         <div className="form-section">
           <h2 className="section-title">Specifiche</h2>
 
-          <div className="form-row">
-            <div className="form-group toggle-group">
-              <label>Contratto CCNL Conflavoro - Fesica/Confsal</label>
-              <div 
-                className={`toggle-switch ${formData.contractDetails?.contractType ? 'active' : ''}`}
-                onClick={() => handleToggle('contractDetails.contractType')}
-              >
-                <div className="toggle-slider"></div>
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label>CCNL applicato <span className="required">*</span></label>
-              <select
-                name="contractDetails.ccnlType"
-                value={formData.contractDetails?.ccnlType}
-                onChange={handleChange}
-                required
-                className="form-control"
-              >
-                <option value="">Scegli il CCNL</option>
-                <option value="commercio">Commercio</option>
-                <option value="industria">Industria</option>
-                <option value="artigianato">Artigianato</option>
-              </select>
-            </div>
-          </div>
+        
 
           <div className="form-row">
             <div className="form-group">
-              <label>Ente Bilaterale di riferimento</label>
+              <label>CCNL di riferimento</label>
               <input
                 type="text"
                 name="contractDetails.bilateralEntity"
@@ -452,23 +419,28 @@ const handleSubmit = async (e: React.FormEvent) => {
             </div>
 
             <div className="form-group toggle-group">
-              <label>Adesione Fondosani</label>
-              <div 
-                className={`toggle-switch ${formData.contractDetails?.hasFondoSani ? 'active' : ''}`}
-                onClick={() => handleToggle('contractDetails.hasFondoSani')}
-              >
-                <div className="toggle-slider"></div>
-              </div>
+              <label>Adesione ELAV</label>
+              <input
+                type="text"
+                name="contactInfo.phoneNumber"
+                value={formData.contactInfo?.phoneNumber}
+                onChange={handleChange}
+                className="form-control"
+              />
+                
+          
             </div>
 
             <div className="form-group toggle-group">
-              <label>Versamento tramite codice EBAP</label>
-              <div 
-                className={`toggle-switch ${formData.contractDetails?.useEbapPayment ? 'active' : ''}`}
-                onClick={() => handleToggle('contractDetails.useEbapPayment')}
-              >
-                <div className="toggle-slider"></div>
-              </div>
+              <label>Adesione salute amica</label>
+               <input
+                type="text"
+                name="contactInfo.phoneNumber"
+                value={formData.contactInfo?.phoneNumber}
+                onChange={handleChange}
+                className="form-control"
+              />
+                
             </div>
           </div>
 

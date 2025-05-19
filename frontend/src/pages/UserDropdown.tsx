@@ -59,7 +59,7 @@ const UserDropdown: React.FC<UserDropdownProps> = ({ className }) => {
       <button className="user-dropdown-toggle" onClick={toggleDropdown}>
         <span className="user-icon">👤</span>
         <div className="user-info">
-          <div className="user-name">{displayName}</div>
+          <div className="user-name-dash">{displayName}</div>
           <div className="user-role">{role}</div>
         </div>
       </button>

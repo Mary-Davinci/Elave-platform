@@ -8,12 +8,79 @@
   transform: translateY(10px);
   transition: opacity 0.5s ease-out, transform 0.5s ease-out;
   color: #2a2a2a;
+  animation: pageEnter 0.6s ease-out forwards;
+}
+@keyframes pageEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .dashboard-container.loaded {
   opacity: 1;
   transform: translateY(0);
 }
+
+.project-card-dash:hover,
+.account-button:hover,
+.quickaccess-button:hover {
+  box-shadow: 0 8px 15px rgba(147, 192, 32, 0.25), 0 0 10px rgba(147, 192, 32, 0.2);
+}
+
+.tab {
+  position: relative;
+  transition: color 0.3s ease;
+}
+
+.tab::after {
+  content: "";
+  position: absolute;
+  height: 3px;
+  left: 50%;
+  bottom: -1px;
+  width: 0;
+  background-color: #93c020;
+  transition: all 0.3s ease;
+  transform: translateX(-50%);
+}
+
+.tab:hover::after,
+.tab.active::after {
+  width: 100%;
+}
+.sidebar {
+  animation: slideInSidebar 0.5s ease forwards;
+}
+
+@keyframes slideInSidebar {
+  from {
+    opacity: 0;
+    transform: translateX(-15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.dashboard-header.scrolled {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  background-color: #2c3e73;
+  transition: all 0.3s ease;
+}
+.quickaccess-button:active {
+  transform: scale(0.97);
+}
+.sidebar-toggle.open {
+  transform: rotate(90deg);
+  transition: transform 0.3s ease;
+}
+
 
 /* Fixed header at the top */
 .dashboard-header {

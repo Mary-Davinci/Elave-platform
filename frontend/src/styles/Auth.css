@@ -10,9 +10,9 @@ color {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
+  min-height: 98vh;
   background-color: #f5f5f7;
-  padding: 20px;
+  /*padding: 20px;/////*/
 }
 
 .auth-card {
@@ -137,6 +137,33 @@ color {
 .auth-title p {
   color: #666;
   font-size: 16px;
+}
+.password-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-input-wrapper input {
+  flex: 1;
+  padding-right: 40px; 
+}
+
+.toggle-password {
+  position: absolute;
+  right: 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #666;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toggle-password:hover {
+  color: #333;
 }
 
 @media (max-width: 480px) {

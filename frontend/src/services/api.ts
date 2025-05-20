@@ -1,15 +1,23 @@
 import axios, { AxiosRequestConfig } from 'axios';
 
-const apiUrl = import.meta.env.VITE_API_URL;
-console.log('API URL being used:', apiUrl); // This will help debug
+// Get API URL from environment variables
+let apiUrl = import.meta.env.VITE_API_URL;
+console.log('Original API URL from env:', apiUrl);
+
+// Force HTTPS for production URLs (fix mixed content error)
+if (apiUrl && apiUrl.startsWith('http:') && !apiUrl.includes('localhost')) {
+  apiUrl = apiUrl.replace('http:', 'https:');
+  console.log('Forced HTTPS - Using:', apiUrl);
+}
 
 // Add a fallback if VITE_API_URL is not defined
 if (!apiUrl) {
   console.warn('VITE_API_URL is not defined! Falling back to default URL.');
+  apiUrl = 'https://elave-platform-production.up.railway.app';
 }
 
 const api = axios.create({
-  baseURL: apiUrl || 'http://localhost:5000',
+  baseURL: apiUrl,
   timeout: 10000,
   withCredentials: true,
   headers: {

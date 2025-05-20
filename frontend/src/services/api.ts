@@ -1,12 +1,16 @@
-import axios from 'axios';
+import axios, { AxiosRequestConfig } from 'axios';
 
-// Create axios instance with baseURL from environment variables
-// In Railway, set VITE_API_URL=http://elave-platform.railway.internal
+const apiUrl = import.meta.env.VITE_API_URL;
+console.log('API URL being used:', apiUrl); // This will help debug
+
+// Add a fallback if VITE_API_URL is not defined
+if (!apiUrl) {
+  console.warn('VITE_API_URL is not defined! Falling back to default URL.');
+}
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000',
-  // Add timeout to prevent hanging requests
+  baseURL: apiUrl || 'http://localhost:5000',
   timeout: 10000,
-  // Enable credentials for cross-origin requests (if needed)
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -19,8 +23,15 @@ api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
+      config.headers = config.headers || {};
       config.headers['Authorization'] = `Bearer ${token}`;
     }
+    
+    // Safe way to log the URL (addressing TypeScript errors)
+    const baseUrl = config.baseURL || '';
+    const url = config.url || '';
+    console.log('Making request to:', baseUrl + url);
+    
     return config;
   },
   (error) => {
@@ -37,7 +48,13 @@ api.interceptors.response.use(
     // Handle network errors
     if (!error.response) {
       console.error('Network Error:', error.message);
-      // You might want to show a global notification here
+      
+      // Safe way to log the request URL
+      if (error.config) {
+        const baseUrl = error.config.baseURL || '';
+        const url = error.config.url || '';
+        console.error('Request was made to:', baseUrl + url);
+      }
     }
     
     // Handle authentication issues
@@ -51,7 +68,6 @@ api.interceptors.response.use(
     // Handle other errors (optional)
     if (error.response && error.response.status === 500) {
       console.error('Server Error:', error.response.data);
-      // You might want to show a global error notification
     }
     
     return Promise.reject(error);

@@ -1,5 +1,5 @@
 // src/server.ts
-import express, { Express } from "express";
+import express, { Express, Request, Response } from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import connectDB from "./config/db";
@@ -30,29 +30,67 @@ connectDB()
     process.exit(1);
   });
 
-// Middleware
-app.use(cors());
+// CORS configuration
+const allowedOrigins = [
+  process.env.FRONTEND_URL || 'http://localhost:3000',
+  'https://your-frontend-app.up.railway.app', // Add your deployed frontend URL here
+  // Add any other domains that need access
+];
+
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+      callback(null, true);
+    } else {
+      console.warn(`CORS blocked request from origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
+
 app.use(express.json());
 
 // Static files directory for file downloads
 app.use('/files', express.static(path.join(__dirname, '../files')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Log environment info on startup
+console.log('Environment:', process.env.NODE_ENV);
+console.log('Frontend URL:', process.env.FRONTEND_URL);
+console.log('Port:', PORT);
+
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/companies", companyRoutes);
 app.use("/api/projects", projectRoutes);
-app.use("/api/utilities", userRoutes);
+app.use("/api/utilities", utilityRoutes);
 app.use("/api/users", userRoutes);
-app.use("/api/auth", authRoutes);
+// Removed duplicate route: app.use("/api/auth", authRoutes);
 app.use('/api/messages', messageRoutes);
 app.use("/api/suppliers", supplierRoutes);
-app.use("/api/users", userRoutes); 
+// Removed duplicate route: app.use("/api/users", userRoutes);
 
 // Health check route
-app.get("/health", (req, res) => {
-  res.status(200).json({ status: "ok" });
+app.get("/health", (req: Request, res: Response) => {
+  res.status(200).json({ 
+    status: "ok",
+    environment: process.env.NODE_ENV,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Catch-all route for debugging
+app.use('*', (req: Request, res: Response) => {
+  res.status(404).json({
+    error: 'Not Found',
+    path: req.originalUrl,
+    method: req.method
+  });
 });
 
 // Start server

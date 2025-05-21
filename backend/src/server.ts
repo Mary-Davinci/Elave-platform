@@ -35,37 +35,20 @@ connectDB()
 const allowedOrigins = [
   'https://elave-platform-ovee-mary-s-projects-357233a1.vercel.app',
   'https://elave-platform-ovee-git-main-mary-s-projects-357233a1.vercel.app',
-  'https://elave-platform-ovee-2v2365pkz-mary-s-projects-357233a1.vercel.app',
   'http://localhost:5173',
   'http://localhost:4173'
 ];
 
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin) return callback(null, true); // allow server-to-server or curl
+    if (!origin) return callback(null, true); // Allow server-to-server or local tools
     if (allowedOrigins.includes(origin)) {
-      return callback(null, origin); // ✅ Echo origin
+      return callback(null, origin); // ✅ Echo the exact origin back
     }
-    console.warn(`Blocked by CORS: ${origin}`);
+    console.warn(`CORS blocked origin: ${origin}`);
     return callback(new Error('Not allowed by CORS'), false);
   },
-  credentials: true // ⛔ Cannot work with Access-Control-Allow-Origin: *
-}));
-
-app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
-      callback(null, true);
-    } else {
-      // Log instead of rejecting for easier debugging
-      console.warn(`CORS: Request from origin ${origin} not in allowlist`);
-      callback(null, true); // Still allow it but log it
-    }
-  },
-  credentials: true
+  credentials: true // ⛔ CANNOT be used with Access-Control-Allow-Origin: *
 }));
 
 app.use(express.json());

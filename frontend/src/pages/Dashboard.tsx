@@ -209,17 +209,11 @@ const Dashboard: React.FC = () => {
       <div className="welcomingwords">
         <div className="notification-banner">
           <div className="notification-title">Benvenuti nel portale del nostro ente bilaterale.</div>
-          <p>Ricordiamo a tutti i soggetti attuatori e promotori che, per garantire la maturazione della competenza sui conti, è fondamentale che l'azienda sia registrata sul portale EBIASP entro il mese di competenza. È importante sottolineare che, in caso di registrazione successiva, i mesi precedenti non verranno accantonati e non contribuiranno alla maturazione della competenza mensile dell'ente bilaterale.</p>
-          <p>Vi invitiamo a procedere con la registrazione tempestivamente per assicurare la piena competenza e fruizione dei servizi offerti. Grazie per la collaborazione.</p>
-        </div>
-
-        <div className="notification-banner secondary">
-          <div className="notification-title">Disservizio INPS</div>
-          <p>A seguito della comunicazione ricevuta via PEC da INPS Servizi in data 13/03, si informa che, a causa dell'attacco informatico di novembre 2024, i servizi sono in fase di ripristino.</p>
-          <p>Da fine marzo verrà attivata la trasmissione via PEC protetta dei dati per la copertura sanitaria.</p>
-          <p>Da aprile saranno nuovamente disponibili i flussi Uniemens e F24 tramite piattaforma online con autenticazione MFA.</p>
-          <p>I servizi personalizzati saranno riattivati da giugno. Le tempistiche dipendono dalla trasmissione dei dati INPS.</p>
-          <p>Per maggiori dettagli leggi la mail ricevuta: <a href="https://www.ebiasp.it/comunicazione-dallinps" className="notification-link">www.ebiasp.it/comunicazione-dallinps</a></p>
+          <p>Ricordiamo a tutti i responsabili territoriali e responsabili di sportello lavoro che, per garantire la maturazione della competenza sui conti, è fondamentale che l'azienda sia registrata su questo portale e siano caricati in anagrafica i seguiti allegati:</p>
+          <p>- Scheda adesione E.LAV.</p>
+          <p>- Documento di identità del Legale Rappresentante</p>
+          <p>- Elenco dei dipendenti in formato excel </p>
+          <p>Vi invitiamo a procedere con la registrazione tempestivamente per assicurare la piena competenza e fruizione dei servizi offerti. Grazie per la collaborazione. </p>
         </div>
       </div>
       

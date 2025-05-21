@@ -66,6 +66,20 @@ console.log('Environment:', process.env.NODE_ENV);
 console.log('Frontend URL:', process.env.FRONTEND_URL);
 console.log('Port:', PORT);
 
+
+app.options('*', cors({
+  origin: function(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
+
+
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/dashboard", dashboardRoutes);

@@ -31,17 +31,28 @@ connectDB()
   });
 
 // CORS configuration
+// CORS configuration
 const allowedOrigins = [
   process.env.FRONTEND_URL || 'http://localhost:3000',
-  'https://your-frontend-app.up.railway.app',
-  // Add your Vercel domains:
   'https://elave-platform-ovee-mary-s-projects-357233a1.vercel.app',
   'https://elave-platform-ovee-git-main-mary-s-projects-357233a1.vercel.app',
   'https://elave-platform-ovee-2v2365pkz-mary-s-projects-357233a1.vercel.app',
-  // For development
   'http://localhost:5173',
   'http://localhost:4173'
 ];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, origin); // allow origin
+    } else {
+      console.warn(`CORS warning: blocked origin -> ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true, // This requires Access-Control-Allow-Origin to not be '*'
+}));
+
 
 app.use(cors({
   origin: function(origin, callback) {

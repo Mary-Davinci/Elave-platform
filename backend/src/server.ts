@@ -13,6 +13,7 @@ import messageRoutes from './routes/messageRoutes';
 import path from "path";
 import supplierRoutes from "./routes/supplierRoutes";
 
+
 // Load environment variables
 dotenv.config();
 
@@ -31,9 +32,7 @@ connectDB()
   });
 
 // CORS configuration
-// CORS configuration
 const allowedOrigins = [
-  process.env.FRONTEND_URL || 'http://localhost:3000',
   'https://elave-platform-ovee-mary-s-projects-357233a1.vercel.app',
   'https://elave-platform-ovee-git-main-mary-s-projects-357233a1.vercel.app',
   'https://elave-platform-ovee-2v2365pkz-mary-s-projects-357233a1.vercel.app',
@@ -43,16 +42,15 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, origin); // allow origin
-    } else {
-      console.warn(`CORS warning: blocked origin -> ${origin}`);
-      callback(new Error('Not allowed by CORS'));
+    if (!origin) return callback(null, true); // allow server-to-server or curl
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, origin); // ✅ Echo origin
     }
+    console.warn(`Blocked by CORS: ${origin}`);
+    return callback(new Error('Not allowed by CORS'), false);
   },
-  credentials: true, // This requires Access-Control-Allow-Origin to not be '*'
+  credentials: true // ⛔ Cannot work with Access-Control-Allow-Origin: *
 }));
-
 
 app.use(cors({
   origin: function(origin, callback) {

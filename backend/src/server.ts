@@ -40,21 +40,24 @@ const allowedOrigins = [
   'http://localhost:4173',
 ];
 
-// Fixed CORS configuration
+// Fixed CORS configuration - this is the critical change
 app.use(cors({
   origin: function(origin, callback) {
-    if (!origin) return callback(null, true); // allow curl, postman, etc.
-
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, origin); // explicitly return matching origin
+    // Allow requests with no origin (like mobile apps, curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+      // Return the specific origin instead of wildcard * - this fixes credentials issue
+      callback(null, origin);
     } else {
-      console.warn(`CORS blocked request from origin: ${origin}`);
-      return callback(new Error('Not allowed by CORS'));
+      console.warn('CORS blocked request from origin: ${origin}');
+      callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
 }));
-
 
 app.use(express.json());
 
@@ -66,6 +69,68 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 console.log('Environment:', process.env.NODE_ENV);
 console.log('Frontend URL:', process.env.FRONTEND_URL);
 console.log('Port:', PORT);
+
+// Fixed preflight OPTIONS handling - also critical for CORS with credentials
+app.options('*', cors({
+  origin: function(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
+      // Return the specific origin instead of wildcard *
+      callback(null, origin);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
+}));
+
+// CORS debugging endpoint - helps troubleshoot CORS issues
+app.get("/debug/cors", (req: Request, res: Response) => {
+  // Return detailed information about the request and CORS configuration
+  res.status(200).json({
+    message: "CORS Debug Information",
+    requestInfo: {
+      origin: req.headers.origin || "No origin header",
+      referer: req.headers.referer || "No referer header",
+      host: req.headers.host || "No host header",
+      method: req.method,
+      path: req.path,
+      ip: req.ip,
+      secure: req.secure,
+      xhr: req.xhr,
+      protocol: req.protocol,
+    },
+    corsConfig: {
+      allowedOrigins: allowedOrigins,
+      currentNodeEnv: process.env.NODE_ENV || "Not set",
+      frontendUrl: process.env.FRONTEND_URL || "Not set",
+    },
+    allHeaders: req.headers,
+    // Add response headers that will be sent back
+    responseHeaders: {
+      "Access-Control-Allow-Origin": res.getHeader("Access-Control-Allow-Origin") || "Not set yet",
+      "Access-Control-Allow-Credentials": res.getHeader("Access-Control-Allow-Credentials") || "Not set yet",
+      "Access-Control-Allow-Methods": res.getHeader("Access-Control-Allow-Methods") || "Not set yet",
+      "Access-Control-Allow-Headers": res.getHeader("Access-Control-Allow-Headers") || "Not set yet",
+    }
+  });
+});
+
+// Add a specific OPTIONS handler for the debug endpoint to see preflight behavior
+app.options("/debug/cors", (req: Request, res: Response) => {
+  res.status(200).json({
+    message: "CORS Preflight Debug",
+    requestHeaders: req.headers,
+    responseHeaders: {
+      "Access-Control-Allow-Origin": res.getHeader("Access-Control-Allow-Origin") || "Not set",
+      "Access-Control-Allow-Credentials": res.getHeader("Access-Control-Allow-Credentials") || "Not set",
+      "Access-Control-Allow-Methods": res.getHeader("Access-Control-Allow-Methods") || "Not set",
+      "Access-Control-Allow-Headers": res.getHeader("Access-Control-Allow-Headers") || "Not set",
+    }
+  });
+});
 
 // Routes
 app.use("/api/auth", authRoutes);

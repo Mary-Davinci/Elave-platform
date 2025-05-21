@@ -1,4 +1,4 @@
-import axios, { AxiosRequestConfig } from 'axios';
+import axios from 'axios';
 
 // Get API URL from environment variables
 let apiUrl = import.meta.env.VITE_API_URL;

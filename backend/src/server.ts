@@ -40,15 +40,17 @@ const allowedOrigins = [
   'http://localhost:4173',
 ];
 
+// Fixed CORS configuration
 app.use(cors({
   origin: function(origin, callback) {
     // Allow requests with no origin (like mobile apps, curl requests)
     if (!origin) return callback(null, true);
     
     if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
-      callback(null, true);
+      // Return the specific origin instead of wildcard *
+      callback(null, origin);
     } else {
-      console.warn(`CORS blocked request from origin: ${origin}`);
+      console.warn('CORS blocked request from origin: ${origin}');
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -66,19 +68,19 @@ console.log('Environment:', process.env.NODE_ENV);
 console.log('Frontend URL:', process.env.FRONTEND_URL);
 console.log('Port:', PORT);
 
-
+// Fixed preflight OPTIONS handling
 app.options('*', cors({
   origin: function(origin, callback) {
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
-      callback(null, true);
+      // Return the specific origin instead of wildcard *
+      callback(null, origin);
     } else {
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true
 }));
-
 
 // Routes
 app.use("/api/auth", authRoutes);
@@ -87,10 +89,8 @@ app.use("/api/companies", companyRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/utilities", utilityRoutes);
 app.use("/api/users", userRoutes);
-// Removed duplicate route: app.use("/api/auth", authRoutes);
 app.use('/api/messages', messageRoutes);
 app.use("/api/suppliers", supplierRoutes);
-// Removed duplicate route: app.use("/api/users", userRoutes);
 
 // Health check route
 app.get("/health", (req: Request, res: Response) => {
@@ -112,7 +112,7 @@ app.use('*', (req: Request, res: Response) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
+  console.log('✅ Server running on port ${PORT}');
 });
 
 export default app;

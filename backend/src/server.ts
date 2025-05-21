@@ -30,27 +30,24 @@ connectDB()
     process.exit(1);
   });
 
-// CORS configuration
 const allowedOrigins = [
   'http://localhost:3000',
   'https://elave-platform-ovee-mary-s-projects-357233a1.vercel.app',
-  'https://your-frontend-app.up.railway.app', // optional
+  'https://your-frontend-app.up.railway.app', // Optional
 ];
 
 app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      console.warn(`CORS blocked request from origin: ${origin}`);
+      console.warn(`❌ Blocked by CORS: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true
 }));
+
 
 app.use(express.json());
 

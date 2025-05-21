@@ -13,7 +13,6 @@ import messageRoutes from './routes/messageRoutes';
 import path from "path";
 import supplierRoutes from "./routes/supplierRoutes";
 
-
 // Load environment variables
 dotenv.config();
 
@@ -33,22 +32,27 @@ connectDB()
 
 // CORS configuration
 const allowedOrigins = [
+  process.env.FRONTEND_URL || 'http://localhost:3000',
+  'https://your-frontend-app.up.railway.app',
   'https://elave-platform-ovee-mary-s-projects-357233a1.vercel.app',
   'https://elave-platform-ovee-git-main-mary-s-projects-357233a1.vercel.app',
   'http://localhost:5173',
-  'http://localhost:4173'
+  'http://localhost:4173',
 ];
 
 app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true); // Allow server-to-server or local tools
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, origin); // ✅ Echo the exact origin back
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+      callback(null, true);
+    } else {
+      console.warn(`CORS blocked request from origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
     }
-    console.warn(`CORS blocked origin: ${origin}`);
-    return callback(new Error('Not allowed by CORS'), false);
   },
-  credentials: true // ⛔ CANNOT be used with Access-Control-Allow-Origin: *
+  credentials: true
 }));
 
 app.use(express.json());
@@ -69,8 +73,10 @@ app.use("/api/companies", companyRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/utilities", utilityRoutes);
 app.use("/api/users", userRoutes);
+// Removed duplicate route: app.use("/api/auth", authRoutes);
 app.use('/api/messages', messageRoutes);
 app.use("/api/suppliers", supplierRoutes);
+// Removed duplicate route: app.use("/api/users", userRoutes);
 
 // Health check route
 app.get("/health", (req: Request, res: Response) => {

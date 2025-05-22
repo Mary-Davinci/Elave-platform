@@ -32,8 +32,10 @@ connectDB()
 
 const allowedOrigins = [
   'http://localhost:3000',
+  'http://localhost:5173',
   'https://elave-platform-ovee-mary-s-projects-357233a1.vercel.app',
   'https://your-frontend-app.up.railway.app', // Optional
+  
 ];
 
 app.use(cors({

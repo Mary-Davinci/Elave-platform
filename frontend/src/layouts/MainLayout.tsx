@@ -149,7 +149,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             ☰
           </button>
           <div className="logo-box">
-            <span className="logo">E.lav</span>
+            <div className='logo'></div>
           </div>
 
 

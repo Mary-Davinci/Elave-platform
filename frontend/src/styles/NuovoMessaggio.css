@@ -233,7 +233,6 @@
   align-items: center;
   justify-content: center;
   padding: 6px 12px;
-  background-color: var(--light-gray);
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
@@ -241,7 +240,7 @@
 }
 
 .upload-button:hover {
-  background-color: var(--border-gray);
+
 }
 
 .form-actions {

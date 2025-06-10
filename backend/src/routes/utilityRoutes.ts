@@ -2,17 +2,18 @@ import express from "express";
 import { getUtilities, addUtility, initializeUtilities, downloadUtility } from "../controllers/utilityController";
 import { authMiddleware, adminMiddleware } from "../middleware/authMiddleware";
 import { viewUtilitiesOnlyMiddleware } from "../middleware/roleMiddleware";
+import { uploadMiddleware, uploadUtility, deleteUtility } from "../controllers/utilityController";
 
 const router = express.Router();
 
-// Public route for getting utilities (viewable by everyone)
-router.get("/", authMiddleware, getUtilities);
+// Public/authenticated routes (order matters - more specific routes first)
+router.get("/", authMiddleware, getUtilities); // GET all utilities
+router.get("/:id/download", authMiddleware, downloadUtility); // Download utility
 
-// Allow downloading but not modifying for regular users
-router.get("/:id/download", authMiddleware, downloadUtility);
-
-// Protected routes with middleware - only admin can add/modify utilities
-router.post("/", authMiddleware, adminMiddleware, addUtility);
-router.post("/initialize", authMiddleware, adminMiddleware, initializeUtilities);
+// Admin-only routes (protected)
+router.post("/upload", authMiddleware, adminMiddleware, uploadMiddleware, uploadUtility); // Upload file
+router.post("/", authMiddleware, adminMiddleware, addUtility); // Add utility manually
+router.post("/initialize", authMiddleware, adminMiddleware, initializeUtilities); // Initialize default utilities
+router.delete("/:id", authMiddleware, adminMiddleware, deleteUtility); // Delete utility
 
 export default router;

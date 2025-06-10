@@ -1,10 +1,11 @@
 // src/pages/Dashboard.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { getDashboardStats, initializeDashboard } from '../services/dashboardService';
-import { getUtilities } from '../services/utilityService';
+import { getUtilities, uploadUtility, deleteUtility } from '../services/utilityService';
 import { useNavigate } from 'react-router-dom';
 import '../styles/Dashboard.css';
+import Alert from './alert';
 
 // Dashboard data interface
 interface DashboardData {
@@ -31,21 +32,36 @@ interface DashboardData {
 }
 
 interface Utility {
+  [x: string]: string;
   _id: string;
   name: string;
   fileUrl: string;
   type: string;
-  isPublic: boolean;
+  isPublic: string;
+  category: string;
 }
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const utilFileInputRef = useRef<HTMLInputElement>(null);
+  const materialFileInputRef = useRef<HTMLInputElement>(null);
+  const SalutaFileInputRef = useRef<HTMLInputElement>(null);
+
   const [loaded, setLoaded] = useState(false);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [utilities, setUtilities] = useState<Utility[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  
+  // Alert state
+  const [showDeleteAlert, setShowDeleteAlert] = useState(false);
+  const [utilityToDelete, setUtilityToDelete] = useState<{id: string, name: string} | null>(null);
 
   // Check if user is admin
   const isAdmin = user?.role === 'admin';
@@ -81,6 +97,258 @@ const Dashboard: React.FC = () => {
 
     fetchDashboardData();
   }, []);
+
+  // Handle file upload
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    
+    // Validate file size (e.g., max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError('File size must be less than 10MB');
+      return;
+    }
+
+    setUploading(true);
+    setUploadError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('category', 'utilita');
+      formData.append('file', file);
+      formData.append('name', file.name);
+      formData.append('type', file.type || 'application/octet-stream');
+      formData.append('isPublic', 'true');
+
+      // Call the upload service
+      const newUtility = await uploadUtility(formData);
+      
+      // Add the new utility to the list
+      setUtilities(prevUtilities => [...prevUtilities, newUtility]);
+      
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      
+      console.log('File uploaded successfully:', newUtility);
+    } catch (err) {
+      console.error('Error uploading file:', err);
+      setUploadError('Failed to upload file. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+   const handlechecklistUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    
+    // Validate file size (e.g., max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError('File size must be less than 10MB');
+      return;
+    }
+
+    setUploading(true);
+    setUploadError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('category', 'checklist');
+      formData.append('file', file);
+      formData.append('name', file.name);
+      formData.append('type', file.type || 'application/octet-stream');
+      formData.append('isPublic', 'true');
+
+      // Call the upload service
+      const newUtility = await uploadUtility(formData);
+      
+      // Add the new utility to the list
+      setUtilities(prevUtilities => [...prevUtilities, newUtility]);
+      
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      
+      console.log('File uploaded successfully:', newUtility);
+    } catch (err) {
+      console.error('Error uploading file:', err);
+      setUploadError('Failed to upload file. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+   const handleMaterialUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    
+    // Validate file size (e.g., max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError('File size must be less than 10MB');
+      return;
+    }
+
+    setUploading(true);
+    setUploadError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('category', 'Materiale');
+      formData.append('file', file);
+      formData.append('name', file.name);
+      formData.append('type', file.type || 'application/octet-stream');
+      formData.append('isPublic', 'true');
+
+      // Call the upload service
+      const newUtility = await uploadUtility(formData);
+      
+      // Add the new utility to the list
+      setUtilities(prevUtilities => [...prevUtilities, newUtility]);
+      
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      
+      console.log('File uploaded successfully:', newUtility);
+    } catch (err) {
+      console.error('Error uploading file:', err);
+      setUploadError('Failed to upload file. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handlesalutaUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    
+    // Validate file size (e.g., max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError('File size must be less than 10MB');
+      return;
+    }
+
+    setUploading(true);
+    setUploadError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('category', 'saluta');
+      formData.append('file', file);
+      formData.append('name', file.name);
+      formData.append('type', file.type || 'application/octet-stream');
+      formData.append('isPublic', 'true');
+
+      // Call the upload service
+      const newUtility = await uploadUtility(formData);
+      
+      // Add the new utility to the list
+      setUtilities(prevUtilities => [...prevUtilities, newUtility]);
+      
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      
+      console.log('File uploaded successfully:', newUtility);
+    } catch (err) {
+      console.error('Error uploading file:', err);
+      setUploadError('Failed to upload file. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+
+
+
+
+
+
+  // Handle delete button click - show alert
+  const handleDeleteClick = (utilityId: string, utilityName: string) => {
+    setUtilityToDelete({ id: utilityId, name: utilityName });
+    setShowDeleteAlert(true);
+  };
+
+  // Handle confirmed delete
+  const handleConfirmDelete = async () => {
+    if (!utilityToDelete) return;
+
+    setDeleting(utilityToDelete.id);
+    setDeleteError(null);
+
+    try {
+      await deleteUtility(utilityToDelete.id);
+      
+      // Remove the utility from the list
+      setUtilities(prevUtilities => 
+        prevUtilities.filter(utility => utility._id !== utilityToDelete.id)
+      );
+      
+      console.log('File deleted successfully');
+    } catch (err) {
+      console.error('Error deleting file:', err);
+      setDeleteError('Failed to delete file. Please try again.');
+    } finally {
+      setDeleting(null);
+      setUtilityToDelete(null);
+    }
+  };
+
+  // Handle alert close
+  const handleAlertClose = () => {
+    setShowDeleteAlert(false);
+    setUtilityToDelete(null);
+  };
+
+  // Handle upload button click
+  const handleUploadClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+ 
+const handleUploadClickUtil = () => {
+    if (utilFileInputRef.current) {
+      utilFileInputRef.current.click();
+    }
+  };
+
+  const handleUploadClickmat = () => {
+    if (materialFileInputRef.current) {
+      materialFileInputRef.current.click();
+    }
+  };
+
+  const handleUploadClicksaluta = () => {
+    if (SalutaFileInputRef.current) {
+      SalutaFileInputRef.current.click();
+    }
+  };
+
+
+  // Handle file download
+  const handleDownload = (utility: Utility) => {
+    const link = document.createElement('a');
+    link.href = utility.fileUrl;
+    link.download = utility.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Handle navigation
   const handleNavigation = (path: string) => {
@@ -173,7 +441,11 @@ const Dashboard: React.FC = () => {
                 <div className="stat-value">{dashboardData?.statistics.employees || 0}</div>
               </div>
               <div className="stat-row">
-                <div className="stat-label">Fornitori</div>
+                <div className="stat-label">Rersponsabili Territoriali</div>
+                <div className="stat-value">{dashboardData?.statistics.suppliers || 0}</div>
+              </div>
+              <div className="stat-row">
+                <div className="stat-label">Sportelli Lavoro</div>
                 <div className="stat-value">{dashboardData?.statistics.suppliers || 0}</div>
               </div>
               <div className="stat-row">
@@ -182,24 +454,24 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
           </div>
-          
+        
+
           <div>
             <h1 className="welcome-header">Report</h1>
             
             <div className="projects-section">
-              <div className="project-card-dash">
-                <div className="project-number">{dashboardData?.projects.requested || 0}</div>
-                <div className="project-title">Progetti richiesti</div>
+              <div className="project-card-dash" onClick={() => handleNavigation('/companies/new')}>
+                
+                <div className="project-title" > + Aggiungi Nuova azienda</div>
               </div>
               
               <div className="project-card-dash">
-                <div className="project-number">{dashboardData?.projects.inProgress || 0}</div>
-                <div className="project-title">Progetti da concludere</div>
+              
+                <div className="project-title">+ Aggiungi Nuovo Rersponsabili Territoriali </div>
               </div>
               
               <div className="project-card-dash">
-                <div className="project-number">{dashboardData?.projects.completed || 0}</div>
-                <div className="project-title">Progetti conclusi</div>
+                <div className="project-title">+ Aggiungi Nuovo Sportello Lavoro</div>
               </div>
             </div>
           </div>
@@ -222,21 +494,315 @@ const Dashboard: React.FC = () => {
         <div className='Dowenload'>
           <h2 className="section-header">Download utilità</h2>
           <div className="utility-section">
+            <div className="utility-header">
+              {isAdmin && (
+                <div className="upload-section">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileUpload}
+                    style={{ display: 'none' }}
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
+                  />
+                  <button 
+                    className="upload-button" 
+                    onClick={handleUploadClick}
+                    disabled={uploading}
+                  >
+                    {uploading ? 'Uploading...' : 'Upload File'}
+                  </button>
+                  {uploadError && (
+                    <div className="upload-error">
+                      <span className="error-text">{uploadError}</span>
+                    </div>
+                  )}
+                  {deleteError && (
+                    <div className="upload-error">
+                      <span className="error-text">{deleteError}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            
             <ul className="utility-list">
-              {utilities.length > 0 ? (
-                utilities.map((utility) => (
+              {utilities.filter(u => u.category === 'utilita').length > 0 ? (
+                utilities.filter(u => u.category === 'utilita').map((utility) => (
                   <li key={utility._id} className="utility-item">
                     <span className="utility-icon">●</span>
                     <span className="utility-text">{utility.name}</span>
-                    <a href={utility.fileUrl} download className="download-icon">↓</a>
+                    <div className="utility-actions">
+                      <button 
+                        className="download-icon"
+                        onClick={() => handleDownload(utility)}
+                        title="Download file"
+                      >
+                        ↓
+                      </button>
+                      {isAdmin && (
+                        <button 
+                          className="delete-icon"
+                          onClick={() => handleDeleteClick(utility._id, utility.name)}
+                          disabled={deleting === utility._id}
+                          title="Delete file"
+                        >
+                          {deleting === utility._id ? '...' : '×'}
+                        </button>
+                      )}
+                    </div>
                   </li>
                 ))
               ) : (
-                <li className="utility-item">
-                  <span className="utility-text">No utilities available</span>
-                </li>
+                <div className="no-utilities">
+                  <p>No utilities available yet.</p>
+                  {isAdmin && <p>Click "Upload File" to add your first utility.</p>}
+                </div>
               )}
             </ul>
+            
+            {!isAdmin && (
+              <div className="utility-note">
+                <p><small><i>Note: You can only view and download utilities.</i></small></p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className='Dowenload'>
+          <h2 className="section-header">Materiale Commerciale</h2>
+          <div className="utility-section">
+            <div className="utility-header">
+              {isAdmin && (
+                <div className="upload-section">
+                  <input
+                    type="file"
+                    ref={materialFileInputRef}
+                    onChange={handleMaterialUpload}
+                    style={{ display: 'none' }}
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
+                  />
+                  <button 
+                    className="upload-button" 
+                    onClick={handleUploadClickmat}
+                    disabled={uploading}
+                  >
+                    {uploading ? 'Uploading...' : 'Upload File'}
+                  </button>
+                  {uploadError && (
+                    <div className="upload-error">
+                      <span className="error-text">{uploadError}</span>
+                    </div>
+                  )}
+                  {deleteError && (
+                    <div className="upload-error">
+                      <span className="error-text">{deleteError}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            <ul className="utility-list">
+               {utilities.filter(u => u.category === 'Materiale').length > 0 ? (
+                utilities.filter(u => u.category === 'Materiale').map((utility) => (
+                  <li key={utility._id} className="utility-item">
+                    <span className="utility-icon">●</span>
+                    <span className="utility-text">{utility.name}</span>
+                    <div className="utility-actions">
+                      <button 
+                        className="download-icon"
+                        onClick={() => handleDownload(utility)}
+                        title="Download file"
+                      >
+                        ↓
+                      </button>
+                      {isAdmin && (
+                        <button 
+                          className="delete-icon"
+                          onClick={() => handleDeleteClick(utility._id, utility.name)}
+                          disabled={deleting === utility._id}
+                          title="Delete file"
+                        >
+                          {deleting === utility._id ? '...' : '×'}
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                ))
+              ) : (
+                <div className="no-utilities">
+                  <p>No utilities available yet.</p>
+                  {isAdmin && <p>Click "Upload File" to add your first utility.</p>}
+                </div>
+              )}
+            </ul>
+            
+            {!isAdmin && (
+              <div className="utility-note">
+                <p><small><i>Note: You can only view and download utilities.</i></small></p>
+              </div>
+            )}
+          </div>
+
+<div className='Dowenload' style={{ width: '100%' }}>
+          <h2 className="section-header">Salute Amica</h2>
+          <div className="utility-section">
+            <div className="utility-header">
+              {isAdmin && (
+                <div className="upload-section">
+                  <input
+                    type="file"
+                    ref={SalutaFileInputRef}
+                    onChange={handlesalutaUpload}
+                    style={{ display: 'none' }}
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
+                  />
+                  <button 
+                    className="upload-button" 
+                    onClick={handleUploadClicksaluta}
+                    disabled={uploading}
+                  >
+                    {uploading ? 'Uploading...' : 'Upload File'}
+                  </button>
+                  {uploadError && (
+                    <div className="upload-error">
+                      <span className="error-text">{uploadError}</span>
+                    </div>
+                  )}
+                  {deleteError && (
+                    <div className="upload-error">
+                      <span className="error-text">{deleteError}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            <ul className="utility-list">
+               {utilities.filter(u => u.category === 'saluta').length > 0 ? (
+                utilities.filter(u => u.category === 'saluta').map((utility) => (
+                  <li key={utility._id} className="utility-item">
+                    <span className="utility-icon">●</span>
+                    <span className="utility-text">{utility.name}</span>
+                    <div className="utility-actions">
+                      <button 
+                        className="download-icon"
+                        onClick={() => handleDownload(utility)}
+                        title="Download file"
+                      >
+                        ↓
+                      </button>
+                      {isAdmin && (
+                        <button 
+                          className="delete-icon"
+                          onClick={() => handleDeleteClick(utility._id, utility.name)}
+                          disabled={deleting === utility._id}
+                          title="Delete file"
+                        >
+                          {deleting === utility._id ? '...' : '×'}
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                ))
+              ) : (
+                <div className="no-utilities">
+                  <p>No utilities available yet.</p>
+                  {isAdmin && <p>Click "Upload File" to add your first utility.</p>}
+                </div>
+              )}
+            </ul>
+            
+            {!isAdmin && (
+              <div className="utility-note">
+                <p><small><i>Note: You can only view and download utilities.</i></small></p>
+              </div>
+            )}
+          </div>
+
+
+
+
+
+
+          
+        </div>
+
+
+
+
+
+        </div>
+
+        <div className='Dowenload'>
+          <h2 className="section-header">Checklist Documentazione</h2>
+          <div className="utility-section">
+            <div className="utility-header">
+              {isAdmin && (
+                <div className="upload-section">
+                  <input
+                    type="file"
+                    ref={utilFileInputRef}
+                    onChange={handlechecklistUpload}
+                    style={{ display: 'none' }}
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
+                  />
+                  <button 
+                    className="upload-button" 
+                    onClick={handleUploadClickUtil}
+                    disabled={uploading}
+                  >
+                    {uploading ? 'Uploading...' : 'Upload File'}
+                  </button>
+                  {uploadError && (
+                    <div className="upload-error">
+                      <span className="error-text">{uploadError}</span>
+                    </div>
+                  )}
+                  {deleteError && (
+                    <div className="upload-error">
+                      <span className="error-text">{deleteError}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            <ul className="utility-list">
+                {utilities.filter(u => u.category === 'checklist').length > 0 ? (
+                utilities.filter(u => u.category === 'checklist').map((utility) => (
+                  <li key={utility._id} className="utility-item">
+                    <span className="utility-icon">●</span>
+                    <span className="utility-text">{utility.name}</span>
+                    <div className="utility-actions">
+                      <button 
+                        className="download-icon"
+                        onClick={() => handleDownload(utility)}
+                        title="Download file"
+                      >
+                        ↓
+                      </button>
+                      {isAdmin && (
+                        <button 
+                          className="delete-icon"
+                          onClick={() => handleDeleteClick(utility._id, utility.name)}
+                          disabled={deleting === utility._id}
+                          title="Delete file"
+                        >
+                          {deleting === utility._id ? '...' : '×'}
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                ))
+              ) : (
+                <div className="no-utilities">
+                  <p>No utilities available yet.</p>
+                  {isAdmin && <p>Click "Upload File" to add your first utility.</p>}
+                </div>
+              )}
+            </ul>
+            
             {!isAdmin && (
               <div className="utility-note">
                 <p><small><i>Note: You can only view and download utilities.</i></small></p>
@@ -245,38 +811,22 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
         
-        <div className='Addnew'>
-          <h2 className="section-header">Accessi veloci</h2>
-          <div className="quickaccess-section">
-            <div className="quickaccess-buttons">
-              <button className="quickaccess-button dark-green" onClick={() => handleNavigation('/companies/new')}>
-                <span className="button-icon">📋</span>
-                <span className="button-text">Nuova azienda</span>
-              </button>
-              
-              <button className="quickaccess-button orange" onClick={() => handleNavigation('/projects/new')}>
-                <span className="button-icon">🛡️</span>
-                <span className="button-text">Nuovo progetto Abila</span>
-              </button>
-              
-              <button className="quickaccess-button red" onClick={() => handleNavigation('/crm-analysis')}>
-                <span className="button-icon">📊</span>
-                <span className="button-text">Analisi CRM</span>
-              </button>
-              
-              <button className="quickaccess-button navy" onClick={() => handleNavigation('/download/companies-template')}>
-                <span className="button-icon">📁</span>
-                <span className="button-text">Scarica file per upload massivo di aziende</span>
-              </button>
-              
-              <button className="quickaccess-button orange" onClick={() => handleNavigation('/download/ccnl-template')}>
-                <span className="button-icon">📄</span>
-                <span className="button-text">Scarica file CCNL da abbinare alla colonna "M" del file di esempio aziende</span>
-              </button>
-            </div>
-          </div>
-        </div>
+        
+        
       </div>
+
+      {/* Delete Confirmation Alert */}
+      <Alert
+        isOpen={showDeleteAlert}
+        onClose={handleAlertClose}
+        onConfirm={handleConfirmDelete}
+        title="Conferma eliminazione"
+        message={`Sei sicuro di voler eliminare "${utilityToDelete?.name}"? Questa azione non può essere annullata.`}
+        type="warning"
+        confirmText="Elimina"
+        cancelText="Annulla"
+        showCancel={true}
+      />
     </div>
   );
 };

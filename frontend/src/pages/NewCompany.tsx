@@ -400,6 +400,50 @@ const handleSubmit = async (e: React.FormEvent) => {
           <h2 className="section-title">Contatti</h2>          
         </div> */}
 
+
+
+
+
+        <div className="form-section">
+          <h2 className="section-title">Segnalazione</h2>
+          <div className="form-row">
+            <div className="form-group">
+              <label>Responsabile Territoriale</label>
+              <input
+                type="text"
+                name="contractDetails.bilateralEntity"
+                value={formData.contractDetails?.bilateralEntity}
+                onChange={handleChange}
+                className="form-control"
+              />
+            </div>
+
+            <div className="form-group toggle-group">
+              <label>Consulente del Lavoro </label>
+              <input
+                type="text"
+                name="contactInfo.phoneNumber"
+                value={formData.contactInfo?.phoneNumber}
+                onChange={handleChange}
+                className="form-control"
+              />
+                
+          
+            </div>
+
+            <div className="form-group toggle-group">
+              <label>Procacciatore  </label>
+               <input
+                type="text"
+                name="contactInfo.phoneNumber"
+                value={formData.contactInfo?.phoneNumber}
+                onChange={handleChange}
+                className="form-control"
+              />
+                
+            </div>
+          </div>
+        </div>
         {/* Specifiche Section */}
         <div className="form-section">
           <h2 className="section-title">Specifiche</h2>
@@ -445,7 +489,7 @@ const handleSubmit = async (e: React.FormEvent) => {
           </div>
 
           <div className="form-row">
-            <div className="form-group toggle-group">
+            {/* <div className="form-group toggle-group">
               <label>Attivo</label>
               <div 
                 className={`toggle-switch ${formData.isActive ? 'active' : ''}`}
@@ -453,7 +497,7 @@ const handleSubmit = async (e: React.FormEvent) => {
               >
                 <div className="toggle-slider"></div>
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
 

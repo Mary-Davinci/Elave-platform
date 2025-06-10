@@ -1,52 +1,42 @@
-import mongoose, { Document, Schema } from "mongoose";
+// src/models/Utilities.ts
+import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IUtility extends Document {
   name: string;
   fileUrl: string;
-  type: string;
+  type: 'form' | 'faq' | 'manual' | 'document' | 'spreadsheet' | 'other';
   isPublic: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
 
-const UtilitySchema = new Schema<IUtility>(
-  {
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    fileUrl: {
-      type: String,
-      required: true,
-    },
-    type: {
-      type: String,
-      required: true,
-      enum: [
-        "regulation",
-        "catalog",
-        "faq",
-        "form",
-        "circular",
-        "notice",
-        "report",
-        "other"
-      ],
-    },
-    isPublic: {
-      type: Boolean,
-      default: true,
-    },
+const UtilitySchema: Schema = new Schema({
+  name: {
+    type: String,
+    required: true,
+    trim: true
   },
-  {
-    timestamps: true,
+  fileUrl: {
+    type: String,
+    required: true
+  },
+  type: {
+    type: String,
+    required: true,
+    enum: ['form', 'faq', 'manual', 'document', 'spreadsheet', 'other'],
+    default: 'other'
+  },
+  isPublic: {
+    type: Boolean,
+    default: true
+  },
+  category: {
+    type: String,
+    required: true,
+    enum: ['utilita', 'checklist', 'Materiale' , 'Uncategorized' , 'saluta'],
   }
-);
+}, {
+  timestamps: true
+});
 
-// Add indexes for faster queries
-UtilitySchema.index({ type: 1 });
-UtilitySchema.index({ isPublic: 1 });
-
-const Utility = mongoose.model<IUtility>("Utility", UtilitySchema);
-export default Utility;
+export default mongoose.model<IUtility>('Utility', UtilitySchema);

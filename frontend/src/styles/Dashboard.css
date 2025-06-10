@@ -67,10 +67,7 @@
   transform: translateX(-50%);
 }
 
-.tab:hover::after,
-.tab.active::after {
-  width: 100%;
-}
+
 .sidebar {
   animation: slideInSidebar 0.5s ease forwards;
 }
@@ -572,6 +569,7 @@ i {
   justify-content: center;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
   border-left: 4px solid #0070ccb0;
+  cursor: pointer;
 }
 
 .project-card-dash:hover {
@@ -1061,4 +1059,233 @@ i {
   .notification-title {
     font-size: 15px;
   }
+}
+/* Utility Actions Container */
+.utility-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* Base Button Styles */
+.download-icon,
+.delete-icon {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 20px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Download Button */
+.download-icon {
+  background: #93c020;
+  color: white;
+  border: 2px solid transparent;
+}
+
+.download-icon:hover {
+  background: linear-gradient(135deg, #93c020, #10b857);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.download-icon:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+}
+
+/* Delete Button */
+.delete-icon {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+  border: 2px solid transparent;
+}
+
+.delete-icon:hover {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.delete-icon:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2);
+}
+
+/* Disabled State */
+.download-icon:disabled,
+.delete-icon:disabled {
+  background: linear-gradient(135deg, #9ca3af, #6b7280);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.download-icon:disabled:hover,
+.delete-icon:disabled:hover {
+  transform: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Loading State for Delete Button */
+.delete-icon:disabled {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+/* Icon Enhancement with CSS */
+.download-icon::before,
+.delete-icon::before {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+/* Download Icon */
+.download-icon::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='white' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'/%3E%3C/svg%3E");
+}
+
+/* Delete Icon */
+.delete-icon::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='white' stroke-width='2.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16'/%3E%3C/svg%3E");
+}
+
+/* Hide the text content when using CSS icons */
+.download-icon,
+.delete-icon {
+  text-indent: -9999px;
+  overflow: hidden;
+}
+
+/* Alternative: If you want to keep the text symbols, remove the ::before pseudo-elements and use this instead */
+/*
+.download-icon,
+.delete-icon {
+  font-family: 'Arial', sans-serif;
+  font-size: 18px;
+  font-weight: bold;
+}
+*/
+
+/* Utility Item Enhancement */
+.utility-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  margin: 8px 0;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+}
+
+.utility-item:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.utility-icon {
+  color: #3b82f6;
+  margin-right: 12px;
+  font-size: 12px;
+}
+
+.utility-text {
+  flex: 1;
+  font-weight: 500;
+  color: #1e293b;
+  margin-right: 12px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .utility-actions {
+    gap: 6px;
+  }
+  
+  .download-icon,
+  .delete-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+  
+  .download-icon::before,
+  .delete-icon::before {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+/* Focus States for Accessibility */
+.download-icon:focus,
+.delete-icon:focus {
+  outline: none;
+  ring: 2px;
+  ring-offset: 2px;
+}
+
+.download-icon:focus {
+  ring-color: #10b981;
+}
+
+.delete-icon:focus {
+  ring-color: #ef4444;
+}
+
+/* Tooltip Enhancement (Optional) */
+.download-icon,
+.delete-icon {
+  position: relative;
+}
+
+.download-icon::after,
+.delete-icon::after {
+  content: attr(title);
+  position: absolute;
+  bottom: -35px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1f2937;
+  color: white;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s ease;
+  z-index: 1000;
+}
+
+.download-icon::after {
+  content: "Scarica file";
+}
+
+.delete-icon::after {
+  content: "Elimina file";
+}
+
+.download-icon:hover::after,
+.delete-icon:hover::after {
+  opacity: 1;
+  visibility: visible;
+  bottom: -40px;
 }

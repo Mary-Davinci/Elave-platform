@@ -1,15 +1,15 @@
-import mongoose, { Document } from "mongoose";
+import mongoose, { Document } from 'mongoose';
 export interface IUtility extends Document {
     name: string;
     fileUrl: string;
-    type: string;
+    type: 'form' | 'faq' | 'manual' | 'document' | 'spreadsheet' | 'other';
     isPublic: boolean;
     createdAt: Date;
     updatedAt: Date;
 }
-declare const Utility: mongoose.Model<IUtility, {}, {}, {}, mongoose.Document<unknown, {}, IUtility, {}> & IUtility & Required<{
+declare const _default: mongoose.Model<IUtility, {}, {}, {}, mongoose.Document<unknown, {}, IUtility, {}> & IUtility & Required<{
     _id: unknown;
 }> & {
     __v: number;
 }, any>;
-export default Utility;
+export default _default;

@@ -33,41 +33,35 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+// src/models/Utilities.ts
 const mongoose_1 = __importStar(require("mongoose"));
 const UtilitySchema = new mongoose_1.Schema({
     name: {
         type: String,
         required: true,
-        trim: true,
+        trim: true
     },
     fileUrl: {
         type: String,
-        required: true,
+        required: true
     },
     type: {
         type: String,
         required: true,
-        enum: [
-            "regulation",
-            "catalog",
-            "faq",
-            "form",
-            "circular",
-            "notice",
-            "report",
-            "other"
-        ],
+        enum: ['form', 'faq', 'manual', 'document', 'spreadsheet', 'other'],
+        default: 'other'
     },
     isPublic: {
         type: Boolean,
-        default: true,
+        default: true
     },
+    category: {
+        type: String,
+        required: true,
+        enum: ['utilita', 'checklist', 'Materiale', 'Uncategorized', 'saluta'],
+    }
 }, {
-    timestamps: true,
+    timestamps: true
 });
-// Add indexes for faster queries
-UtilitySchema.index({ type: 1 });
-UtilitySchema.index({ isPublic: 1 });
-const Utility = mongoose_1.default.model("Utility", UtilitySchema);
-exports.default = Utility;
+exports.default = mongoose_1.default.model('Utility', UtilitySchema);
 //# sourceMappingURL=Utilities.js.map

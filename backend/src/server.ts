@@ -12,7 +12,7 @@ import userRoutes from "./routes/userRoutes";
 import messageRoutes from './routes/messageRoutes';
 import path from "path";
 import supplierRoutes from "./routes/supplierRoutes";
-
+import agentiRouters from "./routes/agentiRouters";
 // Load environment variables
 dotenv.config();
 
@@ -73,7 +73,7 @@ app.use("/api/users", userRoutes);
 app.use('/api/messages', messageRoutes);
 app.use("/api/suppliers", supplierRoutes);
 // Removed duplicate route: app.use("/api/users", userRoutes);
-
+app.use("/api/agenti", agentiRouters);
 // Health check route
 app.get("/health", (req: Request, res: Response) => {
   res.status(200).json({ 

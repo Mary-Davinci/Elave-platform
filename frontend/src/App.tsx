@@ -20,7 +20,7 @@ import MessageDetail from './pages/MessageDetail';
 import EditCompany from './pages/EditCompany';
 import CompanyDetail from './pages/CompanyDetail';
 import UploadCompanies from './pages/UploadCompanies';
-import AvviaProgetto from './pages/AvviaProgetto';
+import Agenti from './pages/Agenti';
 import ProjectDetails from './pages/ProjectDetails';
 import Suppliers from './pages/Suppliers';
 import CreateSupplier from './pages/CreateSupplier';
@@ -96,10 +96,10 @@ const App: React.FC = () => {
           } />
           
           {/* Abila routes */}
-          <Route path="/abila/avvia-progetto" element={
+          <Route path="/agenti" element={
             <ProtectedRoute>
               <MainLayout>
-                <AvviaProgetto />
+                <Agenti />
               </MainLayout>
             </ProtectedRoute>
           } />

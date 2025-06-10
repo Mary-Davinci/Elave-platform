@@ -9,7 +9,9 @@ declare global {
     interface Request {
       user?: IUser;
       // Add files property for multer
-      files?: Multer.File[];
+      // src/types/express.d.ts
+      files?: Multer.File[] | { [fieldname: string]: Multer.File[] };
+
     }
   }
 }

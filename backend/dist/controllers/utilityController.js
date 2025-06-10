@@ -3,8 +3,85 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.downloadUtility = exports.initializeUtilities = exports.addUtility = exports.getUtilities = void 0;
+exports.downloadUtility = exports.initializeUtilities = exports.deleteUtility = exports.addUtility = exports.uploadUtility = exports.getUtilities = exports.uploadMiddleware = void 0;
 const Utilities_1 = __importDefault(require("../models/Utilities"));
+const multer_1 = __importDefault(require("multer"));
+const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
+// Configure multer for file uploads
+const storage = multer_1.default.diskStorage({
+    destination: function (req, file, cb) {
+        const uploadDir = path_1.default.join(__dirname, '../../uploads/utilities');
+        // Create directory if it doesn't exist
+        if (!fs_1.default.existsSync(uploadDir)) {
+            fs_1.default.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+        // Generate unique filename
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const fileExtension = path_1.default.extname(file.originalname);
+        cb(null, file.fieldname + '-' + uniqueSuffix + fileExtension);
+    }
+});
+const upload = (0, multer_1.default)({
+    storage: storage,
+    limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB limit
+    },
+    fileFilter: function (req, file, cb) {
+        // Allow specific file types
+        const allowedTypes = /pdf|doc|docx|xls|xlsx|txt|zip|rar/;
+        const extname = allowedTypes.test(path_1.default.extname(file.originalname).toLowerCase());
+        const mimetype = allowedTypes.test(file.mimetype) ||
+            file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+            file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+            file.mimetype === 'application/vnd.ms-excel' ||
+            file.mimetype === 'application/msword' ||
+            file.mimetype === 'application/zip' ||
+            file.mimetype === 'application/x-rar-compressed';
+        if (mimetype && extname) {
+            return cb(null, true);
+        }
+        else {
+            cb(new Error('Only specific file types are allowed!'));
+        }
+    }
+});
+// Middleware for single file upload
+exports.uploadMiddleware = upload.single('file');
+// Helper function to determine file type based on extension or MIME type
+const getFileType = (file, providedType) => {
+    // If type is explicitly provided and valid, use it
+    const validTypes = ['form', 'faq', 'manual', 'document', 'spreadsheet', 'other'];
+    if (providedType && validTypes.includes(providedType)) {
+        return providedType;
+    }
+    // Otherwise, determine based on file extension or MIME type
+    const extension = path_1.default.extname(file.originalname).toLowerCase();
+    const mimeType = file.mimetype;
+    // Map file types to categories
+    if (extension === '.pdf' || mimeType === 'application/pdf') {
+        return 'document';
+    }
+    if (['.doc', '.docx'].includes(extension) ||
+        ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(mimeType)) {
+        return 'document';
+    }
+    if (['.xls', '.xlsx'].includes(extension) ||
+        ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'].includes(mimeType)) {
+        return 'spreadsheet';
+    }
+    if (extension === '.txt' || mimeType === 'text/plain') {
+        return 'document';
+    }
+    if (['.zip', '.rar'].includes(extension) ||
+        ['application/zip', 'application/x-rar-compressed'].includes(mimeType)) {
+        return 'other';
+    }
+    return 'other'; // Default fallback
+};
 // Get all utilities
 const getUtilities = async (req, res) => {
     try {
@@ -18,7 +95,41 @@ const getUtilities = async (req, res) => {
     }
 };
 exports.getUtilities = getUtilities;
-// Add a new utility (admin only)
+// Upload a new utility file (admin only)
+const uploadUtility = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'admin') {
+            return res.status(403).json({ error: "Admin access required" });
+        }
+        // Check if file was uploaded
+        if (!req.file) {
+            return res.status(400).json({ error: "No file uploaded" });
+        }
+        const { name, type, isPublic, category } = req.body;
+        // Use original filename if name not provided
+        const utilityName = name || req.file.originalname;
+        // Generate file URL (adjust based on your server setup)
+        const fileUrl = `/uploads/utilities/${req.file.filename}`;
+        // Determine the correct type using helper function
+        const utilityType = getFileType(req.file, type);
+        // Create the new utility
+        const newUtility = new Utilities_1.default({
+            name: utilityName,
+            fileUrl: fileUrl,
+            type: utilityType,
+            isPublic: isPublic !== 'false', // default to true unless explicitly false.
+            category: category || 'uncategorized', // optional fallback
+        });
+        await newUtility.save();
+        return res.status(201).json(newUtility);
+    }
+    catch (error) {
+        console.error("Upload utility error:", error);
+        return res.status(500).json({ error: "Server error" });
+    }
+};
+exports.uploadUtility = uploadUtility;
+// Add a new utility (admin only) - for manual entry
 const addUtility = async (req, res) => {
     try {
         if (!req.user || req.user.role !== 'admin') {
@@ -28,6 +139,13 @@ const addUtility = async (req, res) => {
         // Validate required fields
         if (!name || !fileUrl || !type) {
             return res.status(400).json({ error: "Name, file URL, and type are required" });
+        }
+        // Validate type is in allowed enum values
+        const validTypes = ['form', 'faq', 'manual', 'document', 'spreadsheet', 'other'];
+        if (!validTypes.includes(type)) {
+            return res.status(400).json({
+                error: `Invalid type. Must be one of: ${validTypes.join(', ')}`
+            });
         }
         // Create the new utility
         const newUtility = new Utilities_1.default({
@@ -45,6 +163,34 @@ const addUtility = async (req, res) => {
     }
 };
 exports.addUtility = addUtility;
+// Delete a utility (admin only)
+const deleteUtility = async (req, res) => {
+    try {
+        if (!req.user || req.user.role !== 'admin') {
+            return res.status(403).json({ error: "Admin access required" });
+        }
+        const { id } = req.params;
+        const utility = await Utilities_1.default.findById(id);
+        if (!utility) {
+            return res.status(404).json({ error: "Utility not found" });
+        }
+        // Delete the file from filesystem if it exists
+        if (utility.fileUrl.startsWith('/uploads/')) {
+            const filePath = path_1.default.join(__dirname, '../../', utility.fileUrl);
+            if (fs_1.default.existsSync(filePath)) {
+                fs_1.default.unlinkSync(filePath);
+            }
+        }
+        // Delete from database
+        await Utilities_1.default.findByIdAndDelete(id);
+        return res.json({ message: "Utility deleted successfully" });
+    }
+    catch (error) {
+        console.error("Delete utility error:", error);
+        return res.status(500).json({ error: "Server error" });
+    }
+};
+exports.deleteUtility = deleteUtility;
 // Initialize default utilities (admin only)
 const initializeUtilities = async (req, res) => {
     try {
@@ -61,7 +207,7 @@ const initializeUtilities = async (req, res) => {
             {
                 name: "User Manual",
                 fileUrl: "/files/user-manual.pdf",
-                type: "other",
+                type: "manual",
                 isPublic: true
             },
             {

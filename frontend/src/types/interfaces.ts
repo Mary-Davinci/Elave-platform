@@ -8,6 +8,42 @@ export interface Account {
   createdAt: string;
   updatedAt: string;
 }
+export interface AgenteFormData {
+  businessName: string;     // Ragione sociale
+  vatNumber: string;        // Partita IVA
+  address: string;          // Indirizzo
+  city: string;             // Città
+  postalCode: string;       // CAP
+  province: string;         // Provincia
+  agreedCommission: number; // Competenze concordate al %
+  email?: string;           // Email
+  pec?: string;             // PEC
+  signedContractFile?: File;
+  legalDocumentFile?: File;
+}
+
+
+
+// Add this to your src/types/interfaces.ts file
+
+export interface Agente {
+  _id: string;
+  businessName: string;     // Ragione sociale
+  vatNumber: string;        // Partita IVA
+  address: string;          // Indirizzo
+  city: string;             // Città
+  postalCode: string;       // CAP
+  province: string;         // Provincia
+  agreedCommission: number; // Competenze concordate al %
+  email?: string;           // Email
+  pec?: string;             // PEC
+  signedContractFileUrl?: string;  // URL del contratto firmato
+  legalDocumentFileUrl?: string;   // URL del documento legale
+  user: string;             // User ID associato all'agente
+  createdAt: string;
+  updatedAt: string;
+}
+
 
 export interface Company {
   _id: string;

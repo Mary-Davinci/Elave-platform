@@ -312,7 +312,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               onClick={toggleAbilaDropdown}
             >
               <i className="menu-icon">📊</i>
-              <span>Abila</span>
+              <span>Agenti</span>
               <i className={`arrow-icon ${abilaDropdownOpen ? 'open' : ''}`}>▼</i>
             </div>
             
@@ -320,7 +320,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <div className="dropdown-menu">
                 <div 
                   className="dropdown-item"
-                  onClick={() => handleNavigation('/abila/avvia-progetto')}
+                  onClick={() => handleNavigation('/agenti')}
                 >
                   <i className="dropdown-icon">➕</i>
                   <span>Avvia un progetto</span>

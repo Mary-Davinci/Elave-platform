@@ -17,6 +17,7 @@ const userRoutes_1 = __importDefault(require("./routes/userRoutes"));
 const messageRoutes_1 = __importDefault(require("./routes/messageRoutes"));
 const path_1 = __importDefault(require("path"));
 const supplierRoutes_1 = __importDefault(require("./routes/supplierRoutes"));
+const agentiRouters_1 = __importDefault(require("./routes/agentiRouters"));
 // Load environment variables
 dotenv_1.default.config();
 // Initialize express
@@ -68,6 +69,7 @@ app.use("/api/users", userRoutes_1.default);
 app.use('/api/messages', messageRoutes_1.default);
 app.use("/api/suppliers", supplierRoutes_1.default);
 // Removed duplicate route: app.use("/api/users", userRoutes);
+app.use("/api/agenti", agentiRouters_1.default);
 // Health check route
 app.get("/health", (req, res) => {
     res.status(200).json({

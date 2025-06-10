@@ -1,3 +1,21 @@
+:root {
+  --primary-blue: #0066cc;
+  --secondary-blue: #004499;
+  --accent-blue: #3385ff;
+  --light-blue: #e6f2ff;
+  --dark-navy: #1a2b42;
+  --text-dark: #1a1a1a;
+  --text-medium: #4a4a4a;
+  --text-light: #666666;
+  --background-light: #f8fafc;
+  --white: #ffffff;
+  --border-light: #e1e8ed;
+  --success-green: #00cc66;
+  --warning-orange: #ff9900;
+  --error-red: #cc0000;
+}
+
+
 .dashboard-container {
   min-height: 100vh;
   display: flex;
@@ -49,10 +67,7 @@
   transform: translateX(-50%);
 }
 
-.tab:hover::after,
-.tab.active::after {
-  width: 100%;
-}
+
 .sidebar {
   animation: slideInSidebar 0.5s ease forwards;
 }
@@ -84,7 +99,7 @@
 
 /* Fixed header at the top */
 .dashboard-header {
-  background-color: #364f8b;
+  background: linear-gradient(135deg, #1398df 0%, #3079c8 100%);
   height: 60px;
   display: flex;
   align-items: center;
@@ -107,7 +122,7 @@
 }
 
 .logo-box {
-  width: 200px;
+  width: 220px;
   height: 100%;
   display: flex;
   align-items: center;
@@ -120,7 +135,7 @@
   height: 40px;
   width: 120px;
   display: block;
-  background-image: url('../assets/Logo.png');
+  background-image: url('../assets/Logo-White.png');
   background-repeat: no-repeat;
   position: absolute;
   display: flex;
@@ -222,14 +237,14 @@
 }
 
 .menu-item.active {
-  background-color: #edf5dd;
-  color: #93c020;
+  background-color: #0070ccb0;
+  color: #fff;
   font-weight: 500;
   box-shadow: 0 2px 4px rgba(147, 192, 32, 0.15);
 }
 
 .menu-item:hover:not(.active) {
-  background-color: #f0f7e5;
+  background-color: #0070cc3d;
   color: #2a2a2a;
 }
 
@@ -297,8 +312,8 @@ i {
 
 .dropdown-item:hover {
   background-color: #e2f0c6;
-  color: #93c020;
-  border-left: 2px solid #93c020;
+  color: var(--primary-blue);
+  border-left: 2px solid var(--primary-blue);
 }
 
 .dropdown-icon {
@@ -453,25 +468,26 @@ i {
 }
 
 .account-button {
-  max-width: 200px;
-  padding: 10px 18px;
-  border: 1px solid #e2e8f0;
-  border-radius: 30px;
-  background: white;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  transition: all 0.3s;
-  color: #555;
-  font-weight: 400;
-  font-size: 14px;
+ max-width: 220px;
+    padding: 15px 25px;
+    border: 2px solid #e3e8ee;
+    border-radius: 50px;
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fc 100%);
+    display: flex
+;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: #2c3e50;
+    font-weight: 600;
+    font-size: 14px;
 }
 
 .arrow-circle {
   width: 24px;
   height: 24px;
-  background-color: #93c020;
+  background-color: #0070ccb0;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -485,7 +501,7 @@ i {
 }
 
 .account-button:hover {
-  border-color: #93c020;
+  border-color: #0070ccb0;
   background-color: #f8f9f0;
   transform: translateY(-2px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
@@ -552,7 +568,7 @@ i {
   flex-direction: column;
   justify-content: center;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
-  border-left: 4px solid #93c020;
+  border-left: 4px solid #0070ccb0;
 }
 
 .project-card-dash:hover {

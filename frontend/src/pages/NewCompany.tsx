@@ -100,7 +100,7 @@ const NewCompany: React.FC = () => {
   };
 
   // Toggle checkbox value
-  const handleToggle = (name: string) => {
+  /*const handleToggle = (name: string) => {
     if (name.includes('.')) {
       const [parent, child] = name.split('.');
       const parentObj = { ...(formData[parent as keyof typeof formData] as any) };
@@ -131,7 +131,7 @@ const NewCompany: React.FC = () => {
         [name]: !formData[name as keyof typeof formData]
       });
     }
-  };
+  };/*/
 
   // Handle form submission
   // Handle form submission

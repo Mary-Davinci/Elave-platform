@@ -1,4 +1,3 @@
-// src/models/Utilities.ts
 import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IUtility extends Document {

@@ -18,6 +18,13 @@ const messageRoutes_1 = __importDefault(require("./routes/messageRoutes"));
 const path_1 = __importDefault(require("path"));
 const supplierRoutes_1 = __importDefault(require("./routes/supplierRoutes"));
 const agentiRouters_1 = __importDefault(require("./routes/agentiRouters"));
+const sportelloRouter_1 = __importDefault(require("./routes/sportelloRouter"));
+const segnalatoreRoutes_1 = __importDefault(require("./routes/segnalatoreRoutes"));
+const procacciatoreRoutes_1 = __importDefault(require("./routes/procacciatoreRoutes"));
+const formTempletRoutes_1 = __importDefault(require("./routes/formTempletRoutes"));
+const approvalRoutes_1 = __importDefault(require("./routes/approvalRoutes"));
+const notificationRoutes_1 = __importDefault(require("./routes/notificationRoutes"));
+const employeeRoutes_1 = __importDefault(require("./routes/employeeRoutes"));
 // Load environment variables
 dotenv_1.default.config();
 // Initialize express
@@ -65,12 +72,16 @@ app.use("/api/companies", companyRoutes_1.default);
 app.use("/api/projects", projectRoutes_1.default);
 app.use("/api/utilities", utilityRoutes_1.default);
 app.use("/api/users", userRoutes_1.default);
-// Removed duplicate route: app.use("/api/auth", authRoutes);
 app.use('/api/messages', messageRoutes_1.default);
 app.use("/api/suppliers", supplierRoutes_1.default);
-// Removed duplicate route: app.use("/api/users", userRoutes);
 app.use("/api/agenti", agentiRouters_1.default);
-// Health check route
+app.use("/api/sportello-lavoro", sportelloRouter_1.default);
+app.use("/api/segnalatori", segnalatoreRoutes_1.default);
+app.use("/api/procacciatori", procacciatoreRoutes_1.default);
+app.use("/api/form-templates", formTempletRoutes_1.default);
+app.use("/api/approvals", approvalRoutes_1.default);
+app.use("/api/notifications", notificationRoutes_1.default);
+app.use("/api/employees", employeeRoutes_1.default);
 app.get("/health", (req, res) => {
     res.status(200).json({
         status: "ok",
@@ -78,7 +89,6 @@ app.get("/health", (req, res) => {
         timestamp: new Date().toISOString()
     });
 });
-// Catch-all route for debugging
 app.use('*', (req, res) => {
     res.status(404).json({
         error: 'Not Found',

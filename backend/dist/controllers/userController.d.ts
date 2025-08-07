@@ -1,5 +1,8 @@
 import { CustomRequestHandler } from "../types/express";
 export declare const getUsers: CustomRequestHandler;
+export declare const getPendingUsers: CustomRequestHandler;
+export declare const approveUser: CustomRequestHandler;
+export declare const rejectUser: CustomRequestHandler;
 export declare const getManagedUsers: CustomRequestHandler;
 export declare const createUser: CustomRequestHandler;
 export declare const getUserById: CustomRequestHandler;

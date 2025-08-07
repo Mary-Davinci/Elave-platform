@@ -32,6 +32,10 @@ export interface ICompany extends Document {
     signaler?: string;
     actuator?: string;
     isActive: boolean;
+    isApproved: boolean;
+    approvedBy?: mongoose.Types.ObjectId;
+    approvedAt?: Date;
+    pendingApproval: boolean;
     user: mongoose.Types.ObjectId;
     createdAt: Date;
     updatedAt: Date;

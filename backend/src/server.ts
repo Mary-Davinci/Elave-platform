@@ -13,6 +13,14 @@ import messageRoutes from './routes/messageRoutes';
 import path from "path";
 import supplierRoutes from "./routes/supplierRoutes";
 import agentiRouters from "./routes/agentiRouters";
+import sportelloRouter from "./routes/sportelloRouter";
+ import segnalatoreRoutes from "./routes/segnalatoreRoutes";
+  import procacciatoreRoutes from "./routes/procacciatoreRoutes";
+  import formTempletRoutes from "./routes/formTempletRoutes";
+  import approvalRoutes from "./routes/approvalRoutes";
+import notificationRoutes from "./routes/notificationRoutes"; 
+import  employeeRoutes from "./routes/employeeRoutes";
+
 // Load environment variables
 dotenv.config();
 
@@ -69,12 +77,17 @@ app.use("/api/companies", companyRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/utilities", utilityRoutes);
 app.use("/api/users", userRoutes);
-// Removed duplicate route: app.use("/api/auth", authRoutes);
 app.use('/api/messages', messageRoutes);
 app.use("/api/suppliers", supplierRoutes);
-// Removed duplicate route: app.use("/api/users", userRoutes);
 app.use("/api/agenti", agentiRouters);
-// Health check route
+app.use("/api/sportello-lavoro", sportelloRouter);
+app.use("/api/segnalatori", segnalatoreRoutes);
+app.use("/api/procacciatori", procacciatoreRoutes);
+app.use("/api/form-templates", formTempletRoutes);
+app.use("/api/approvals", approvalRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/employees", employeeRoutes);
+
 app.get("/health", (req: Request, res: Response) => {
   res.status(200).json({ 
     status: "ok",
@@ -83,7 +96,6 @@ app.get("/health", (req: Request, res: Response) => {
   });
 });
 
-// Catch-all route for debugging
 app.use('*', (req: Request, res: Response) => {
   res.status(404).json({
     error: 'Not Found',

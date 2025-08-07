@@ -1,4 +1,3 @@
-// src/models/Message.ts
 import mongoose, { Document, Schema, Types } from "mongoose";
 
 export interface IAttachment {
@@ -76,7 +75,6 @@ const MessageSchema = new Schema<IMessage>(
   }
 );
 
-// Add indexes for faster queries
 MessageSchema.index({ sender: 1 });
 MessageSchema.index({ recipients: 1 });
 MessageSchema.index({ status: 1 });

@@ -254,3 +254,435 @@
     margin-bottom: 20px;
     font-size: 14px;
   }
+  /* Add this to your existing Users.css */
+
+/* Role badges in table */
+.role-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: white;
+}
+
+.role-badge.role-super_admin {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+}
+
+.role-badge.role-admin {
+  background: linear-gradient(135deg, #fd79a8 0%, #e84393 100%);
+}
+
+.role-badge.role-responsabile_territoriale {
+  background: linear-gradient(135deg, #fdcb6e 0%, #e17055 100%);
+}
+
+.role-badge.role-sportello_lavoro {
+  background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+}
+
+.role-badge.role-segnalatori {
+  background: linear-gradient(135deg, #55a3ff 0%, #003d82 100%);
+}
+
+/* Status indicators */
+.status {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.status.active {
+  background: #00b894;
+  color: white;
+}
+
+.status.inactive {
+  background: #e17055;
+  color: white;
+}
+
+/* Role info in header */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.role-info {
+  display: flex;
+  align-items: center;
+}
+
+.current-role {
+  background: rgba(102, 126, 234, 0.1);
+  color: #667eea;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid rgba(102, 126, 234, 0.2);
+}
+
+/* Role description in form */
+.role-description {
+  margin-top: 20px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+}
+
+.role-description h4 {
+  margin: 0 0 10px 0;
+  color: #333;
+  font-size: 14px;
+}
+
+.role-details p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #666;
+}
+
+/* Help text */
+.help-text {
+  display: block;
+  font-size: 11px;
+  color: #666;
+  margin-top: 4px;
+  font-style: italic;
+}
+
+/* Enhanced form styling */
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 600;
+  color: #333;
+  font-size: 13px;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.2s ease;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+}
+
+/* Updated table styling */
+.users-table th {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+
+.users-table td {
+  vertical-align: middle;
+  font-size: 13px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+  .users-table th:nth-child(5),
+  .users-table td:nth-child(5) {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  
+  .role-info {
+    width: 100%;
+  }
+  
+  .users-table th:nth-child(2),
+  .users-table td:nth-child(2),
+  .users-table th:nth-child(4),
+  .users-table td:nth-child(4) {
+    display: none;
+  }
+}
+/* Add these styles to your existing Users.css file */
+
+/* Role Restriction Notice */
+.role-restriction-notice {
+  background-color: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 24px;
+  color: #856404;
+}
+
+.role-restriction-notice h4 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.role-restriction-notice ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.role-restriction-notice li {
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+/* Approval Status Styles */
+.approval-status {
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 12px;
+  padding: 4px 8px;
+  display: inline-block;
+  text-align: center;
+  min-width: 70px;
+}
+
+.approval-status.approved {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.approval-status.pending {
+  background-color: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeaa7;
+}
+
+.approval-status.auto {
+  background-color: #d1ecf1;
+  color: #0c5460;
+  border: 1px solid #bee5eb;
+}
+
+.approved-by {
+  display: block;
+  font-size: 10px;
+  font-weight: normal;
+  color: #6c757d;
+  margin-top: 2px;
+}
+
+/* Pending Users Styles */
+.pending-users-list {
+  margin-top: 20px;
+}
+
+.pending-header {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  border-left: 4px solid #ffc107;
+}
+
+.pending-header h3 {
+  margin: 0 0 8px 0;
+  color: #495057;
+  font-size: 20px;
+}
+
+.pending-header p {
+  margin: 0;
+  color: #6c757d;
+  font-size: 14px;
+}
+
+.pending-table {
+  background-color: #fffbf0;
+  border: 1px solid #ffeaa7;
+}
+
+.pending-table thead th {
+  background-color: #fff3cd;
+  color: #856404;
+  border-bottom: 2px solid #ffeaa7;
+}
+
+/* Action Buttons */
+.approve-button {
+  background-color: #28a745;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  margin-right: 8px;
+  transition: background-color 0.3s ease;
+}
+
+.approve-button:hover {
+  background-color: #218838;
+}
+
+.reject-button {
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.reject-button:hover {
+  background-color: #c82333;
+}
+
+/* Tab Badge for Pending Count */
+.tab {
+  position: relative;
+}
+
+.tab:contains("In Attesa") {
+  position: relative;
+}
+
+/* Update existing table styles */
+.users-table th:nth-child(7) {
+  width: 120px;
+  text-align: center;
+}
+
+.users-table td:nth-child(7) {
+  text-align: center;
+}
+
+.users-table th:nth-child(8) {
+  width: 100px;
+  text-align: center;
+}
+
+.users-table td:nth-child(8) {
+  text-align: center;
+}
+
+/* Form Error Enhancement */
+.form-error {
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
+  color: #721c24;
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Help Text Enhancement */
+.help-text {
+  display: block;
+  font-size: 12px;
+  color: #6c757d;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+/* Status Badge Enhancements */
+.status.active {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.status.inactive {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+/* Role Badge Updates */
+.role-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  display: inline-block;
+  min-width: 100px;
+  text-align: center;
+}
+
+.role-badge.role-super_admin {
+  background-color: #6f42c1;
+  color: white;
+}
+
+.role-badge.role-admin {
+  background-color: #dc3545;
+  color: white;
+}
+
+.role-badge.role-responsabile_territoriale {
+  background-color: #fd7e14;
+  color: white;
+}
+
+.role-badge.role-sportello_lavoro {
+  background-color: #20c997;
+  color: white;
+}
+
+.role-badge.role-segnalatori {
+  background-color: #6c757d;
+  color: white;
+}
+
+/* Responsive Design for Approval Column */
+@media (max-width: 1200px) {
+  .users-table th:nth-child(7),
+  .users-table td:nth-child(7) {
+    display: none;
+  }
+  
+  .users-table th:nth-child(8) {
+    width: 80px;
+  }
+}
+
+@media (max-width: 768px) {
+  .approval-status {
+    font-size: 10px;
+    padding: 2px 6px;
+    min-width: 50px;
+  }
+  
+  .approve-button,
+  .reject-button {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+}

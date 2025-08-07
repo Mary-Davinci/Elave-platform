@@ -2,6 +2,9 @@
 import api from './api';
 import { Agente, AgenteFormData } from '../types/interfaces';
 
+// your agente service functions use `api` here
+
+
 // Get all agents
 export const getAgenti = async (): Promise<Agente[]> => {
   try {
@@ -25,12 +28,11 @@ export const getAgenteById = async (id: string): Promise<Agente> => {
 };
 
 // Create a new agent
-export const createAgente = async (agenteData: AgenteFormData): Promise<Agente> => {
+  export const createAgente = async (agenteData: AgenteFormData): Promise<Agente> => {
   try {
-    // Create FormData for file uploads
     const formData = new FormData();
-    
-    // Add text fields
+
+    // Append text fields
     formData.append('businessName', agenteData.businessName?.trim() || '');
     formData.append('vatNumber', agenteData.vatNumber?.trim() || '');
     formData.append('address', agenteData.address?.trim() || '');
@@ -40,61 +42,51 @@ export const createAgente = async (agenteData: AgenteFormData): Promise<Agente> 
     formData.append('agreedCommission', agenteData.agreedCommission?.toString() || '0');
     formData.append('email', agenteData.email?.trim() || '');
     formData.append('pec', agenteData.pec?.trim() || '');
-    
-    // Add files if they exist
+
+    // Append files if present
     if (agenteData.signedContractFile) {
       formData.append('signedContractFile', agenteData.signedContractFile);
     }
-    
     if (agenteData.legalDocumentFile) {
       formData.append('legalDocumentFile', agenteData.legalDocumentFile);
     }
 
-    // Validate required fields
+    // Validations for required fields
     if (!agenteData.businessName?.trim()) {
       throw new Error("Ragione Sociale is required");
     }
-
     if (!agenteData.vatNumber?.trim()) {
       throw new Error("Partita IVA is required");
     }
-
     if (!agenteData.address?.trim()) {
       throw new Error("Indirizzo is required");
     }
-
     if (!agenteData.city?.trim()) {
       throw new Error("Città is required");
     }
-
     if (!agenteData.postalCode?.trim()) {
       throw new Error("CAP is required");
     }
-
     if (!agenteData.province?.trim()) {
       throw new Error("Provincia is required");
     }
-
     if (!agenteData.agreedCommission || agenteData.agreedCommission <= 0) {
       throw new Error("Competenze concordate is required and must be greater than 0");
     }
 
-    const response = await api.post<Agente>('/api/agenti', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    });
+    // POST request without manually setting headers — axios handles Content-Type, interceptor adds token
+    const response = await api.post<Agente>('/api/agenti', formData);
     return response.data;
   } catch (error: any) {
     console.error('Error creating agente:', error);
-    
-    // Extract and throw meaningful error messages
+
+    // Extract meaningful error messages from response if available
     if (error.response?.data?.errors) {
       throw new Error(error.response.data.errors.join(', '));
     } else if (error.response?.data?.error) {
       throw new Error(error.response.data.error);
     }
-    
+
     throw error;
   }
 };

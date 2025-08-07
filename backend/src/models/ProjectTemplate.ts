@@ -1,4 +1,3 @@
-// src/models/ProjectTemplate.ts
 import mongoose, { Document, Schema } from "mongoose";
 
 export interface IProjectTemplate extends Document {
@@ -80,7 +79,6 @@ const ProjectTemplateSchema = new Schema<IProjectTemplate>(
   }
 );
 
-// Add indexes for faster queries
 ProjectTemplateSchema.index({ code: 1 });
 ProjectTemplateSchema.index({ category: 1 });
 ProjectTemplateSchema.index({ subcategory: 1 });

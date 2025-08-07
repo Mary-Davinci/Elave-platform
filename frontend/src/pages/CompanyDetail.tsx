@@ -1,7 +1,8 @@
-// src/pages/CompanyDetail.tsx
+// src/pages/CompanyDetail.tsx - Updated version
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getCompanyById } from '../services/companyService';
+import { getEmployeesByCompany } from '../services/employeeService';
 import { Company, Employee } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
 import Employees from './Employees';
@@ -12,10 +13,11 @@ const CompanyDetail: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   const [company, setCompany] = useState<Company | null>(null);
-  const [companyEmployees] = useState<Employee[]>([]);
+  const [companyEmployees, setCompanyEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'employees'>('dashboard');
+  const [employeesLoading, setEmployeesLoading] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -28,14 +30,11 @@ const CompanyDetail: React.FC = () => {
       
       try {
         setLoading(true);
-        const data = await getCompanyById(id);
-        setCompany(data);
+        setError(null);
         
-        // In a real application, you would fetch employees here
-        // For now, we're using an empty array which will be populated by the Employees component
-        // Example API call would be:
-        // const employeesData = await getEmployeesByCompanyId(id);
-        // setCompanyEmployees(employeesData);
+        // Fetch company details
+        const companyData = await getCompanyById(id);
+        setCompany(companyData);
         
         setLoading(false);
       } catch (err) {
@@ -47,6 +46,26 @@ const CompanyDetail: React.FC = () => {
 
     fetchCompanyData();
   }, [id, isAuthenticated, navigate]);
+
+  // Load employees when switching to employees tab
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      if (!id || activeTab !== 'employees') return;
+      
+      try {
+        setEmployeesLoading(true);
+        const employeesData = await getEmployeesByCompany(id);
+        setCompanyEmployees(employeesData);
+      } catch (err) {
+        console.error('Error fetching employees:', err);
+        // Don't set error here - let the Employees component handle it
+      } finally {
+        setEmployeesLoading(false);
+      }
+    };
+
+    fetchEmployees();
+  }, [id, activeTab]);
 
   if (loading) {
     return (
@@ -82,8 +101,8 @@ const CompanyDetail: React.FC = () => {
             <h2>{company.businessName}</h2>
             <p className="active-status">Attiva dal {company.createdAt ? formatDate(company.createdAt) : 'N/A'}</p>
             <div className="financial-info">
-            <p>Totale versato: {/*company.totalPaid ||*/ '0,00'} €</p>
-            <p>Totale ricevuto: {/*company.totalReceived || */'0,00'} €</p>
+              <p>Totale versato: {/*company.totalPaid ||*/ '0,00'} €</p>
+              <p>Totale ricevuto: {/*company.totalReceived || */'0,00'} €</p>
             </div>
           </div>
         </div>
@@ -156,7 +175,7 @@ const CompanyDetail: React.FC = () => {
                 <div className="dashboard-stats">
                   <div className="stat-card">
                     <h4>Totale Dipendenti</h4>
-                    <p className="stat-value">{company.employees || 0}</p>
+                    <p className="stat-value">{companyEmployees.length || company.employees || 0}</p>
                   </div>
                   <div className="stat-card">
                     <h4>CCNL</h4>
@@ -166,18 +185,39 @@ const CompanyDetail: React.FC = () => {
                     <h4>Ente Bilaterale</h4>
                     <p className="stat-value">{company.contractDetails?.bilateralEntity || 'N/A'}</p>
                   </div>
+                  <div className="stat-card">
+                    <h4>Dipendenti Attivi</h4>
+                    <p className="stat-value">{companyEmployees.filter(emp => emp.stato === 'attivo').length}</p>
+                  </div>
                 </div>
                 
                 {/* Additional dashboard content can be added here */}
+                <div className="dashboard-additional">
+                  <div className="info-section">
+                    <h4>Informazioni Contrattuali</h4>
+                    <ul>
+                      <li><strong>Tipo Contratto:</strong> {company.contractDetails?.contractType || 'N/A'}</li>
+                      <li><strong>Fondo Sani:</strong> {company.contractDetails?.hasFondoSani ? 'Sì' : 'No'}</li>
+                      <li><strong>EBAP:</strong> {company.contractDetails?.useEbapPayment ? 'Sì' : 'No'}</li>
+                      <li><strong>Settore:</strong> {company.industry || 'N/A'}</li>
+                    </ul>
+                  </div>
+                </div>
               </div>
             )}
             
             {activeTab === 'employees' && (
               <div className="employees-content">
-                <Employees 
-                  companyId={company._id} 
-                  employees={companyEmployees}
-                />
+                {employeesLoading ? (
+                  <div style={{ textAlign: 'center', padding: '20px' }}>
+                    Caricamento dipendenti...
+                  </div>
+                ) : (
+                  <Employees 
+                    companyId={company._id} 
+                    employees={companyEmployees}
+                  />
+                )}
               </div>
             )}
           </div>

@@ -40,7 +40,7 @@ export const getManagedUsers = async () => {
 // Get all users (admin only)
 export const getAllUsers = async () => {
   try {
-    const response = await api.get('/api/utilities/admin'); // Changed from '/api/users/admin'
+    const response = await api.get('/api/utilities/admin');
     return response.data;
   } catch (error) {
     console.error('Error fetching all users:', error);
@@ -51,7 +51,7 @@ export const getAllUsers = async () => {
 // Create a new user (admin only)
 export const createUser = async (userData: UserFormData) => {
   try {
-    const response = await api.post('/api/utilities', userData); // Changed from '/api/users'
+    const response = await api.post('/api/utilities', userData);
     return response.data;
   } catch (error) {
     console.error('Error creating user:', error);
@@ -62,7 +62,7 @@ export const createUser = async (userData: UserFormData) => {
 // Get a user by ID
 export const getUserById = async (userId: string) => {
   try {
-    const response = await api.get(`/api/utilities/${userId}`); // Changed from '/api/users/${userId}'
+    const response = await api.get(`/api/utilities/${userId}`); 
     return response.data;
   } catch (error) {
     console.error(`Error fetching user ${userId}:`, error);
@@ -73,7 +73,7 @@ export const getUserById = async (userId: string) => {
 // Update a user
 export const updateUser = async (userId: string, userData: Partial<UserFormData>) => {
   try {
-    const response = await api.put(`/api/utilities/${userId}`, userData); // Changed from '/api/users/${userId}'
+    const response = await api.put(`/api/utilities/${userId}`, userData); 
     return response.data;
   } catch (error) {
     console.error(`Error updating user ${userId}:`, error);
@@ -84,7 +84,7 @@ export const updateUser = async (userId: string, userData: Partial<UserFormData>
 // Delete a user (admin only)
 export const deleteUser = async (userId: string) => {
   try {
-    const response = await api.delete(`/api/utilities/${userId}`); // Changed from '/api/users/${userId}'
+    const response = await api.delete(`/api/utilities/${userId}`); 
     return response.data;
   } catch (error) {
     console.error(`Error deleting user ${userId}:`, error);
@@ -95,7 +95,7 @@ export const deleteUser = async (userId: string) => {
 // Change user password
 export const changePassword = async (userId: string, currentPassword: string, newPassword: string) => {
   try {
-    const response = await api.post(`/api/utilities/${userId}/change-password`, { // Changed from '/api/users/${userId}/change-password'
+    const response = await api.post(`/api/utilities/${userId}/change-password`, { 
       currentPassword,
       newPassword
     });

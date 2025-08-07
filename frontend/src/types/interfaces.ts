@@ -27,6 +27,7 @@ export interface AgenteFormData {
 // Add this to your src/types/interfaces.ts file
 
 export interface Agente {
+  isActive: any;
   _id: string;
   businessName: string;     // Ragione sociale
   vatNumber: string;        // Partita IVA
@@ -165,12 +166,11 @@ export interface DashboardStats {
     completed: number
   }
 }
-// Add this to your src/types/interfaces.ts file
 
-// Employee status type
+
 export type EmployeeStatus = 'attivo' | 'inattivo';
 
-// Employee interface
+
 export interface Employee {
   _id: string;
   nome: string;
@@ -220,4 +220,57 @@ export interface ProjectFormData {
   description?: string;
   companyId?: string;
   status: 'requested' | 'inProgress' | 'completed';
+}
+export interface SportelloLavoroFormData {
+  businessName: string;
+  vatNumber: string;
+  address: string;
+  city: string;
+  postalCode: string;
+  province: string;
+  agreedCommission: number;
+  email: string;
+  pec: string;
+}
+export interface SegnalatoreFormData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  address: string;
+  city: string;
+  postalCode: string;
+  province: string;
+  taxCode: string;
+  agreementPercentage: number;
+  specialization?: string;
+  notes?: string;
+}
+export interface ProcacciatoreFormData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  address: string;
+  city: string;
+  postalCode: string;
+  province: string;
+  taxCode: string;
+  agreementPercentage: number;
+  specialization?: string;
+  notes?: string;
+}
+
+export interface FormTemplate {
+  _id: string;
+  name: string;
+  type: 'contract' | 'legal';
+  fileName: string;
+  originalName: string;
+  filePath: string;
+  mimetype: string;
+  size: number;
+  uploadedBy: string;
+  createdAt: string;
+  updatedAt: string;
 }

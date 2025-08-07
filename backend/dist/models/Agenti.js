@@ -93,6 +93,25 @@ const AgenteSchema = new mongoose_1.Schema({
             message: 'Please enter a valid email'
         }
     },
+    isApproved: {
+        type: Boolean,
+        default: false,
+    },
+    approvedBy: {
+        type: mongoose_1.Schema.Types.ObjectId,
+        ref: "User",
+    },
+    approvedAt: {
+        type: Date,
+    },
+    pendingApproval: {
+        type: Boolean,
+        default: true,
+    },
+    isActive: {
+        type: Boolean,
+        default: false,
+    },
     pec: {
         type: String,
         trim: true,

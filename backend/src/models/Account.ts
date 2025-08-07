@@ -36,7 +36,6 @@ const AccountSchema = new Schema<IAccount>(
   }
 );
 
-// Add indexes for faster queries
 AccountSchema.index({ user: 1 });
 AccountSchema.index({ type: 1 });
 

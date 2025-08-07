@@ -275,6 +275,24 @@ select.form-control {
   font-size: 13px;
   margin-top: 6px;
 }
+.delete-file-button {
+  margin-top: 8px;
+  color: #d9534f;
+  background: none;
+  border: none;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex  ;
+  justify-content: flex-start;
+}
+
+.delete-file-button:hover {
+  text-decoration: underline;
+}
+
+.download-example-btn.orange{
+  width: fit-content;
+}
 
 /* Responsive adjustments */
 @media (max-width: 992px) {

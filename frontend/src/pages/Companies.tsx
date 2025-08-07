@@ -15,7 +15,7 @@ const Companies: React.FC = () => {
   const { isAuthenticated } = useAuth();
   const [dropdownPositions, setDropdownPositions] = useState({});
   
-  // Search inputs for each column
+
   const [searchInputs, setSearchInputs] = useState({
     date: '',
     matricola: '',
@@ -26,10 +26,10 @@ const Companies: React.FC = () => {
     status: ''
   });
 
-  // Track which filter dropdown is currently open
+  
   const [activeFilterDropdown, setActiveFilterDropdown] = useState<string | null>(null);
 
-  // State to store unique values for each column for filter dropdowns
+ 
   const [filterOptions, setFilterOptions] = useState<Record<string, Set<string>>>({
     date: new Set(),
     matricola: new Set(),
@@ -40,7 +40,7 @@ const Companies: React.FC = () => {
     status: new Set(),
   });
 
-  // State to track selected filter values
+  
   const [selectedFilters, setSelectedFilters] = useState<Record<string, string[]>>({
     date: [],
     matricola: [],
@@ -51,33 +51,33 @@ const Companies: React.FC = () => {
     status: [],
   });
 
-  // Ref for detecting clicks outside filter dropdowns
+  
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Position filter dropdown function
+  
   const positionFilterDropdown = useCallback((field: string) => {
     if (activeFilterDropdown === field) {
-      // Get the button element that triggered the dropdown
+      
       const buttonElement = document.querySelector(`button[title="Filtra per ${field}"]`);
       const filterDropdown = document.querySelector('.filter-dropdown') as HTMLElement;
       
       if (buttonElement && filterDropdown) {
         const rect = buttonElement.getBoundingClientRect();
         
-        // Calculate position to place dropdown below the button
-        const top = rect.bottom + window.scrollY + 5; // Adding 5px for spacing
-        const left = Math.max(rect.left + window.scrollX - 200 + rect.width, 10); // Center it with min 10px from edge
         
-        // Make sure dropdown stays in viewport
+        const top = rect.bottom + window.scrollY + 5; 
+        const left = Math.max(rect.left + window.scrollX - 200 + rect.width, 10);
+        
+    
         const rightEdge = left + 250;
         const windowWidth = window.innerWidth;
         const finalLeft = rightEdge > windowWidth ? windowWidth - 260 : left;
         
-        // Set position
+        
         filterDropdown.style.top = `${top}px`;
         filterDropdown.style.left = `${finalLeft}px`;
         
-        // Save position to state (optional)
+       
         setDropdownPositions({
           ...dropdownPositions,
           [field]: { top, left: finalLeft }
@@ -86,12 +86,12 @@ const Companies: React.FC = () => {
     }
   }, [activeFilterDropdown, dropdownPositions]);
 
-  // Toggle filter dropdown function
+
   const toggleFilterDropdown = useCallback((field: string) => {
     const newActiveFilter = activeFilterDropdown === field ? null : field;
     setActiveFilterDropdown(newActiveFilter);
     
-    // Position it on the next render cycle
+   
     if (newActiveFilter) {
       setTimeout(() => {
         positionFilterDropdown(field);
@@ -100,7 +100,7 @@ const Companies: React.FC = () => {
   }, [activeFilterDropdown, positionFilterDropdown]);
 
   useEffect(() => {
-    // Close dropdown when clicking outside
+    
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setActiveFilterDropdown(null);
@@ -126,7 +126,7 @@ const Companies: React.FC = () => {
         setCompanies(data);
         setFilteredCompanies(data);
         
-        // Populate filter options based on data
+        
         const options: Record<string, Set<string>> = {
           date: new Set(),
           matricola: new Set(),
@@ -158,11 +158,11 @@ const Companies: React.FC = () => {
     fetchCompanies();
   }, [isAuthenticated, navigate]);
 
-  // Apply filters and search when criteria change
+ 
   useEffect(() => {
     let result = companies;
 
-    // Apply search inputs
+    
     if (searchInputs.date) {
       result = result.filter(company => 
         new Date(company.createdAt).toLocaleDateString().toLowerCase().includes(searchInputs.date.toLowerCase())
@@ -206,7 +206,7 @@ const Companies: React.FC = () => {
       });
     }
 
-    // Apply dropdown filters
+    
     Object.entries(selectedFilters).forEach(([field, values]) => {
       if (values.length > 0) {
         if (field === 'date') {
@@ -244,7 +244,7 @@ const Companies: React.FC = () => {
     setFilteredCompanies(result);
   }, [searchInputs, selectedFilters, companies]);
 
-  // To ensure positioning is updated on window resize
+  
   useEffect(() => {
     const handleResize = () => {
       if (activeFilterDropdown) {
@@ -258,7 +258,6 @@ const Companies: React.FC = () => {
     };
   }, [activeFilterDropdown, positionFilterDropdown]);
   
-  // To ensure positioning is updated on scroll
   useEffect(() => {
     const handleScroll = () => {
       if (activeFilterDropdown) {

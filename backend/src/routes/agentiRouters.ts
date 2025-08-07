@@ -1,4 +1,3 @@
-// src/routes/agenti.ts
 import express from 'express';
 import { 
   getAgenti, 
@@ -8,31 +7,19 @@ import {
   deleteAgente, 
   uploadAgentiFromExcel 
 } from '../controllers/agentiController';
-import { authMiddleware } from '../middleware/authMiddleware';
+import { authMiddleware } from "../middleware/authMiddleware";
+import { segnalaториRoleMiddleware, responsabileTerritorialeMiddleware } from "../middleware/roleMiddleware";
 
 const router = express.Router();
 
 
+router.get("/", authMiddleware, segnalaториRoleMiddleware, getAgenti);
+router.get("/:id", authMiddleware, segnalaториRoleMiddleware, getAgenteById);
 
-// Apply authentication middleware to all routes
-router.use(authMiddleware);
 
-// GET /api/agenti - Get all agents
-router.get('/', getAgenti);
-
-// GET /api/agenti/:id - Get single agent by ID
-router.get('/:id', getAgenteById);
-
-// POST /api/agenti - Create new agent
-router.post('/', createAgente);
-
-// PUT /api/agenti/:id - Update agent
-router.put('/:id', updateAgente);
-
-// DELETE /api/agenti/:id - Delete agent
-router.delete('/:id', deleteAgente);
-
-// POST /api/agenti/upload - Upload agents from Excel file
-router.post('/upload', uploadAgentiFromExcel);
+router.post("/", authMiddleware, responsabileTerritorialeMiddleware, createAgente);
+router.put("/:id", authMiddleware, responsabileTerritorialeMiddleware, updateAgente);
+router.delete("/:id", authMiddleware, responsabileTerritorialeMiddleware, deleteAgente);
+router.post("/upload", authMiddleware, responsabileTerritorialeMiddleware, uploadAgentiFromExcel);
 
 export default router;

@@ -30,15 +30,31 @@ const getCurrentUser = async (req, res) => {
 exports.getCurrentUser = getCurrentUser;
 const register = async (req, res) => {
     try {
-        const { username, email, password } = req.body;
+        const { username, email, password, role } = req.body;
         const existingUser = await User_1.default.findOne({ email });
         if (existingUser) {
             return res.status(400).json({ error: "Email already in use" });
         }
+        // Validate role if provided
+        const validRoles = ["super_admin", "admin", "responsabile_territoriale", "sportello_lavoro", "segnalatori"];
+        const userRole = role && validRoles.includes(role) ? role : "segnalatori"; // Default to lowest permission level
         const hashedPassword = await bcryptjs_1.default.hash(password, 10);
-        const newUser = new User_1.default({ username, email, password: hashedPassword });
+        const newUser = new User_1.default({
+            username,
+            email,
+            password: hashedPassword,
+            role: userRole
+        });
         await newUser.save();
-        return res.status(201).json({ message: "User registered successfully" });
+        return res.status(201).json({
+            message: "User registered successfully",
+            user: {
+                _id: newUser._id,
+                username: newUser.username,
+                email: newUser.email,
+                role: newUser.role
+            }
+        });
     }
     catch (error) {
         console.error("Registration error:", error);
@@ -46,7 +62,6 @@ const register = async (req, res) => {
     }
 };
 exports.register = register;
-// Update this function in src/controllers/authController.ts
 const login = async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -62,22 +77,22 @@ const login = async (req, res) => {
         // Include user data with the token response
         const userData = {
             _id: user._id,
-            username: user.username, // This is the actual username from registration
+            username: user.username,
             email: user.email,
             firstName: user.firstName || "",
             lastName: user.lastName || "",
             organization: user.organization || "",
-            role: user.role || "user"
+            role: user.role || "segnalatori" // Updated default role
         };
-        // Add this logging in your login controller:
         console.log("Login response sending user data:", {
             _id: user._id,
             username: user.username,
-            email: user.email
+            email: user.email,
+            role: user.role
         });
         return res.json({
             token,
-            user: userData // Send user data along with the token
+            user: userData
         });
     }
     catch (error) {

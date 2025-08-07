@@ -148,7 +148,7 @@ const createAgente = async (req, res) => {
                 return res.status(400).json({ errors });
             }
             if (!req.user) {
-                return res.status(401).json({ message: 'Unauthorized' });
+                return res.status(401).json({ message: 'User not authenticated' });
             }
             try {
                 // Handle file uploads with proper typing

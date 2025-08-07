@@ -9,17 +9,13 @@ import fs from 'fs';
 import xlsx from 'xlsx';
 import { IUser } from "../models/User";
 
-// Define proper types for multer files
 interface MulterFiles {
   [fieldname: string]: Express.Multer.File[];
 }
 interface AuthenticatedRequest extends Request {
-  user: IUser; // not optional
+  user: IUser; 
 }
 
-
-
-// Set up multer for file uploads with support for contract and legal documents
 const storage = multer.diskStorage({
   destination: (req: Request, file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => {
     const uploadDir = path.join(__dirname, '../uploads/agenti');
@@ -44,7 +40,6 @@ const upload = multer({
       extension: path.extname(file.originalname).toLowerCase()
     });
 
-    // For Excel uploads
     if (file.fieldname === 'file') {
       const validExtensions = /\.xlsx$|\.xls$/i;
       const hasValidExtension = validExtensions.test(path.extname(file.originalname).toLowerCase());
@@ -66,7 +61,6 @@ const upload = multer({
       }
     }
     
-    // For document uploads (contracts and legal documents)
     if (file.fieldname === 'signedContractFile' || file.fieldname === 'legalDocumentFile') {
       const validExtensions = /\.pdf$|\.doc$|\.docx$|\.jpg$|\.jpeg$|\.png$/i;
       const hasValidExtension = validExtensions.test(path.extname(file.originalname).toLowerCase());
@@ -86,7 +80,6 @@ const upload = multer({
   { name: 'legalDocumentFile', maxCount: 1 }
 ]);
 
-// Get all agents for the authenticated user
 export const getAgenti: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
@@ -95,7 +88,6 @@ export const getAgenti: CustomRequestHandler = async (req, res) => {
 
     let query = {};
     
-    // Regular users can only see their own agents
     if (req.user.role !== 'admin') {
       query = { user: req.user._id };
     }
@@ -109,7 +101,6 @@ export const getAgenti: CustomRequestHandler = async (req, res) => {
   }
 };
 
-// Get a single agent by ID
 export const getAgenteById: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
@@ -124,7 +115,6 @@ export const getAgenteById: CustomRequestHandler = async (req, res) => {
       return res.status(404).json({ error: "Agente not found" });
     }
 
-    // Regular users can only access their own agents
     if (req.user.role !== 'admin' && !agente.user.equals(req.user._id)) {
       return res.status(403).json({ error: "Access denied" });
     }
@@ -137,18 +127,12 @@ export const getAgenteById: CustomRequestHandler = async (req, res) => {
 };
 
 
-
-
-
-
-// Create a new agent
 export const createAgente: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: "User not authenticated" });
     }
 
-    // Handle file uploads
     upload(req, res, async (err) => {
       if (err) {
         console.error("File upload error:", err);
@@ -167,7 +151,6 @@ export const createAgente: CustomRequestHandler = async (req, res) => {
         pec
       } = req.body;
 
-      // Validate required fields
       const errors: string[] = [];
       if (!businessName) errors.push("Ragione Sociale is required");
       if (!vatNumber) errors.push("Partita IVA is required");
@@ -179,21 +162,18 @@ export const createAgente: CustomRequestHandler = async (req, res) => {
         errors.push("Competenze concordate is required and must be a valid number");
       }
       
-      // If there are validation errors, return them
       if (errors.length > 0) {
         return res.status(400).json({ errors });
       }
       if (!req.user) {
-      return res.status(401).json({ message: 'Unauthorized' }); 
+      return res.status(401).json({ message: 'User not authenticated' }); 
       }
 
       try {
-        // Handle file uploads with proper typing
         const files = req.files as MulterFiles | undefined;
         const signedContractFile = files?.signedContractFile?.[0];
         const legalDocumentFile = files?.legalDocumentFile?.[0];
 
-        // Create the new agent
         const newAgente = new Agente({
           businessName, 
           vatNumber,
@@ -224,7 +204,6 @@ export const createAgente: CustomRequestHandler = async (req, res) => {
 
         await newAgente.save();
 
-        // Update dashboard stats
         const DashboardStats = require("../models/Dashboard").default;
         await DashboardStats.findOneAndUpdate(
           
@@ -237,7 +216,6 @@ export const createAgente: CustomRequestHandler = async (req, res) => {
       } catch (saveError: any) {
         console.error("Create agente error:", saveError);
         
-        // Handle duplicate VAT number error
         if (saveError.code === 11000 && saveError.keyPattern && saveError.keyPattern.vatNumber) {
           return res.status(400).json({ error: "VAT number already exists" });
         }
@@ -251,7 +229,6 @@ export const createAgente: CustomRequestHandler = async (req, res) => {
   }
 };
 
-// Update an agent
 export const updateAgente: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
@@ -259,8 +236,6 @@ export const updateAgente: CustomRequestHandler = async (req, res) => {
     }
     const { id } = req.params;
     
-
-    // Handle file uploads
     upload(req, res, async (err) => {
       if (err) {
         console.error("File upload error:", err);
@@ -287,12 +262,9 @@ export const updateAgente: CustomRequestHandler = async (req, res) => {
       if (!req.user) {
       return res.status(401).json({ message: 'Unauthorized' });
     }
-      // Regular users can only update their own agents
       if (req.user.role !== 'admin' && !agente.user.equals(req.user._id)) {
         return res.status(403).json({ error: "Access denied" });
       }
-
-      // Validation for required fields
       const errors: string[] = [];
       if (businessName === '') errors.push("Ragione Sociale cannot be empty");
       if (vatNumber === '') errors.push("Partita IVA cannot be empty");
@@ -306,12 +278,10 @@ export const updateAgente: CustomRequestHandler = async (req, res) => {
       }
 
       try {
-        // Handle file uploads with proper typing
         const files = req.files as MulterFiles | undefined;
         const signedContractFile = files?.signedContractFile?.[0];
         const legalDocumentFile = files?.legalDocumentFile?.[0];
 
-        // Update fields
         if (businessName !== undefined) agente.businessName = businessName;
         if (vatNumber !== undefined) agente.vatNumber = vatNumber;
         if (address !== undefined) agente.address = address;
@@ -322,7 +292,6 @@ export const updateAgente: CustomRequestHandler = async (req, res) => {
         if (email !== undefined) agente.email = email;
         if (pec !== undefined) agente.pec = pec;
 
-        // Update files if provided
         if (signedContractFile) {
           agente.signedContractFile = {
             filename: signedContractFile.filename,
@@ -349,7 +318,6 @@ export const updateAgente: CustomRequestHandler = async (req, res) => {
       } catch (updateError: any) {
         console.error("Update agente error:", updateError);
         
-        // Handle duplicate VAT number error
         if (updateError.code === 11000 && updateError.keyPattern && updateError.keyPattern.vatNumber) {
           return res.status(400).json({ error: "VAT number already exists" });
         }
@@ -363,7 +331,6 @@ export const updateAgente: CustomRequestHandler = async (req, res) => {
   }
 };
 
-// Delete an agent
 export const deleteAgente: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
@@ -378,12 +345,10 @@ export const deleteAgente: CustomRequestHandler = async (req, res) => {
       return res.status(404).json({ error: "Agente not found" });
     }
 
-    // Regular users can only delete their own agents
     if (req.user.role !== 'admin' && !agente.user.equals(req.user._id)) {
       return res.status(403).json({ error: "Access denied" });
     }
 
-    // Delete associated files
     if (agente.signedContractFile?.path && fs.existsSync(agente.signedContractFile.path)) {
       fs.unlinkSync(agente.signedContractFile.path);
     }
@@ -393,7 +358,6 @@ export const deleteAgente: CustomRequestHandler = async (req, res) => {
 
     await agente.deleteOne();
 
-    // Update dashboard stats
     const DashboardStats = require("../models/Dashboard").default;
     await DashboardStats.findOneAndUpdate(
       { user: req.user._id },
@@ -408,14 +372,12 @@ export const deleteAgente: CustomRequestHandler = async (req, res) => {
   }
 };
 
-// Upload agents from Excel file
 export const uploadAgentiFromExcel: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: "User not authenticated" });
     }
 
-    // Handle file upload using multer
     upload(req, res, async (err) => {
       if (err) {
         console.error("File upload error:", err);
@@ -432,7 +394,6 @@ export const uploadAgentiFromExcel: CustomRequestHandler = async (req, res) => {
       try {
         console.log("File uploaded successfully:", file.path);
         
-        // Read Excel file
         const workbook = xlsx.readFile(file.path);
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
@@ -442,7 +403,6 @@ export const uploadAgentiFromExcel: CustomRequestHandler = async (req, res) => {
         console.log("Sample row:", data.length > 0 ? JSON.stringify(data[0]) : "No data");
 
         if (!data || data.length === 0) {
-          // Clean up the uploaded file
           fs.unlinkSync(file.path);
           return res.status(400).json({ error: "Excel file has no data" });
         }
@@ -450,7 +410,6 @@ export const uploadAgentiFromExcel: CustomRequestHandler = async (req, res) => {
   return res.status(401).json({ message: 'Unauthorized' });
 }
 
-        // Process agents
         const agenti: any[] = [];
         const errors: string[] = [];
 
@@ -458,7 +417,6 @@ export const uploadAgentiFromExcel: CustomRequestHandler = async (req, res) => {
           try {
             console.log(`Processing row ${index + 1}:`, JSON.stringify(row));
             
-            // Map Excel columns to agent fields
             const agenteData = {
               businessName: row['Ragione Sociale'] || '',
               vatNumber: row['Partita IVA'] || '',
@@ -472,7 +430,6 @@ export const uploadAgentiFromExcel: CustomRequestHandler = async (req, res) => {
               user: req.user._id
             };
 
-            // Validate required fields
             if (!agenteData.businessName) {
               throw new Error("Ragione Sociale is required");
             }
@@ -497,7 +454,6 @@ export const uploadAgentiFromExcel: CustomRequestHandler = async (req, res) => {
 
             console.log(`Saving agente: ${agenteData.businessName}`);
             
-            // Create and save agent
             const agente = new Agente(agenteData);
             await agente.save();
             agenti.push(agente);
@@ -508,11 +464,9 @@ export const uploadAgentiFromExcel: CustomRequestHandler = async (req, res) => {
           }
         }
 
-        // Clean up the uploaded file
         fs.unlinkSync(file.path);
         console.log("Uploaded file cleaned up");
 
-        // Update dashboard stats if any agent was created
         if (agenti.length > 0) {
           const DashboardStats = require("../models/Dashboard").default;
           await DashboardStats.findOneAndUpdate(
@@ -523,7 +477,6 @@ export const uploadAgentiFromExcel: CustomRequestHandler = async (req, res) => {
           console.log("Dashboard stats updated");
         }
 
-        // Return response
         console.log(`Import complete: ${agenti.length} agenti created, ${errors.length} errors`);
         return res.status(201).json({
           message: `${agenti.length} agenti imported successfully${errors.length > 0 ? ` with ${errors.length} errors` : ''}`,
@@ -531,7 +484,6 @@ export const uploadAgentiFromExcel: CustomRequestHandler = async (req, res) => {
           errors: errors.length > 0 ? errors : undefined
         });
       } catch (processError: any) {
-        // Clean up the uploaded file
         if (file && fs.existsSync(file.path)) {
           fs.unlinkSync(file.path);
         }

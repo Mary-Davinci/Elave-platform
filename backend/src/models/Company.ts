@@ -1,4 +1,4 @@
-// src/models/Company.ts
+
 import mongoose, { Document, Schema } from "mongoose";
 
 export interface ICompany extends Document {
@@ -33,7 +33,13 @@ export interface ICompany extends Document {
   employees?: number;
   signaler?: string;     
   actuator?: string;    
-  isActive: boolean;     
+  isActive: boolean;
+  
+  isApproved: boolean;
+  approvedBy?: mongoose.Types.ObjectId;
+  approvedAt?: Date;
+  pendingApproval: boolean;
+  
   user: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -109,8 +115,25 @@ const CompanySchema = new Schema<ICompany>(
     },
     isActive: {
       type: Boolean,
+      default: false, 
+    },
+    
+    isApproved: {
+      type: Boolean,
+      default: false,
+    },
+    approvedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
+    approvedAt: {
+      type: Date,
+    },
+    pendingApproval: {
+      type: Boolean,
       default: true,
     },
+    
     user: {
       type: Schema.Types.ObjectId,
       ref: "User",
@@ -122,12 +145,13 @@ const CompanySchema = new Schema<ICompany>(
   }
 );
 
-// Add indexes for faster queries
 CompanySchema.index({ user: 1 });
 CompanySchema.index({ businessName: 1 });
 CompanySchema.index({ vatNumber: 1 }, { unique: true });
 CompanySchema.index({ province: 1 });
 CompanySchema.index({ isActive: 1 });
+CompanySchema.index({ isApproved: 1 });
+CompanySchema.index({ pendingApproval: 1 });
 
 const Company = mongoose.model<ICompany>("Company", CompanySchema);
 export default Company;

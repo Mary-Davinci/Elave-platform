@@ -14,17 +14,15 @@ const UserDropdown: React.FC<UserDropdownProps> = ({ className }) => {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
 
-  // Get user's display name
+  
   const displayName = user?.username || user?.email?.split('@')[0] || 'User';
-  // Get user's role for display 
+ 
   const role =user?.role === 'admin' ? 'Amministratore' : 'Attuatore';
 
-  // Toggle dropdown
   const toggleDropdown = () => {
     setIsOpen(!isOpen);
   };
 
-  // Close dropdown if clicked outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -44,7 +42,7 @@ const UserDropdown: React.FC<UserDropdownProps> = ({ className }) => {
     setIsOpen(false);
   };
 
-  // Handle logout
+
   const handleLogout = async () => {
     try {
       await logout();

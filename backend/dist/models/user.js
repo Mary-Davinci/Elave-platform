@@ -54,8 +54,8 @@ const UserSchema = new mongoose_1.Schema({
     },
     role: {
         type: String,
-        enum: ["user", "attuatore", "admin"],
-        default: "user"
+        enum: ["super_admin", "admin", "responsabile_territoriale", "sportello_lavoro", "segnalatori"],
+        default: "segnalatori"
     },
     firstName: {
         type: String,
@@ -76,14 +76,138 @@ const UserSchema = new mongoose_1.Schema({
     manages: [{
             type: mongoose_1.Schema.Types.ObjectId,
             ref: "User"
-        }]
+        }],
+    assignedCompanies: [{
+            type: mongoose_1.Schema.Types.ObjectId,
+            ref: "Company"
+        }],
+    // NEW: Approval system fields
+    isApproved: {
+        type: Boolean,
+        default: false
+    },
+    approvedBy: {
+        type: mongoose_1.Schema.Types.ObjectId,
+        ref: "User"
+    },
+    approvedAt: {
+        type: Date
+    },
+    pendingApproval: {
+        type: Boolean,
+        default: false
+    },
+    profitSharePercentage: {
+        type: Number,
+        min: 0,
+        max: 100,
+        default: 20 // Default to segnalatori percentage
+    },
+    isActive: {
+        type: Boolean,
+        default: true
+    },
+    permissions: {
+        canViewAll: {
+            type: Boolean,
+            default: false
+        },
+        canCreateSportello: {
+            type: Boolean,
+            default: false
+        },
+        canCreateCompanies: {
+            type: Boolean,
+            default: false
+        },
+        canCreateEmployees: {
+            type: Boolean,
+            default: false
+        },
+        canCreateSegnalatori: {
+            type: Boolean,
+            default: false
+        },
+        canRequestRefunds: {
+            type: Boolean,
+            default: false
+        }
+    }
 }, {
     timestamps: true
 });
-// Add an index for faster queries
+// Middleware to set permissions and approval status based on role and creator
+UserSchema.pre('save', function (next) {
+    if (this.isModified('role')) {
+        const role = this.role;
+        // Set permissions based on role
+        this.permissions = {
+            canViewAll: ["responsabile_territoriale", "admin", "super_admin"].includes(role),
+            canCreateSportello: ["responsabile_territoriale", "admin", "super_admin"].includes(role),
+            canCreateCompanies: ["sportello_lavoro", "responsabile_territoriale", "admin", "super_admin"].includes(role),
+            canCreateEmployees: ["sportello_lavoro", "responsabile_territoriale", "admin", "super_admin"].includes(role),
+            canCreateSegnalatori: ["sportello_lavoro", "responsabile_territoriale", "admin", "super_admin"].includes(role),
+            canRequestRefunds: ["sportello_lavoro", "responsabile_territoriale", "admin", "super_admin"].includes(role)
+        };
+        // Set default profit sharing if not already set
+        if (!this.profitSharePercentage) {
+            switch (role) {
+                case "segnalatori":
+                    this.profitSharePercentage = 20;
+                    break;
+                case "sportello_lavoro":
+                    this.profitSharePercentage = 40;
+                    break;
+                case "responsabile_territoriale":
+                    this.profitSharePercentage = 80;
+                    break;
+                case "admin":
+                case "super_admin":
+                    this.profitSharePercentage = 0;
+                    break;
+                default:
+                    this.profitSharePercentage = 20;
+            }
+        }
+    }
+    // NEW: Handle approval status
+    if (this.isNew) {
+        // Admin and super_admin are automatically approved
+        if (["admin", "super_admin"].includes(this.role)) {
+            this.isApproved = true;
+            this.pendingApproval = false;
+        }
+        else {
+            // All other users need approval if created by responsabile_territoriale
+            // This will be set explicitly in the controller based on who created them
+        }
+    }
+    next();
+});
+// Add indexes for better performance
 UserSchema.index({ email: 1 });
 UserSchema.index({ role: 1 });
 UserSchema.index({ managedBy: 1 });
+UserSchema.index({ isActive: 1 });
+UserSchema.index({ isApproved: 1 });
+UserSchema.index({ pendingApproval: 1 });
+UserSchema.index({ "assignedCompanies": 1 });
+// Virtual to get full name
+UserSchema.virtual('fullName').get(function () {
+    return `${this.firstName || ''} ${this.lastName || ''}`.trim();
+});
+// Method to check if user can access specific data
+UserSchema.methods.canAccess = function (resourceUserId) {
+    if (["admin", "super_admin"].includes(this.role)) {
+        return true; // Admin and Super Admin can access everything
+    }
+    if (this.role === "responsabile_territoriale" && this.permissions?.canViewAll) {
+        return true; // Responsabile Territoriale can see everyone
+    }
+    // Check if the resource belongs to this user or is managed by them
+    return this._id.toString() === resourceUserId ||
+        this.manages?.some((id) => id.toString() === resourceUserId);
+};
 const User = mongoose_1.default.model("User", UserSchema);
 exports.default = User;
 //# sourceMappingURL=User.js.map

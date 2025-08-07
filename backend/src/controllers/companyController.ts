@@ -1,4 +1,3 @@
-// src/controllers/companyController.ts
 import { Request, Response } from "express";
 import Company from "../models/Company";
 import { CustomRequestHandler } from "../types/express";
@@ -7,8 +6,8 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import xlsx from 'xlsx';
+import { NotificationService } from "../models/notificationService";
 
-// Set up multer for file uploads with improved debugging and MIME type handling
 const storage = multer.diskStorage({
   destination: (req: Request, file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => {
     const uploadDir = path.join(__dirname, '../uploads');
@@ -58,8 +57,6 @@ const upload = multer({
   }
 }).single('file');
 
-
-// Get all companies for the authenticated user
 export const getCompanies: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
@@ -68,7 +65,6 @@ export const getCompanies: CustomRequestHandler = async (req, res) => {
 
     let query = {};
     
-    // Regular users can only see their own companies
     if (req.user.role !== 'admin') {
       query = { user: req.user._id };
     }
@@ -82,7 +78,6 @@ export const getCompanies: CustomRequestHandler = async (req, res) => {
   }
 };
 
-// Get a single company by ID
 export const getCompanyById: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
@@ -97,7 +92,6 @@ export const getCompanyById: CustomRequestHandler = async (req, res) => {
       return res.status(404).json({ error: "Company not found" });
     }
 
-    // Regular users can only access their own companies
     if (req.user.role !== 'admin' && !company.user.equals(req.user._id)) {
       return res.status(403).json({ error: "Access denied" });
     }
@@ -109,7 +103,6 @@ export const getCompanyById: CustomRequestHandler = async (req, res) => {
   }
 };
 
-// Create a new company
 export const createCompany: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
@@ -133,20 +126,23 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
       isActive 
     } = req.body;
 
-    // Validate required fields - ONLY these fields are now required
+
     const errors: string[] = [];
     if (!businessName) errors.push("Ragione Sociale is required");
     if (!vatNumber) errors.push("Partita IVA is required");
     
-    // If there are validation errors, return them
     if (errors.length > 0) {
       return res.status(400).json({ errors });
     }
 
-    // Create the new company
+
+    const isAutoApproved = ['admin', 'super_admin'].includes(req.user.role);
+    const needsApproval = ['responsabile_territoriale', 'sportello_lavoro'].includes(req.user.role);
+
+
     const newCompany = new Company({
       businessName, 
-      companyName: companyName || businessName, // Default to businessName if not provided
+      companyName: companyName || businessName,
       vatNumber,
       fiscalCode,
       matricola,
@@ -158,13 +154,31 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
       employees: employees || 0,
       signaler,
       actuator,
-      isActive: isActive !== undefined ? isActive : true,
-      user: new mongoose.Types.ObjectId(req.user._id) // Associate company with the current user
+
+      isActive: isAutoApproved ? (isActive !== undefined ? isActive : true) : false,
+      isApproved: isAutoApproved,
+      pendingApproval: needsApproval,
+      approvedBy: isAutoApproved ? req.user._id : undefined,
+      approvedAt: isAutoApproved ? new Date() : undefined,
+      user: new mongoose.Types.ObjectId(req.user._id)
     });
 
     await newCompany.save();
 
-    // Update dashboard stats
+
+    if (needsApproval) {
+      await NotificationService.notifyAdminsOfPendingApproval({
+        title: 'New Company Pending Approval',
+        message: `${req.user.firstName || req.user.username} created a new company "${businessName}" that needs approval.`,
+        type: 'company_pending',
+        entityId: (newCompany._id as mongoose.Types.ObjectId).toString(), // Fix: Cast to ObjectId and convert to string
+        entityName: businessName,
+        createdBy: req.user._id.toString(),
+        createdByName: req.user.firstName ? `${req.user.firstName} ${req.user.lastName}` : req.user.username
+      });
+    }
+
+    
     const DashboardStats = require("../models/Dashboard").default;
     await DashboardStats.findOneAndUpdate(
       { user: req.user._id },
@@ -172,11 +186,13 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
       { new: true, upsert: true }
     );
 
-    return res.status(201).json(newCompany);
+    return res.status(201).json({
+      ...newCompany.toObject(),
+      message: needsApproval ? 'Company created and submitted for approval' : 'Company created successfully'
+    });
   } catch (err: any) {
     console.error("Create company error:", err);
     
-    // Handle duplicate VAT number error
     if (err.code === 11000 && err.keyPattern && err.keyPattern.vatNumber) {
       return res.status(400).json({ error: "VAT number already exists" });
     }
@@ -185,7 +201,7 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
   }
 };
 
-// Update a company
+
 export const updateCompany: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
@@ -216,12 +232,12 @@ export const updateCompany: CustomRequestHandler = async (req, res) => {
       return res.status(404).json({ error: "Company not found" });
     }
 
-    // Regular users can only update their own companies
+   
     if (req.user.role !== 'admin' && !company.user.equals(req.user._id)) {
       return res.status(403).json({ error: "Access denied" });
     }
 
-    // Validation for required fields
+   
     const errors: string[] = [];
     if (businessName === '') errors.push("Ragione Sociale cannot be empty");
     if (vatNumber === '') errors.push("Partita IVA cannot be empty");
@@ -230,7 +246,7 @@ export const updateCompany: CustomRequestHandler = async (req, res) => {
       return res.status(400).json({ errors });
     }
 
-    // Update fields
+   
     if (businessName !== undefined) company.businessName = businessName;
     if (companyName !== undefined) company.companyName = companyName;
     if (vatNumber !== undefined) company.vatNumber = vatNumber;
@@ -238,7 +254,7 @@ export const updateCompany: CustomRequestHandler = async (req, res) => {
     if (matricola !== undefined) company.matricola = matricola;
     if (inpsCode !== undefined) company.inpsCode = inpsCode;
     
-    // Merge nested objects
+    
     if (address) {
       company.address = { 
         ...company.address, 
@@ -272,7 +288,6 @@ export const updateCompany: CustomRequestHandler = async (req, res) => {
   } catch (err: any) {
     console.error("Update company error:", err);
     
-    // Handle duplicate VAT number error
     if (err.code === 11000 && err.keyPattern && err.keyPattern.vatNumber) {
       return res.status(400).json({ error: "VAT number already exists" });
     }
@@ -281,7 +296,7 @@ export const updateCompany: CustomRequestHandler = async (req, res) => {
   }
 };
 
-// Delete a company
+
 export const deleteCompany: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
@@ -296,14 +311,14 @@ export const deleteCompany: CustomRequestHandler = async (req, res) => {
       return res.status(404).json({ error: "Company not found" });
     }
 
-    // Regular users can only delete their own companies
+  
     if (req.user.role !== 'admin' && !company.user.equals(req.user._id)) {
       return res.status(403).json({ error: "Access denied" });
     }
 
     await company.deleteOne();
 
-    // Update dashboard stats
+    
     const DashboardStats = require("../models/Dashboard").default;
     await DashboardStats.findOneAndUpdate(
       { user: req.user._id },
@@ -318,14 +333,13 @@ export const deleteCompany: CustomRequestHandler = async (req, res) => {
   }
 };
 
-// Upload companies from Excel file - fixed version
+
 export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: "User not authenticated" });
     }
 
-    // Handle file upload using multer
     upload(req, res, async (err) => {
       if (err) {
         console.error("File upload error:", err);
@@ -339,7 +353,6 @@ export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) =
       try {
         console.log("File uploaded successfully:", req.file.path);
         
-        // Read Excel file
         const workbook = xlsx.readFile(req.file.path);
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
@@ -349,12 +362,12 @@ export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) =
         console.log("Sample row:", data.length > 0 ? JSON.stringify(data[0]) : "No data");
 
         if (!data || data.length === 0) {
-          // Clean up the uploaded file
+        
           fs.unlinkSync(req.file.path);
           return res.status(400).json({ error: "Excel file has no data" });
         }
 
-        // Process companies
+        
         const companies: any[] = [];
         const errors: string[] = [];
 
@@ -362,12 +375,11 @@ export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) =
           try {
             console.log(`Processing row ${index + 1}:`, JSON.stringify(row));
             
-            // Map Excel columns to company fields - with bracket notation for safer access
-            // Updated to match your specified required fields
+
             const companyData = {
-              businessName: row['Ragione Sociale'] || '', // Required
+              businessName: row['Ragione Sociale'] || '', 
               companyName: row['Azienda'] || row['Ragione Sociale'] || '',
-              vatNumber: row['Partita IVA'] || '', // Required
+              vatNumber: row['Partita IVA'] || '', 
               fiscalCode: row['Codice Fiscale'] || '',
               matricola: row['Matricola'] || '',
               inpsCode: row['Codice INPS'] || '',
@@ -401,7 +413,6 @@ export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) =
               user: req.user?._id
             };
 
-            // Validate only the required fields you specified
             if (!companyData.businessName) {
               throw new Error("Ragione Sociale is required");
             }
@@ -411,23 +422,19 @@ export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) =
 
             console.log(`Saving company: ${companyData.businessName}`);
             
-            // Create and save company
             const company = new Company(companyData);
             await company.save();
             companies.push(company);
             console.log(`Company saved successfully: ${company._id}`);
           } catch (rowError: any) {
             console.error(`Error processing row ${index + 2}:`, rowError);
-            // Add error with row index for better identification
             errors.push(`Row ${index + 2}: ${rowError.message}`);
           }
         }
 
-        // Clean up the uploaded file
         fs.unlinkSync(req.file.path);
         console.log("Uploaded file cleaned up");
 
-        // Update dashboard stats if any company was created
         if (companies.length > 0) {
           const DashboardStats = require("../models/Dashboard").default;
           await DashboardStats.findOneAndUpdate(
@@ -438,7 +445,6 @@ export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) =
           console.log("Dashboard stats updated");
         }
 
-        // Return response
         console.log(`Import complete: ${companies.length} companies created, ${errors.length} errors`);
         return res.status(201).json({
           message: `${companies.length} companies imported successfully${errors.length > 0 ? ` with ${errors.length} errors` : ''}`,
@@ -446,7 +452,6 @@ export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) =
           errors: errors.length > 0 ? errors : undefined
         });
       } catch (processError: any) {
-        // Clean up the uploaded file
         if (req.file && fs.existsSync(req.file.path)) {
           fs.unlinkSync(req.file.path);
         }

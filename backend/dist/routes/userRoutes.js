@@ -6,19 +6,32 @@ Object.defineProperty(exports, "__esModule", { value: true });
 // src/routes/userRoutes.ts
 const express_1 = __importDefault(require("express"));
 const userController_1 = require("../controllers/userController");
-const editpassword_1 = require("../controllers/editpassword");
 const authMiddleware_1 = require("../middleware/authMiddleware");
+const roleMiddleware_1 = require("../middleware/roleMiddleware");
 const router = express_1.default.Router();
-// Apply auth middleware to all user routes
+// All routes require authentication
 router.use(authMiddleware_1.authMiddleware);
-// User management routes
-router.get("/", userController_1.getManagedUsers);
-router.get("/admin", authMiddleware_1.adminMiddleware, userController_1.getUsers);
-// User CRUD operations
-router.post("/", authMiddleware_1.adminMiddleware, userController_1.createUser);
-router.get("/:id", userController_1.getUserById);
-router.put("/:id", userController_1.updateUser);
-router.delete("/:id", authMiddleware_1.adminMiddleware, userController_1.deleteUser);
-router.post('/change-password', editpassword_1.changePassword);
+// Get all users - Admin and above
+router.get("/", roleMiddleware_1.adminRoleMiddleware, userController_1.getUsers);
+// NEW: Get pending approval users - Admin and above only
+router.get("/pending", roleMiddleware_1.adminRoleMiddleware, userController_1.getPendingUsers);
+// NEW: Approve a pending user - Admin and above only
+router.post("/:id/approve", roleMiddleware_1.adminRoleMiddleware, userController_1.approveUser);
+// NEW: Reject a pending user - Admin and above only
+router.post("/:id/reject", roleMiddleware_1.adminRoleMiddleware, userController_1.rejectUser);
+// Get managed users - All authenticated users
+router.get("/managed", userController_1.getManagedUsers);
+// Search users
+router.get("/search", userController_1.searchUsers);
+// Get single user - Admin and above
+router.get("/:id", roleMiddleware_1.adminRoleMiddleware, userController_1.getUserById);
+// UPDATED: Create new user - Now allows responsabile_territoriale and above
+router.post("/", roleMiddleware_1.responsabileTerritorialeMiddleware, userController_1.createUser);
+// Update user - Admin and above
+router.put("/:id", roleMiddleware_1.adminRoleMiddleware, userController_1.updateUser);
+// Change password
+router.put("/:id/password", userController_1.changePassword);
+// Delete user - Super Admin only
+router.delete("/:id", roleMiddleware_1.superAdminRoleMiddleware, userController_1.deleteUser);
 exports.default = router;
 //# sourceMappingURL=userRoutes.js.map

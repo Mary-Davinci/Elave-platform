@@ -3,12 +3,27 @@ export interface IUser extends Document {
     username: string;
     email: string;
     password: string;
-    role: "user" | "attuatore" | "admin";
+    role: "super_admin" | "admin" | "responsabile_territoriale" | "sportello_lavoro" | "segnalatori";
     firstName?: string;
     lastName?: string;
     organization?: string;
     managedBy?: mongoose.Types.ObjectId;
     manages?: mongoose.Types.ObjectId[];
+    assignedCompanies?: mongoose.Types.ObjectId[];
+    isApproved?: boolean;
+    approvedBy?: mongoose.Types.ObjectId;
+    approvedAt?: Date;
+    pendingApproval?: boolean;
+    profitSharePercentage?: number;
+    isActive?: boolean;
+    permissions?: {
+        canViewAll?: boolean;
+        canCreateSportello?: boolean;
+        canCreateCompanies?: boolean;
+        canCreateEmployees?: boolean;
+        canCreateSegnalatori?: boolean;
+        canRequestRefunds?: boolean;
+    };
     _id: mongoose.Types.ObjectId;
     createdAt: Date;
     updatedAt: Date;

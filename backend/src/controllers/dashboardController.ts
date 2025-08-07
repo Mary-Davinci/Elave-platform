@@ -1,4 +1,3 @@
-// src/controllers/dashboardController.ts
 import { Request, Response } from "express";
 import Account, { IAccount } from "../models/Account";
 import Company from "../models/Company";
@@ -6,7 +5,7 @@ import Project from "../models/Project";
 import DashboardStats from "../models/Dashboard";
 import { CustomRequestHandler } from "../types/express";
 
-// Get dashboard stats for the authenticated user
+
 export const getDashboardStats: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
@@ -15,18 +14,14 @@ export const getDashboardStats: CustomRequestHandler = async (req, res) => {
 
     const userId = req.user._id;
 
-    // Get accounts data
     const accounts: IAccount[] = await Account.find({ user: userId });
     const proselitismoAccount = accounts.find((acc: IAccount) => acc.type === "proselitismo") || { balance: 0 };
     const serviziAccount = accounts.find((acc: IAccount) => acc.type === "servizi") || { balance: 0 };    
 
-    // Count companies - real count from database
     const companiesCount = await Company.countDocuments({ user: userId });
     
-    // Count actuators - use real count instead of hardcoded value
-    const actuatorsCount = 0; // Change this to a real count if you have an actuators collection
+    const actuatorsCount = 0; 
     
-    // Count employees
     const employeesCount = await Company.aggregate([
       { $match: { user: userId } },
       { $group: { _id: null, total: { $sum: "$employees" } } }
@@ -34,13 +29,10 @@ export const getDashboardStats: CustomRequestHandler = async (req, res) => {
     
     const totalEmployees = employeesCount.length > 0 ? employeesCount[0].total : 0;
 
-    // Count suppliers
-    const suppliersCount = 0; // Implement if needed
+    const suppliersCount = 0; 
+  
+    const unreadMessages = 0; 
 
-    // Unread messages
-    const unreadMessages = 0; // Implement if needed
-
-    // Projects stats - real counts from database
     const requestedProjects = await Project.countDocuments({ 
       user: userId, 
       status: "requested" 
@@ -56,7 +48,6 @@ export const getDashboardStats: CustomRequestHandler = async (req, res) => {
       status: "completed" 
     });
 
-    // Update or create dashboard stats
     await DashboardStats.findOneAndUpdate(
       { user: userId },
       {
@@ -109,12 +100,11 @@ export const initializeUserDashboard: CustomRequestHandler = async (req, res) =>
 
     const userId = req.user._id;
 
-    // Check if user already has accounts
     const existingAccounts: IAccount[] = await Account.find({ user: userId });
     
     if (existingAccounts.length === 0) {
-      // Create empty accounts with zero balances
-     // Create empty accounts with zero balances
+      
+
 await Account.create([
   {
     name: "Conto proselitismo",
@@ -129,17 +119,17 @@ await Account.create([
     user: userId
   }
 ]);
-      // Create empty dashboard stats
+     
       await DashboardStats.create({
         user: userId,
-        companies: 0, // Changed to 0
-        actuators: 0, // Changed to 0
+        companies: 0, 
+        actuators: 0,
         employees: 0,
         suppliers: 0,
         unreadMessages: 0,
         projectsRequested: 0,
-        projectsInProgress: 0, // Changed to 0
-        projectsCompleted: 0, // Changed to 0
+        projectsInProgress: 0,
+        projectsCompleted: 0, 
         updatedAt: new Date()
       });
 

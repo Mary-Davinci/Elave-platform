@@ -10,6 +10,7 @@ const multer_1 = __importDefault(require("multer"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const xlsx_1 = __importDefault(require("xlsx"));
+const notificationService_1 = require("../models/notificationService");
 // Set up multer for file uploads with improved debugging and MIME type handling
 const storage = multer_1.default.diskStorage({
     destination: (req, file, cb) => {
@@ -104,20 +105,22 @@ const createCompany = async (req, res) => {
             return res.status(401).json({ error: "User not authenticated" });
         }
         const { businessName, companyName, vatNumber, fiscalCode, matricola, inpsCode, address, contactInfo, contractDetails, industry, employees, signaler, actuator, isActive } = req.body;
-        // Validate required fields - ONLY these fields are now required
+        // Validate required fields
         const errors = [];
         if (!businessName)
             errors.push("Ragione Sociale is required");
         if (!vatNumber)
             errors.push("Partita IVA is required");
-        // If there are validation errors, return them
         if (errors.length > 0) {
             return res.status(400).json({ errors });
         }
+        // Determine approval status based on user role
+        const isAutoApproved = ['admin', 'super_admin'].includes(req.user.role);
+        const needsApproval = ['responsabile_territoriale', 'sportello_lavoro'].includes(req.user.role);
         // Create the new company
         const newCompany = new Company_1.default({
             businessName,
-            companyName: companyName || businessName, // Default to businessName if not provided
+            companyName: companyName || businessName,
             vatNumber,
             fiscalCode,
             matricola,
@@ -129,18 +132,37 @@ const createCompany = async (req, res) => {
             employees: employees || 0,
             signaler,
             actuator,
-            isActive: isActive !== undefined ? isActive : true,
-            user: new mongoose_1.default.Types.ObjectId(req.user._id) // Associate company with the current user
+            // Approval logic
+            isActive: isAutoApproved ? (isActive !== undefined ? isActive : true) : false,
+            isApproved: isAutoApproved,
+            pendingApproval: needsApproval,
+            approvedBy: isAutoApproved ? req.user._id : undefined,
+            approvedAt: isAutoApproved ? new Date() : undefined,
+            user: new mongoose_1.default.Types.ObjectId(req.user._id)
         });
         await newCompany.save();
+        // Send notification if needs approval
+        if (needsApproval) {
+            await notificationService_1.NotificationService.notifyAdminsOfPendingApproval({
+                title: 'New Company Pending Approval',
+                message: `${req.user.firstName || req.user.username} created a new company "${businessName}" that needs approval.`,
+                type: 'company_pending',
+                entityId: newCompany._id.toString(), // Fix: Cast to ObjectId and convert to string
+                entityName: businessName,
+                createdBy: req.user._id.toString(),
+                createdByName: req.user.firstName ? `${req.user.firstName} ${req.user.lastName}` : req.user.username
+            });
+        }
         // Update dashboard stats
         const DashboardStats = require("../models/Dashboard").default;
         await DashboardStats.findOneAndUpdate({ user: req.user._id }, { $inc: { companies: 1 } }, { new: true, upsert: true });
-        return res.status(201).json(newCompany);
+        return res.status(201).json({
+            ...newCompany.toObject(),
+            message: needsApproval ? 'Company created and submitted for approval' : 'Company created successfully'
+        });
     }
     catch (err) {
         console.error("Create company error:", err);
-        // Handle duplicate VAT number error
         if (err.code === 11000 && err.keyPattern && err.keyPattern.vatNumber) {
             return res.status(400).json({ error: "VAT number already exists" });
         }

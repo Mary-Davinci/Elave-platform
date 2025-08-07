@@ -10,7 +10,7 @@ const generateToken = (userId) => {
     if (!process.env.JWT_SECRET) {
         throw new Error("JWT_SECRET is not defined in environment variables");
     }
-    return jsonwebtoken_1.default.sign({ userId }, process.env.JWT_SECRET, { expiresIn: "1d" });
+    return jsonwebtoken_1.default.sign({ userId }, process.env.JWT_SECRET, { expiresIn: "7d" });
 };
 exports.generateToken = generateToken;
 //# sourceMappingURL=generateToken.js.map

@@ -1,7 +1,6 @@
-// src/models/Agente.ts
+
 import mongoose, { Document, Schema } from 'mongoose';
 
-// File interface for uploaded documents
 interface FileInfo {
   filename: string;
   originalName: string;
@@ -12,23 +11,27 @@ interface FileInfo {
 
 // Agente interface
 export interface IAgenteDocument extends Document {
-  businessName: string;        // Ragione sociale
-  vatNumber: string;          // Partita IVA
-  address: string;            // Indirizzo
-  city: string;               // Città
-  postalCode: string;         // CAP
-  province: string;           // Provincia
-  agreedCommission: number;   // Competenze concordate al %
-  email?: string;             // Email
-  pec?: string;               // PEC
-  signedContractFile?: FileInfo;     // Contratto firmato
-  legalDocumentFile?: FileInfo;      // Documento legale rappresentante
-  user: mongoose.Types.ObjectId;    // User reference
+  businessName: string;        
+  vatNumber: string;         
+  address: string;           
+  city: string;              
+  postalCode: string;      
+  province: string;          
+  agreedCommission: number;   
+  email?: string;           
+  pec?: string;               
+  signedContractFile?: FileInfo;     
+  legalDocumentFile?: FileInfo;      
+  user: mongoose.Types.ObjectId;    
   createdAt: Date;
   updatedAt: Date;
+  isApproved: boolean;
+  approvedBy?: mongoose.Types.ObjectId;
+  approvedAt?: Date;
+  pendingApproval: boolean;
+  isActive: boolean;
 }
 
-// File schema for uploaded documents
 const FileInfoSchema = new Schema({
   filename: { type: String, required: true },
   originalName: { type: String, required: true },
@@ -87,6 +90,25 @@ const AgenteSchema = new Schema({
       message: 'Please enter a valid email'
     }
   },
+   isApproved: {
+    type: Boolean,
+    default: false,
+  },
+  approvedBy: {
+    type: Schema.Types.ObjectId,
+    ref: "User",
+  },
+  approvedAt: {
+    type: Date,
+  },
+  pendingApproval: {
+    type: Boolean,
+    default: true,
+  },
+  isActive: {
+    type: Boolean,
+    default: false,
+  },
   pec: { 
     type: String, 
     trim: true,
@@ -112,10 +134,9 @@ const AgenteSchema = new Schema({
   toObject: { virtuals: true }
 });
 
-// Create compound index for user + vatNumber for faster queries
+
 AgenteSchema.index({ user: 1, vatNumber: 1 });
 
-// Add text index for search functionality
 AgenteSchema.index({ 
   businessName: 'text', 
   vatNumber: 'text', 
@@ -123,16 +144,13 @@ AgenteSchema.index({
   email: 'text'
 });
 
-// Pre-save middleware to ensure VAT number format
+
 AgenteSchema.pre('save', function(next) {
   if (this.vatNumber) {
-    // Remove spaces and convert to uppercase for consistency
     this.vatNumber = this.vatNumber.replace(/\s/g, '').toUpperCase();
   }
   next();
 });
-
-// Static methods
 AgenteSchema.statics.findByUser = function(userId: string) {
   return this.find({ user: userId }).sort({ createdAt: -1 });
 };
@@ -145,12 +163,11 @@ AgenteSchema.statics.findByVatNumber = function(vatNumber: string, userId?: stri
   return this.findOne(query);
 };
 
-// Instance methods
+
 AgenteSchema.methods.getFullAddress = function() {
   return `${this.address}, ${this.city} ${this.postalCode} (${this.province})`;
 };
 
-// Error handling for duplicate VAT number
 AgenteSchema.post('save', function(error: any, doc: any, next: any) {
   if (error.name === 'MongoError' && error.code === 11000) {
     if (error.keyPattern && error.keyPattern.vatNumber) {

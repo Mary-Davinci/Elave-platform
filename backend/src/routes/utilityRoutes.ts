@@ -6,14 +6,14 @@ import { uploadMiddleware, uploadUtility, deleteUtility } from "../controllers/u
 
 const router = express.Router();
 
-// Public/authenticated routes (order matters - more specific routes first)
-router.get("/", authMiddleware, getUtilities); // GET all utilities
-router.get("/:id/download", authMiddleware, downloadUtility); // Download utility
+
+router.get("/", authMiddleware, getUtilities); 
+router.get("/:id/download", authMiddleware, downloadUtility);
 
 // Admin-only routes (protected)
-router.post("/upload", authMiddleware, adminMiddleware, uploadMiddleware, uploadUtility); // Upload file
-router.post("/", authMiddleware, adminMiddleware, addUtility); // Add utility manually
-router.post("/initialize", authMiddleware, adminMiddleware, initializeUtilities); // Initialize default utilities
-router.delete("/:id", authMiddleware, adminMiddleware, deleteUtility); // Delete utility
+router.post("/upload", authMiddleware, adminMiddleware, uploadMiddleware, uploadUtility);
+router.post("/", authMiddleware, adminMiddleware, addUtility); 
+router.post("/initialize", authMiddleware, adminMiddleware, initializeUtilities); 
+router.delete("/:id", authMiddleware, adminMiddleware, deleteUtility);
 
 export default router;

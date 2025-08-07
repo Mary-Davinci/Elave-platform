@@ -21,6 +21,11 @@ export interface IAgenteDocument extends Document {
     user: mongoose.Types.ObjectId;
     createdAt: Date;
     updatedAt: Date;
+    isApproved: boolean;
+    approvedBy?: mongoose.Types.ObjectId;
+    approvedAt?: Date;
+    pendingApproval: boolean;
+    isActive: boolean;
 }
 declare const Agente: mongoose.Model<IAgenteDocument, {}, {}, {}, mongoose.Document<unknown, {}, IAgenteDocument, {}> & IAgenteDocument & Required<{
     _id: unknown;

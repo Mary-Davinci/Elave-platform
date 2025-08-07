@@ -1,4 +1,3 @@
-// src/controllers/profileController.ts
 import { Request, Response } from 'express';
 
 /**
@@ -8,10 +7,10 @@ import { Request, Response } from 'express';
  */
 export const getProfileData = (req: Request, res: Response): void => {
   try {
-    // Need to type-cast req to include the user property added by auth middleware
+    
     const user = (req as any).user;
     
-    // Check if user exists in the request (set by auth middleware)
+ 
     if (!user) {
       res.status(401).json({
         success: false,
@@ -20,7 +19,6 @@ export const getProfileData = (req: Request, res: Response): void => {
       return;
     }
     
-    // Return the user profile data
     res.status(200).json({
       success: true,
       data: {
@@ -31,7 +29,6 @@ export const getProfileData = (req: Request, res: Response): void => {
         firstName: user.firstName || '',
         lastName: user.lastName || '',
         organization: user.organization || '',
-        // Add any other profile data you want to include
       }
     });
   } catch (error: any) {

@@ -12,8 +12,8 @@ const router = express_1.default.Router();
 // Supplier routes - all users can manage suppliers
 router.get("/", authMiddleware_1.authMiddleware, supplierController_1.getSuppliers);
 router.get("/:id", authMiddleware_1.authMiddleware, supplierController_1.getSupplierById);
-router.post("/", authMiddleware_1.authMiddleware, roleMiddleware_1.userRoleMiddleware, supplierController_1.createSupplier);
-router.put("/:id", authMiddleware_1.authMiddleware, roleMiddleware_1.userRoleMiddleware, supplierController_1.updateSupplier);
-router.delete("/:id", authMiddleware_1.authMiddleware, roleMiddleware_1.userRoleMiddleware, supplierController_1.deleteSupplier);
+router.post("/", authMiddleware_1.authMiddleware, roleMiddleware_1.segnalaториRoleMiddleware, supplierController_1.createSupplier);
+router.put("/:id", authMiddleware_1.authMiddleware, roleMiddleware_1.segnalaториRoleMiddleware, supplierController_1.updateSupplier);
+router.delete("/:id", authMiddleware_1.authMiddleware, roleMiddleware_1.segnalaториRoleMiddleware, supplierController_1.deleteSupplier);
 exports.default = router;
 //# sourceMappingURL=supplierRoutes.js.map

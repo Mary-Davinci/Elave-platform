@@ -3,9 +3,6 @@ import bcrypt from 'bcryptjs';
 import User from '../models/User';
 import { CustomRequestHandler } from '../types/express';
 
-/**
- * Change user password
- */
 export const changePassword: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
@@ -23,13 +20,11 @@ export const changePassword: CustomRequestHandler = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Compare current password using bcrypt
     const isMatch = await bcrypt.compare(currentPassword, user.password);
     if (!isMatch) {
       return res.status(400).json({ error: 'Current password is incorrect' });
     }
 
-    // Validate new password strength
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,}$/;
     if (!passwordRegex.test(newPassword)) {
       return res.status(400).json({
@@ -37,10 +32,8 @@ export const changePassword: CustomRequestHandler = async (req, res) => {
       });
     }
 
-    // Hash the new password
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    // Save the new password
     user.password = hashedPassword;
     await user.save();
 
@@ -52,5 +45,4 @@ export const changePassword: CustomRequestHandler = async (req, res) => {
   }
 };
 
-// Default export
 export default { changePassword };

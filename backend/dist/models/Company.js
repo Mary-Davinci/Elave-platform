@@ -104,6 +104,21 @@ const CompanySchema = new mongoose_1.Schema({
     },
     isActive: {
         type: Boolean,
+        default: false,
+    },
+    isApproved: {
+        type: Boolean,
+        default: false,
+    },
+    approvedBy: {
+        type: mongoose_1.Schema.Types.ObjectId,
+        ref: "User",
+    },
+    approvedAt: {
+        type: Date,
+    },
+    pendingApproval: {
+        type: Boolean,
         default: true,
     },
     user: {
@@ -114,12 +129,13 @@ const CompanySchema = new mongoose_1.Schema({
 }, {
     timestamps: true,
 });
-// Add indexes for faster queries
 CompanySchema.index({ user: 1 });
 CompanySchema.index({ businessName: 1 });
 CompanySchema.index({ vatNumber: 1 }, { unique: true });
 CompanySchema.index({ province: 1 });
 CompanySchema.index({ isActive: 1 });
+CompanySchema.index({ isApproved: 1 });
+CompanySchema.index({ pendingApproval: 1 });
 const Company = mongoose_1.default.model("Company", CompanySchema);
 exports.default = Company;
 //# sourceMappingURL=Company.js.map

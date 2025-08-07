@@ -99,7 +99,7 @@
 
 /* File Upload Styling */
 .file-input-wrapper {
-  width: 100%;
+  width: 36%;
 }
 
 .file-select {
@@ -197,6 +197,7 @@
 
 .download-example-btn {
   display: flex;
+  width: fit-content;
   align-items: center;
   padding: 10px 16px;
   border: none;
@@ -400,6 +401,7 @@
   .download-example-btn {
     padding: 12px 16px;
     font-size: 14px;
+    width: fit-content;
   }
   
   .file-select-button {

@@ -60,7 +60,6 @@ const DashboardStatsSchema = new Schema<IDashboardStats>(
   }
 );
 
-// Index for quick lookup
 DashboardStatsSchema.index({ user: 1 });
 
 const DashboardStats = mongoose.model<IDashboardStats>("DashboardStats", DashboardStatsSchema);

@@ -1,19 +1,14 @@
-// src/controllers/projectController.ts
 import { Request, Response } from "express";
 import Project from "../models/Project";
 import { CustomRequestHandler } from "../types/express";
 
-// Get all projects for the authenticated user
 export const getProjects: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: "User not authenticated" });
     }
-
-    // Filter by status if provided
     const { status } = req.query;
     
-    // Base query
     let query: any = {};
     
     // Regular users can only see their own projects
@@ -37,7 +32,6 @@ export const getProjects: CustomRequestHandler = async (req, res) => {
   }
 };
 
-// Get a single project by ID
 export const getProjectById: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
@@ -53,7 +47,6 @@ export const getProjectById: CustomRequestHandler = async (req, res) => {
       return res.status(404).json({ error: "Project not found" });
     }
 
-    // Regular users can only access their own projects
     if (req.user.role !== 'admin' && !project.user.equals(req.user._id)) {
       return res.status(403).json({ error: "Access denied" });
     }
@@ -74,12 +67,10 @@ export const createProject: CustomRequestHandler = async (req, res) => {
 
     const { title, description, company, status, startDate, endDate, budget } = req.body;
 
-    // Validate required fields
     if (!title || !company) {
       return res.status(400).json({ error: "Project title and company are required" });
     }
 
-    // Create the new project
     const newProject = new Project({
       title,
       description: description || '',
@@ -88,12 +79,11 @@ export const createProject: CustomRequestHandler = async (req, res) => {
       startDate: startDate || null,
       endDate: endDate || null,
       budget: budget || 0,
-      user: req.user._id // Associate project with the current user
+      user: req.user._id 
     });
 
     await newProject.save();
 
-    // Update dashboard stats based on project status
     const DashboardStats = require("../models/Dashboard").default;
     const statusField = getStatusField(status || 'requested');
     
@@ -112,7 +102,6 @@ export const createProject: CustomRequestHandler = async (req, res) => {
   }
 };
 
-// Update a project
 export const updateProject: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
@@ -128,15 +117,12 @@ export const updateProject: CustomRequestHandler = async (req, res) => {
       return res.status(404).json({ error: "Project not found" });
     }
 
-    // Regular users can only update their own projects
     if (req.user.role !== 'admin' && !project.user.equals(req.user._id)) {
       return res.status(403).json({ error: "Access denied" });
     }
 
-    // Store old status for dashboard update
     const oldStatus = project.status;
 
-    // Update fields
     if (title) project.title = title;
     if (description !== undefined) project.description = description;
     if (company) project.company = company;
@@ -147,7 +133,6 @@ export const updateProject: CustomRequestHandler = async (req, res) => {
 
     await project.save();
 
-    // If status changed, update dashboard stats
     if (status && status !== oldStatus) {
       const DashboardStats = require("../models/Dashboard").default;
       const oldStatusField = getStatusField(oldStatus);
@@ -174,7 +159,6 @@ export const updateProject: CustomRequestHandler = async (req, res) => {
   }
 };
 
-// Delete a project
 export const deleteProject: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
@@ -189,17 +173,16 @@ export const deleteProject: CustomRequestHandler = async (req, res) => {
       return res.status(404).json({ error: "Project not found" });
     }
 
-    // Regular users can only delete their own projects
+    
     if (req.user.role !== 'admin' && !project.user.equals(req.user._id)) {
       return res.status(403).json({ error: "Access denied" });
     }
 
-    // Store status before deletion for dashboard update
     const status = project.status;
     
     await project.deleteOne();
 
-    // Update dashboard stats
+
     const DashboardStats = require("../models/Dashboard").default;
     const statusField = getStatusField(status);
     
@@ -217,16 +200,14 @@ export const deleteProject: CustomRequestHandler = async (req, res) => {
     return res.status(500).json({ error: "Server error" });
   }
 };
-// Add this to src/controllers/projectController.ts:
 
 /**
  * Get a single project by ID.
- * @param req - Express request object containing user and params with project ID.
- * @param res - Express response object used to send the response.
- * @returns A JSON response with the project details or an error message.
+ * @param req 
+ * @param res 
+ * @returns 
  */
 
-// Helper function to map status to dashboard field
 function getStatusField(status: string): string | null {
   switch (status) {
     case 'requested':

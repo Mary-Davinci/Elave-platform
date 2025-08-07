@@ -1,11 +1,19 @@
-// src/components/Employees.tsx
+// src/components/Employees.tsx - Updated version
 import React, { useState, useEffect } from 'react';
-import { Employee} from '../types/interfaces';
+import { Employee } from '../types/interfaces';
+import { 
+  getEmployeesByCompany, 
+  createEmployee, 
+  updateEmployee, 
+  deleteEmployee, 
+  uploadEmployeesFromExcel,
+  EmployeeFormData 
+} from '../services/employeeService';
 import '../styles/Employees.css';
 
 interface EmployeesProps {
   companyId: string;
-  employees: Employee[];
+  employees?: Employee[];
 }
 
 const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
@@ -14,15 +22,18 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // State for new employee form
-  const [newEmployee, setNewEmployee] = useState({
+  const [newEmployee, setNewEmployee] = useState<EmployeeFormData>({
+    companyId,
     nome: '',
     cognome: '',
     dataNascita: '',
     cittaNascita: '',
     provinciaNascita: '',
-    genere: '',
+    genere: 'M',
     codiceFiscale: '',
     indirizzo: '',
     numeroCivico: '',
@@ -37,10 +48,38 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
 
   // File upload state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadLoading, setUploadLoading] = useState(false);
+
+  // Load employees when component mounts or companyId changes
+  useEffect(() => {
+    const loadEmployees = async () => {
+      if (companyId) {
+        try {
+          setLoading(true);
+          setError(null);
+          const fetchedEmployees = await getEmployeesByCompany(companyId);
+          setAllEmployees(fetchedEmployees);
+        } catch (err: any) {
+          console.error('Error loading employees:', err);
+          setError('Failed to load employees: ' + (err.message || 'Unknown error'));
+          // If no employees prop was provided, keep empty array
+          if (!employees.length) {
+            setAllEmployees([]);
+          }
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadEmployees();
+  }, [companyId]);
 
   // Update allEmployees when the employees prop changes
   useEffect(() => {
-    setAllEmployees(employees);
+    if (employees && employees.length > 0) {
+      setAllEmployees(employees);
+    }
   }, [employees]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -57,64 +96,55 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
     }
   };
 
+  const resetForm = () => {
+    setNewEmployee({
+      companyId,
+      nome: '',
+      cognome: '',
+      dataNascita: '',
+      cittaNascita: '',
+      provinciaNascita: '',
+      genere: 'M',
+      codiceFiscale: '',
+      indirizzo: '',
+      numeroCivico: '',
+      citta: '',
+      provincia: '',
+      cap: '',
+      cellulare: '',
+      telefono: '',
+      email: '',
+      attivo: true
+    });
+  };
+
   const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
-      // Here you would typically make an API call to add the employee
-      // For demonstration, creating a mock employee with ID
-      const newEmployeeData: Employee = {
-        _id: `temp-${Date.now()}`, // In real app, this would come from the server
-        nome: newEmployee.nome,
-        cognome: newEmployee.cognome,
-        cellulare: newEmployee.cellulare || '',
-        email: newEmployee.email || '',
-        stato: newEmployee.attivo ? 'attivo' : 'inattivo',
-        genere: newEmployee.genere,
-        dataNascita: newEmployee.dataNascita,
-        cittaNascita: newEmployee.cittaNascita,
-        provinciaNascita: newEmployee.provinciaNascita,
-        codiceFiscale: newEmployee.codiceFiscale,
-        indirizzo: newEmployee.indirizzo,
-        numeroCivico: newEmployee.numeroCivico,
-        citta: newEmployee.citta,
-        provincia: newEmployee.provincia,
-        cap: newEmployee.cap,
-        telefono: newEmployee.telefono || '',
-        companyId: companyId
-      };
+      setLoading(true);
+      setError(null);
+      
+      // Create employee via API
+      const createdEmployee = await createEmployee(newEmployee);
       
       // Add the new employee to the local state
-      setAllEmployees([...allEmployees, newEmployeeData]);
+      setAllEmployees(prev => [...prev, createdEmployee]);
       
-      // Show success message (in real app)
+      // Show success message
       alert("Dipendente aggiunto con successo!");
       
       // Close modal after submission
       setShowAddModal(false);
       
       // Reset form
-      setNewEmployee({
-        nome: '',
-        cognome: '',
-        dataNascita: '',
-        cittaNascita: '',
-        provinciaNascita: '',
-        genere: '',
-        codiceFiscale: '',
-        indirizzo: '',
-        numeroCivico: '',
-        citta: '',
-        provincia: '',
-        cap: '',
-        cellulare: '',
-        telefono: '',
-        email: '',
-        attivo: true
-      });
-    } catch (error) {
+      resetForm();
+    } catch (error: any) {
       console.error('Error adding employee:', error);
-      alert('Si è verificato un errore durante l\'aggiunta del dipendente.');
+      setError('Si è verificato un errore durante l\'aggiunta del dipendente: ' + error.message);
+      alert('Si è verificato un errore durante l\'aggiunta del dipendente: ' + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -126,78 +156,86 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
       return;
     }
     
-    // Simulate processing an Excel file
     try {
-      // Here you would typically make an API call to upload and process the Excel file
-      // For demonstration, creating mock employees
-      const mockEmployeesFromExcel: Employee[] = [
-        {
-          _id: `temp-xl-${Date.now()}-1`,
-          nome: "Mario",
-          cognome: "Rossi",
-          cellulare: "3331234567",
-          email: "mario.rossi@example.com",
-          stato: "attivo",
-          genere: "M",
-          dataNascita: "1980-01-01",
-          cittaNascita: "Milano",
-          provinciaNascita: "MI",
-          codiceFiscale: "RSSMRA80A01F205Z",
-          indirizzo: "Via Roma",
-          numeroCivico: "1",
-          citta: "Milano",
-          provincia: "MI",
-          cap: "20100",
-          telefono: "",
-          companyId: companyId
-        },
-        {
-          _id: `temp-xl-${Date.now()}-2`,
-          nome: "Giulia",
-          cognome: "Bianchi",
-          cellulare: "3337654321",
-          email: "giulia.bianchi@example.com",
-          stato: "attivo",
-          genere: "F",
-          dataNascita: "1985-05-15",
-          cittaNascita: "Roma",
-          provinciaNascita: "RM",
-          codiceFiscale: "BNCGLI85E55H501Y",
-          indirizzo: "Via Nazionale",
-          numeroCivico: "10",
-          citta: "Roma",
-          provincia: "RM",
-          cap: "00100",
-          telefono: "",
-          companyId: companyId
-        }
-      ];
+      setUploadLoading(true);
+      setError(null);
+      
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      
+      // Upload employees via API
+      const uploadedEmployees = await uploadEmployeesFromExcel(companyId, formData);
       
       // Add the new employees to the local state
-      setAllEmployees([...allEmployees, ...mockEmployeesFromExcel]);
+      setAllEmployees(prev => [...prev, ...uploadedEmployees]);
       
       // Show success message
-      alert(`${mockEmployeesFromExcel.length} dipendenti importati con successo!`);
+      alert(`${uploadedEmployees.length} dipendenti importati con successo!`);
       
       // Close modal after submission
       setShowUploadModal(false);
       
       // Reset file
       setSelectedFile(null);
-    } catch (error) {
-      alert("Errore durante l'elaborazione del file Excel");
+      
+      // Reset file input
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      if (fileInput) {
+        fileInput.value = '';
+      }
+    } catch (error: any) {
       console.error("Excel upload error:", error);
+      const errorMessage = error.message || "Errore durante l'elaborazione del file Excel";
+      setError(errorMessage);
+      alert(errorMessage);
+    } finally {
+      setUploadLoading(false);
+    }
+  };
+
+  const handleDeleteEmployee = async (employeeId: string) => {
+    if (!window.confirm('Sei sicuro di voler eliminare questo dipendente?')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      await deleteEmployee(employeeId);
+      
+      // Remove employee from local state
+      setAllEmployees(prev => prev.filter(emp => emp._id !== employeeId));
+      
+      alert('Dipendente eliminato con successo!');
+    } catch (error: any) {
+      console.error('Error deleting employee:', error);
+      const errorMessage = 'Errore durante l\'eliminazione del dipendente: ' + error.message;
+      setError(errorMessage);
+      alert(errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleGenerateCodiceFiscale = () => {
     // In a real app, this would generate a fiscal code based on the employee's details
-    alert('Codice fiscale generato!');
-    // Here, just set a placeholder value
+    // For now, just show a placeholder
+    if (!newEmployee.nome || !newEmployee.cognome || !newEmployee.dataNascita) {
+      alert('Compila prima Nome, Cognome e Data di nascita per generare il codice fiscale');
+      return;
+    }
+    
+    // Simple mock generation - in production, use a proper fiscal code generator
+    const mockCF = `${newEmployee.nome.substring(0, 3).toUpperCase()}${newEmployee.cognome.substring(0, 3).toUpperCase()}${newEmployee.dataNascita.replace(/-/g, '').substring(2)}A01H501Z`;
+    
     setNewEmployee({
       ...newEmployee,
-      codiceFiscale: 'RSSMRA80A01H501Z'
+      codiceFiscale: mockCF
     });
+    
+    alert('Codice fiscale generato! (Questo è solo un esempio - usa un generatore reale in produzione)');
   };
 
   const filteredEmployees = allEmployees.filter(emp => 
@@ -214,17 +252,25 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
           <button 
             className="add-employee-btn"
             onClick={() => setShowAddModal(true)}
+            disabled={loading}
           >
             <span className="icon">+</span> Aggiungi un dipendente
           </button>
           <button 
             className="upload-employees-btn"
             onClick={() => setShowUploadModal(true)}
+            disabled={loading}
           >
             <span className="icon">↑</span> Aggiungi dipendenti da XLSX
           </button>
         </div>
       </div>
+
+      {error && (
+        <div className="error-message" style={{ color: 'red', margin: '10px 0', padding: '10px', backgroundColor: '#ffebee', borderRadius: '4px' }}>
+          {error}
+        </div>
+      )}
 
       <div className="search-bar">
         <input 
@@ -232,11 +278,18 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
           placeholder="Cerca..." 
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
+          disabled={loading}
         />
         <span className="search-icon">🔍</span>
       </div>
 
       <div className="employees-table">
+        {loading && (
+          <div style={{ textAlign: 'center', padding: '20px' }}>
+            Caricamento dipendenti...
+          </div>
+        )}
+        
         <table>
           <thead>
             <tr>
@@ -279,8 +332,8 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                 <tr key={employee._id}>
                   <td>{employee.nome}</td>
                   <td>{employee.cognome}</td>
-                  <td>{employee.cellulare}</td>
-                  <td>{employee.email}</td>
+                  <td>{employee.cellulare || '-'}</td>
+                  <td>{employee.email || '-'}</td>
                   <td>
                     <span className={`status-badge ${employee.stato}`}>
                       {employee.stato === 'attivo' ? 'Attivo' : 'Inattivo'}
@@ -289,14 +342,21 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                   <td className="actions">
                     <button className="view-btn" title="Visualizza">👁️</button>
                     <button className="edit-btn" title="Modifica">✏️</button>
-                    <button className="delete-btn" title="Elimina">🗑️</button>
+                    <button 
+                      className="delete-btn" 
+                      title="Elimina"
+                      onClick={() => handleDeleteEmployee(employee._id)}
+                      disabled={loading}
+                    >
+                      🗑️
+                    </button>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
                 <td colSpan={6} className="no-results">
-                  Nessun risultato
+                  {loading ? 'Caricamento...' : 'Nessun risultato'}
                 </td>
               </tr>
             )}
@@ -323,6 +383,7 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                       value={newEmployee.nome}
                       onChange={handleInputChange}
                       required
+                      disabled={loading}
                     />
                   </div>
                   <div className="form-group">
@@ -333,6 +394,7 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                       value={newEmployee.cognome}
                       onChange={handleInputChange}
                       required
+                      disabled={loading}
                     />
                   </div>
                   <div className="form-group">
@@ -342,8 +404,8 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                       value={newEmployee.genere}
                       onChange={handleInputChange}
                       required
+                      disabled={loading}
                     >
-                      <option value="">Scegli il genere</option>
                       <option value="M">Maschio</option>
                       <option value="F">Femmina</option>
                       <option value="A">Altro</option>
@@ -360,6 +422,7 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                       value={newEmployee.dataNascita}
                       onChange={handleInputChange}
                       required
+                      disabled={loading}
                     />
                   </div>
                   <div className="form-group">
@@ -370,6 +433,7 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                       value={newEmployee.cittaNascita}
                       onChange={handleInputChange}
                       required
+                      disabled={loading}
                     />
                   </div>
                   <div className="form-group">
@@ -379,12 +443,17 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                       value={newEmployee.provinciaNascita}
                       onChange={handleInputChange}
                       required
+                      disabled={loading}
                     >
                       <option value="">Scegli la provincia</option>
                       <option value="MI">Milano</option>
                       <option value="RM">Roma</option>
                       <option value="NA">Napoli</option>
                       <option value="TO">Torino</option>
+                      <option value="FI">Firenze</option>
+                      <option value="BO">Bologna</option>
+                      <option value="BA">Bari</option>
+                      <option value="PA">Palermo</option>
                     </select>
                   </div>
                 </div>
@@ -399,11 +468,15 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                         value={newEmployee.codiceFiscale}
                         onChange={handleInputChange}
                         required
+                        maxLength={16}
+                        disabled={loading}
+                        style={{ textTransform: 'uppercase' }}
                       />
                       <button 
                         type="button" 
                         className="generate-btn"
                         onClick={handleGenerateCodiceFiscale}
+                        disabled={loading}
                       >
                         Genera codice fiscale
                       </button>
@@ -420,6 +493,7 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                       value={newEmployee.indirizzo}
                       onChange={handleInputChange}
                       required
+                      disabled={loading}
                     />
                   </div>
                   <div className="form-group">
@@ -430,6 +504,7 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                       value={newEmployee.numeroCivico}
                       onChange={handleInputChange}
                       required
+                      disabled={loading}
                     />
                   </div>
                   <div className="form-group">
@@ -440,6 +515,7 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                       value={newEmployee.citta}
                       onChange={handleInputChange}
                       required
+                      disabled={loading}
                     />
                   </div>
                 </div>
@@ -452,12 +528,17 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                       value={newEmployee.provincia}
                       onChange={handleInputChange}
                       required
+                      disabled={loading}
                     >
                       <option value="">Scegli la provincia</option>
                       <option value="MI">Milano</option>
                       <option value="RM">Roma</option>
                       <option value="NA">Napoli</option>
                       <option value="TO">Torino</option>
+                      <option value="FI">Firenze</option>
+                      <option value="BO">Bologna</option>
+                      <option value="BA">Bari</option>
+                      <option value="PA">Palermo</option>
                     </select>
                   </div>
                   <div className="form-group">
@@ -468,6 +549,9 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                       value={newEmployee.cap}
                       onChange={handleInputChange}
                       required
+                      maxLength={5}
+                      pattern="[0-9]{5}"
+                      disabled={loading}
                     />
                   </div>
                   <div className="form-group">
@@ -477,6 +561,7 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                       name="cellulare"
                       value={newEmployee.cellulare}
                       onChange={handleInputChange}
+                      disabled={loading}
                     />
                   </div>
                 </div>
@@ -489,6 +574,7 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                       name="telefono"
                       value={newEmployee.telefono}
                       onChange={handleInputChange}
+                      disabled={loading}
                     />
                   </div>
                   <div className="form-group">
@@ -498,6 +584,7 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                       name="email"
                       value={newEmployee.email}
                       onChange={handleInputChange}
+                      disabled={loading}
                     />
                   </div>
                   <div className="form-group toggle-group">
@@ -508,6 +595,7 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                         name="attivo"
                         checked={newEmployee.attivo}
                         onChange={handleInputChange}
+                        disabled={loading}
                       />
                       <span className="toggle-slider"></span>
                     </div>
@@ -515,7 +603,9 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="submit" className="add-btn">Aggiungi</button>
+                <button type="submit" className="add-btn" disabled={loading}>
+                  {loading ? 'Aggiungendo...' : 'Aggiungi'}
+                </button>
               </div>
             </form>
           </div>
@@ -540,6 +630,7 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                       accept=".xlsx, .xls"
                       onChange={handleFileChange}
                       required
+                      disabled={uploadLoading}
                     />
                     <div className="file-name">
                       {selectedFile ? selectedFile.name : 'No file chosen'}
@@ -553,8 +644,8 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="submit" className="upload-btn" disabled={!selectedFile}>
-                  Carica
+                <button type="submit" className="upload-btn" disabled={!selectedFile || uploadLoading}>
+                  {uploadLoading ? 'Caricando...' : 'Carica'}
                 </button>
               </div>
             </form>

@@ -1,10 +1,9 @@
-// src/controllers/projectTemplatesController.ts
 import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { CustomRequestHandler } from "../types/express";
 import Project from "../models/Project";
 
-// Define the interface structure for ProjectTemplate to match our model
+
 interface IProjectTemplate {
   _id: mongoose.Types.ObjectId;
   code: string;
@@ -20,7 +19,7 @@ interface IProjectTemplate {
   createdBy: mongoose.Types.ObjectId;
 }
 
-// Create the ProjectTemplate model schema
+
 const projectTemplateSchema = new mongoose.Schema<IProjectTemplate>(
   {
     code: {
@@ -84,27 +83,22 @@ const projectTemplateSchema = new mongoose.Schema<IProjectTemplate>(
   }
 );
 
-// Add indexes for faster queries
 projectTemplateSchema.index({ code: 1 });
 projectTemplateSchema.index({ category: 1 });
 projectTemplateSchema.index({ subcategory: 1 });
 projectTemplateSchema.index({ type: 1 });
 projectTemplateSchema.index({ isPublic: 1 });
 
-// Create the ProjectTemplate model
+
 const ProjectTemplate = mongoose.model<IProjectTemplate>("ProjectTemplate", projectTemplateSchema);
 
-/**
- * Get all project templates
- * Admin sees all templates, regular users see only public templates
- */
+
 export const getProjectTemplates: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: "User not authenticated" });
     }
 
-    // Base query
     let query: any = {};
     
     // Regular users can only see public templates or ones specific to them
@@ -121,9 +115,6 @@ export const getProjectTemplates: CustomRequestHandler = async (req, res) => {
   }
 };
 
-/**
- * Get a single project template by ID
- */
 export const getProjectTemplateById: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
@@ -138,7 +129,6 @@ export const getProjectTemplateById: CustomRequestHandler = async (req, res) => 
       return res.status(404).json({ error: "Project template not found" });
     }
 
-    // Regular users can only access public templates or ones they created
     if (req.user.role !== 'admin' && 
         !template.isPublic && 
         !template.createdBy.equals(req.user._id)) {
@@ -152,16 +142,12 @@ export const getProjectTemplateById: CustomRequestHandler = async (req, res) => 
   }
 };
 
-/**
- * Create a new project template (admin only)
- */
 export const createProjectTemplate: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: "User not authenticated" });
     }
 
-    // Only admins can create project templates
     if (req.user.role !== 'admin') {
       return res.status(403).json({ error: "Only administrators can create project templates" });
     }
@@ -179,12 +165,10 @@ export const createProjectTemplate: CustomRequestHandler = async (req, res) => {
       isPublic
     } = req.body;
 
-    // Validate required fields
     if (!code || !title || !minPrice || !maxPrice) {
       return res.status(400).json({ error: "Code, title, min price, and max price are required" });
     }
 
-    // Create the new project template
     const newTemplate = new ProjectTemplate({
       code,
       title,
@@ -205,7 +189,7 @@ export const createProjectTemplate: CustomRequestHandler = async (req, res) => {
   } catch (error: any) {
     console.error("Create project template error:", error);
     
-    // Handle duplicate code error
+    
     if (error.code === 11000 && error.keyPattern && error.keyPattern.code) {
       return res.status(400).json({ error: "Template code already exists" });
     }
@@ -214,16 +198,12 @@ export const createProjectTemplate: CustomRequestHandler = async (req, res) => {
   }
 };
 
-/**
- * Update a project template (admin only)
- */
 export const updateProjectTemplate: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: "User not authenticated" });
     }
 
-    // Only admins can update project templates
     if (req.user.role !== 'admin') {
       return res.status(403).json({ error: "Only administrators can update project templates" });
     }
@@ -266,7 +246,6 @@ export const updateProjectTemplate: CustomRequestHandler = async (req, res) => {
   } catch (error: any) {
     console.error("Update project template error:", error);
     
-    // Handle duplicate code error
     if (error.code === 11000 && error.keyPattern && error.keyPattern.code) {
       return res.status(400).json({ error: "Template code already exists" });
     }
@@ -275,16 +254,12 @@ export const updateProjectTemplate: CustomRequestHandler = async (req, res) => {
   }
 };
 
-/**
- * Delete a project template (admin only)
- */
 export const deleteProjectTemplate: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: "User not authenticated" });
     }
 
-    // Only admins can delete project templates
     if (req.user.role !== 'admin') {
       return res.status(403).json({ error: "Only administrators can delete project templates" });
     }
@@ -306,10 +281,7 @@ export const deleteProjectTemplate: CustomRequestHandler = async (req, res) => {
   }
 };
 
-/**
- * Create projects from selected templates
- * This allows users to create multiple projects at once based on templates
- */
+
 export const createProjectsFromTemplates: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
@@ -318,7 +290,7 @@ export const createProjectsFromTemplates: CustomRequestHandler = async (req, res
 
     const { templates, company } = req.body;
 
-    // Validate input
+    
     if (!templates || !Array.isArray(templates) || templates.length === 0) {
       return res.status(400).json({ error: "At least one template selection is required" });
     }
@@ -327,14 +299,12 @@ export const createProjectsFromTemplates: CustomRequestHandler = async (req, res
       return res.status(400).json({ error: "Company ID is required" });
     }
 
-    // Start a transaction
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
       const projects = [];
 
-      // Process each selected template
       for (const selection of templates) {
         const { projectId, quantity } = selection;
         
@@ -342,21 +312,18 @@ export const createProjectsFromTemplates: CustomRequestHandler = async (req, res
           continue;
         }
 
-        // Find the template
         const template = await ProjectTemplate.findById(projectId);
         
         if (!template) {
           continue;
         }
 
-        // Check if user can access this template
         if (req.user.role !== 'admin' && 
             !template.isPublic && 
             !template.createdBy.equals(req.user._id)) {
           continue;
         }
 
-        // Create projects for the quantity requested
         for (let i = 0; i < quantity; i++) {
           const newProject = new Project({
             title: template.title,
@@ -374,7 +341,6 @@ export const createProjectsFromTemplates: CustomRequestHandler = async (req, res
         }
       }
 
-      // Update dashboard stats for the new projects
       const DashboardStats = require("../models/Dashboard").default;
       if (projects.length > 0) {
         await DashboardStats.findOneAndUpdate(
@@ -384,13 +350,11 @@ export const createProjectsFromTemplates: CustomRequestHandler = async (req, res
         );
       }
 
-      // Commit the transaction
       await session.commitTransaction();
       session.endSession();
 
       return res.status(201).json(projects);
     } catch (error) {
-      // Abort the transaction on error
       await session.abortTransaction();
       session.endSession();
       throw error;

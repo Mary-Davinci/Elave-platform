@@ -1,4 +1,3 @@
-// src/models/Supplier.ts
 import mongoose, { Document, Schema } from "mongoose";
 
 export interface ISupplier extends Document {
@@ -91,7 +90,6 @@ const SupplierSchema = new Schema<ISupplier>(
   }
 );
 
-// Add indexes for faster queries
 SupplierSchema.index({ user: 1 });
 SupplierSchema.index({ ragioneSociale: 1 });
 SupplierSchema.index({ partitaIva: 1 }, { unique: true });

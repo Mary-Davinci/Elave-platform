@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import '../styles/Dashboard.css';
 import '../styles/UserDropdown.css';
 import UserDropdown from '../pages/UserDropdown';
+import NotificationBell from '../pages/NotificationBell';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -18,6 +19,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   
   // Dropdown states
   const [postalDropdownOpen, setPostalDropdownOpen] = useState(false);
+  const [sportelloLavoroDropdownOpen, setSportelloLavoroDropdownOpen] = useState(false);
   const [segnalatoriDropdownOpen, setSegnalatoriDropdownOpen] = useState(false);
   const [abilaDropdownOpen, setAbilaDropdownOpen] = useState(false);
   const [companiesDropdownOpen, setCompaniesDropdownOpen] = useState(false);
@@ -27,11 +29,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const sidebarRef = useRef<HTMLDivElement>(null);
   const toggleButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Check if user is admin
-  const isAdmin = user?.role === 'admin';
+  // Role checking functions based on business hierarchy
+  const isSuperAdmin = user?.role === 'super_admin';
+  const isAdmin = user?.role === 'admin' || isSuperAdmin;
+  const isResponsabileTerritoriale = user?.role === 'responsabile_territoriale' || isAdmin;
+  const isSportelloLavoro = user?.role === 'sportello_lavoro' || isResponsabileTerritoriale;
+  const isSegnalatori = user?.role === 'segnalatori' || isSportelloLavoro;
 
   useEffect(() => {
-    // Handle clicks outside the sidebar to close it
     const handleClickOutside = (event: MouseEvent) => {
       if (
         sidebarRef.current && 
@@ -53,87 +58,73 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     setSidebarOpen(!sidebarOpen);
   };
 
-  // Handle navigation
   const handleNavigation = (path: string) => {
     navigate(path);
     setSidebarOpen(false); 
   };
 
-
-
-
   const isActive = (path: string) => {
     return location.pathname === path || location.pathname.startsWith(path + '/');
   };
 
-
-  const togglePostalDropdown = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setPostalDropdownOpen(!postalDropdownOpen);
-    
+  // Helper function to close all dropdowns
+  const closeAllDropdowns = () => {
+    setPostalDropdownOpen(false);
+    setSportelloLavoroDropdownOpen(false);
     setSegnalatoriDropdownOpen(false);
     setAbilaDropdownOpen(false);
     setCompaniesDropdownOpen(false);
     setAnalisiDropdownOpen(false);
     setFornitoriDropdownOpen(false);
+  };
+
+  const togglePostalDropdown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newState = !postalDropdownOpen;
+    closeAllDropdowns();
+    setPostalDropdownOpen(newState);
+  };
+  
+  const toggleSportelloLavoroDropdown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newState = !sportelloLavoroDropdownOpen;
+    closeAllDropdowns();
+    setSportelloLavoroDropdownOpen(newState);
   };
   
   const toggleSegnalatoriDropdown = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setSegnalatoriDropdownOpen(!segnalatoriDropdownOpen);
-    
-    
-    setPostalDropdownOpen(false);
-    setAbilaDropdownOpen(false);
-    setCompaniesDropdownOpen(false);
-    setAnalisiDropdownOpen(false);
-    setFornitoriDropdownOpen(false);
+    const newState = !segnalatoriDropdownOpen;
+    closeAllDropdowns();
+    setSegnalatoriDropdownOpen(newState);
   };
   
   const toggleAbilaDropdown = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setAbilaDropdownOpen(!abilaDropdownOpen);
-    
-    setPostalDropdownOpen(false);
-    setSegnalatoriDropdownOpen(false);
-    setCompaniesDropdownOpen(false);
-    setAnalisiDropdownOpen(false);
-    setFornitoriDropdownOpen(false);
+    const newState = !abilaDropdownOpen;
+    closeAllDropdowns();
+    setAbilaDropdownOpen(newState);
   };
   
   const toggleCompaniesDropdown = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setCompaniesDropdownOpen(!companiesDropdownOpen);
-    
-    
-    setPostalDropdownOpen(false);
-    setSegnalatoriDropdownOpen(false);
-    setAbilaDropdownOpen(false);
-    setAnalisiDropdownOpen(false);
-    setFornitoriDropdownOpen(false);
+    const newState = !companiesDropdownOpen;
+    closeAllDropdowns();
+    setCompaniesDropdownOpen(newState);
   };
   
   const toggleAnalisiDropdown = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setAnalisiDropdownOpen(!analisiDropdownOpen);
-    
-    setPostalDropdownOpen(false);
-    setSegnalatoriDropdownOpen(false);
-    setAbilaDropdownOpen(false);
-    setCompaniesDropdownOpen(false);
-    setFornitoriDropdownOpen(false);
+    const newState = !analisiDropdownOpen;
+    closeAllDropdowns();
+    setAnalisiDropdownOpen(newState);
   };
   
   const toggleFornitoriDropdown = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setFornitoriDropdownOpen(!fornitoriDropdownOpen);
-    
-  
-    setPostalDropdownOpen(false);
-    setSegnalatoriDropdownOpen(false);
-    setAbilaDropdownOpen(false);
-    setCompaniesDropdownOpen(false);
-    setAnalisiDropdownOpen(false);
+    const newState = !fornitoriDropdownOpen;
+    closeAllDropdowns();
+    setFornitoriDropdownOpen(newState);
   };
 
   return (
@@ -152,15 +143,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <div className='logo'></div>
           </div>
 
-
           <div className="header-title">
             {location.pathname.split('/')[1]?.charAt(0).toUpperCase() + location.pathname.split('/')[1]?.slice(1) || 'Dashboard'}
           </div>
         </div>
         <div className="user-info">
-          <button className="notification-button">
-            <i className="notification-icon">🔔</i>
-          </button>
+          <div className="user-role-badge">
+            {user?.role?.toUpperCase().replace('_', ' ')}
+          </div>
+          <NotificationBell />
           <UserDropdown />
         </div>
       </header>
@@ -170,6 +161,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           ref={sidebarRef}
           className={`sidebar ${sidebarOpen ? 'open' : ''}`}
         >
+          {/* Dashboard - Available to all users */}
           <div 
             className={`menu-item ${isActive('/dashboard') ? 'active' : ''}`}
             onClick={() => handleNavigation('/dashboard')}
@@ -177,6 +169,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <i className="menu-icon">🏠</i>
             <span>Dashboard</span>
           </div>
+
+          {/* Conto - Available to all users */}
           <div 
             className={`menu-item ${isActive('/conto') ? 'active' : ''}`}
             onClick={() => handleNavigation('/conto')}
@@ -185,6 +179,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <span>Conto</span>
             <i className="arrow-icon">▼</i>
           </div>
+
+          {/* Posta - Available to all users */}
           <div className="menu-item-container">
             <div 
               className={`menu-item ${isActive('/posta') ? 'active' : ''}`}
@@ -214,7 +210,18 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               </div>
             )}
           </div>
+          {/* Approvals - Admin and Super Admin only */}
+{isAdmin && (
+  <div 
+    className={`menu-item ${isActive('/approvals') ? 'active' : ''}`}
+    onClick={() => handleNavigation('/approvals')}
+  >
+    <i className="menu-icon">✅</i>
+    <span>Approvals</span>
+  </div>
+)}
 
+          {/* Aziende - Available to all users (but segnalatori see only assigned companies) */}
           <div className="menu-item-container">
             <div 
               className={`menu-item ${isActive('/companies') ? 'active' : ''}`}
@@ -234,24 +241,30 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   <i className="dropdown-icon">📋</i>
                   <span>Elenco</span>
                 </div>
-                <div 
-                  className="dropdown-item"
-                  onClick={() => handleNavigation('/companies/new')}
-                >
-                  <i className="dropdown-icon">➕</i>
-                  <span>Crea</span>
-                </div>
-                <div 
-                  className="dropdown-item"
-                  onClick={() => handleNavigation('/companies/upload')}
-                >
-                  <i className="dropdown-icon">📤</i>
-                  <span>Upload XLSX</span>
-                </div>
+                {/* Only Sportello Lavoro and above can create companies */}
+                {isSportelloLavoro && (
+                  <>
+                    <div 
+                      className="dropdown-item"
+                      onClick={() => handleNavigation('/companies/new')}
+                    >
+                      <i className="dropdown-icon">➕</i>
+                      <span>Crea</span>
+                    </div>
+                    <div 
+                      className="dropdown-item"
+                      onClick={() => handleNavigation('/companies/upload')}
+                    >
+                      <i className="dropdown-icon">📤</i>
+                      <span>Upload XLSX</span>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
 
+          {/* Users - Admin and Super Admin only */}
           {isAdmin && (
             <div 
               className={`menu-item ${isActive('/users') ? 'active' : ''}`}
@@ -259,108 +272,109 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             >
               <i className="menu-icon">👥</i>
               <span>Utenti</span>
-              <i className="arrow-icon">▼</i>
             </div>
           )}
-          
+
+          {/* Responsabile Territoriale - Responsabile Territoriale and above */}
           {isAdmin && (
-            <div>
+            <div className="menu-item-container">
               <div 
-                className={`menu-item ${isActive('/attuatori') ? 'active' : ''}`}
-                onClick={() => handleNavigation('/attuatori')}
+                className={`menu-item ${isActive('/agenti') || isActive('/abila') ? 'active' : ''}`}
+                onClick={toggleAbilaDropdown}
               >
-                <i className="menu-icon">🔄</i>
-                <span>Attuatori</span>
-                <i className="arrow-icon">▼</i>
+                <i className="menu-icon">📊</i>
+                <span>Responsabile Territoriale</span>
+                <i className={`arrow-icon ${abilaDropdownOpen ? 'open' : ''}`}>▼</i>
               </div>
-              <div className="menu-item-container">
-                <div 
-                  className={`menu-item ${isActive('/segnalatori') ? 'active' : ''}`}
-                  onClick={toggleSegnalatoriDropdown}
-                >
-                  <i className="menu-icon">📢</i>
-                  <span>Segnalatori SA</span>
-                  <i className={`arrow-icon ${segnalatoriDropdownOpen ? 'open' : ''}`}>▼</i>
-                </div>
-                
-                {segnalatoriDropdownOpen && (
-                  <div className="dropdown-menu">
-                    <div 
-                      className="dropdown-item"
-                      onClick={() => handleNavigation('/segnalatori')}
-                    >
-                      <i className="dropdown-icon">📋</i>
-                      <span>Elenco</span>
-                    </div>
-                    <div 
-                      className="dropdown-item"
-                      onClick={() => handleNavigation('/segnalatori/new')}
-                    >
-                      <i className="dropdown-icon">➕</i>
-                      <span>Crea</span>
-                    </div>
+              
+              {abilaDropdownOpen && (
+                <div className="dropdown-menu">
+                  <div 
+                    className="dropdown-item"
+                    onClick={() => handleNavigation('/agenti')}
+                  >
+                    <i className="dropdown-icon">➕</i>
+                    <span>Crea</span>
                   </div>
-                )}
-              </div>
+                  <div 
+                    className="dropdown-item"
+                    onClick={() => handleNavigation('/abila/progetti')}
+                  >
+                    <i className="dropdown-icon">📋</i>
+                    <span>Elenco</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-
-          <div className="menu-item-container">
-            <div 
-              className={`menu-item ${isActive('/abila') ? 'active' : ''}`}
-              onClick={toggleAbilaDropdown}
-            >
-              <i className="menu-icon">📊</i>
-              <span>Agenti</span>
-              <i className={`arrow-icon ${abilaDropdownOpen ? 'open' : ''}`}>▼</i>
-            </div>
-            
-            {abilaDropdownOpen && (
-              <div className="dropdown-menu">
-                <div 
-                  className="dropdown-item"
-                  onClick={() => handleNavigation('/agenti')}
-                >
-                  <i className="dropdown-icon">➕</i>
-                  <span>Avvia un progetto</span>
-                </div>
-                <div 
-                  className="dropdown-item"
-                  onClick={() => handleNavigation('/abila/progetti')}
-                >
-                  <i className="dropdown-icon">📋</i>
-                  <span>Elenco progetti</span>
-                </div>
+          {/* Sportello Lavoro - Responsabile Territoriale and above can manage */}
+          {isResponsabileTerritoriale && (
+            <div className="menu-item-container">
+              <div 
+                className={`menu-item ${isActive('/sportello-lavoro') ? 'active' : ''}`}
+                onClick={toggleSportelloLavoroDropdown}
+              >
+                <i className="menu-icon">🏢</i>
+                <span>Sportello Lavoro</span>
+                <i className={`arrow-icon ${sportelloLavoroDropdownOpen ? 'open' : ''}`}>▼</i>
               </div>
-            )}
-          </div>
-
-
-          <div className="menu-item-container">
-            <div 
-              className={`menu-item ${isActive('/analisi') ? 'active' : ''}`}
-              onClick={toggleAnalisiDropdown}
-            >
-              <i className="menu-icon">📈</i>
-              <span>Analisi</span>
-              <i className={`arrow-icon ${analisiDropdownOpen ? 'open' : ''}`}>▼</i>
-            </div>
-            
-            {analisiDropdownOpen && (
-              <div className="dropdown-menu">
-                <div 
-                  className="dropdown-item"
-                  onClick={() => handleNavigation('/analisi/crm')}
-                >
-                  <i className="dropdown-icon">💹</i>
-                  <span>CRM</span>
+              
+              {sportelloLavoroDropdownOpen && (
+                <div className="dropdown-menu">
+                  <div 
+                    className="dropdown-item"
+                    onClick={() => handleNavigation('/sportello-lavoro')}
+                  >
+                    <i className="dropdown-icon">📋</i>
+                    <span>Elenco</span>
+                  </div>
+                  <div 
+                    className="dropdown-item"
+                    onClick={() => handleNavigation('/sportello-lavoro/new')}
+                  >
+                    <i className="dropdown-icon">➕</i>
+                    <span>Crea</span>
+                  </div>
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* Segnalatori - Sportello Lavoro and above can manage */}
+          {isSportelloLavoro && (
+            <div className="menu-item-container">
+              <div 
+                className={`menu-item ${isActive('/segnalatori') ? 'active' : ''}`}
+                onClick={toggleSegnalatoriDropdown}
+              >
+                <i className="menu-icon">📢</i>
+                <span>Segnalatori</span>
+                <i className={`arrow-icon ${segnalatoriDropdownOpen ? 'open' : ''}`}>▼</i>
               </div>
-            )}
-          </div>
+              
+              {segnalatoriDropdownOpen && (
+                <div className="dropdown-menu">
+                  <div 
+                    className="dropdown-item"
+                    onClick={() => handleNavigation('/segnalatori')}
+                  >
+                    <i className="dropdown-icon">📋</i>
+                    <span>Elenco</span>
+                  </div>
+                  <div 
+                    className="dropdown-item"
+                    onClick={() => handleNavigation('/segnalatori/new')}
+                  >
+                    <i className="dropdown-icon">➕</i>
+                    <span>Crea</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
-
+          {/* Fornitori - Available to all users */}
           <div className="menu-item-container">
             <div 
               className={`menu-item ${isActive('/fornitori') ? 'active' : ''}`}
@@ -380,16 +394,21 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   <i className="dropdown-icon">📋</i>
                   <span>Elenco</span>
                 </div>
-                <div 
-                  className="dropdown-item"
-                  onClick={() => handleNavigation('/fornitori/crea')}
-                >
-                  <i className="dropdown-icon">➕</i>
-                  <span>Crea</span>
-                </div>
+                {/* Only Sportello Lavoro and above can create suppliers */}
+                {isSportelloLavoro && (
+                  <div 
+                    className="dropdown-item"
+                    onClick={() => handleNavigation('/fornitori/crea')}
+                  >
+                    <i className="dropdown-icon">➕</i>
+                    <span>Crea</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
+
+          
         </div>
         
         <main className="main-content">

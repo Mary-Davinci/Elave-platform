@@ -8,9 +8,7 @@ exports.getProfileData = void 0;
  */
 const getProfileData = (req, res) => {
     try {
-        // Need to type-cast req to include the user property added by auth middleware
         const user = req.user;
-        // Check if user exists in the request (set by auth middleware)
         if (!user) {
             res.status(401).json({
                 success: false,
@@ -18,7 +16,6 @@ const getProfileData = (req, res) => {
             });
             return;
         }
-        // Return the user profile data
         res.status(200).json({
             success: true,
             data: {
@@ -29,7 +26,6 @@ const getProfileData = (req, res) => {
                 firstName: user.firstName || '',
                 lastName: user.lastName || '',
                 organization: user.organization || '',
-                // Add any other profile data you want to include
             }
         });
     }

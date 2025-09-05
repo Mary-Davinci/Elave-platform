@@ -11,7 +11,6 @@ const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const xlsx_1 = __importDefault(require("xlsx"));
 const notificationService_1 = require("../models/notificationService");
-// Set up multer for file uploads with improved debugging and MIME type handling
 const storage = multer_1.default.diskStorage({
     destination: (req, file, cb) => {
         const uploadDir = path_1.default.join(__dirname, '../uploads');
@@ -55,14 +54,12 @@ const upload = (0, multer_1.default)({
         }
     }
 }).single('file');
-// Get all companies for the authenticated user
 const getCompanies = async (req, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
         let query = {};
-        // Regular users can only see their own companies
         if (req.user.role !== 'admin') {
             query = { user: req.user._id };
         }
@@ -75,7 +72,6 @@ const getCompanies = async (req, res) => {
     }
 };
 exports.getCompanies = getCompanies;
-// Get a single company by ID
 const getCompanyById = async (req, res) => {
     try {
         if (!req.user) {
@@ -86,7 +82,6 @@ const getCompanyById = async (req, res) => {
         if (!company) {
             return res.status(404).json({ error: "Company not found" });
         }
-        // Regular users can only access their own companies
         if (req.user.role !== 'admin' && !company.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
@@ -98,14 +93,12 @@ const getCompanyById = async (req, res) => {
     }
 };
 exports.getCompanyById = getCompanyById;
-// Create a new company
 const createCompany = async (req, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
         const { businessName, companyName, vatNumber, fiscalCode, matricola, inpsCode, address, contactInfo, contractDetails, industry, employees, signaler, actuator, isActive } = req.body;
-        // Validate required fields
         const errors = [];
         if (!businessName)
             errors.push("Ragione Sociale is required");
@@ -114,10 +107,8 @@ const createCompany = async (req, res) => {
         if (errors.length > 0) {
             return res.status(400).json({ errors });
         }
-        // Determine approval status based on user role
         const isAutoApproved = ['admin', 'super_admin'].includes(req.user.role);
         const needsApproval = ['responsabile_territoriale', 'sportello_lavoro'].includes(req.user.role);
-        // Create the new company
         const newCompany = new Company_1.default({
             businessName,
             companyName: companyName || businessName,
@@ -132,7 +123,6 @@ const createCompany = async (req, res) => {
             employees: employees || 0,
             signaler,
             actuator,
-            // Approval logic
             isActive: isAutoApproved ? (isActive !== undefined ? isActive : true) : false,
             isApproved: isAutoApproved,
             pendingApproval: needsApproval,
@@ -141,7 +131,6 @@ const createCompany = async (req, res) => {
             user: new mongoose_1.default.Types.ObjectId(req.user._id)
         });
         await newCompany.save();
-        // Send notification if needs approval
         if (needsApproval) {
             await notificationService_1.NotificationService.notifyAdminsOfPendingApproval({
                 title: 'New Company Pending Approval',
@@ -153,7 +142,6 @@ const createCompany = async (req, res) => {
                 createdByName: req.user.firstName ? `${req.user.firstName} ${req.user.lastName}` : req.user.username
             });
         }
-        // Update dashboard stats
         const DashboardStats = require("../models/Dashboard").default;
         await DashboardStats.findOneAndUpdate({ user: req.user._id }, { $inc: { companies: 1 } }, { new: true, upsert: true });
         return res.status(201).json({
@@ -170,7 +158,6 @@ const createCompany = async (req, res) => {
     }
 };
 exports.createCompany = createCompany;
-// Update a company
 const updateCompany = async (req, res) => {
     try {
         if (!req.user) {
@@ -182,11 +169,9 @@ const updateCompany = async (req, res) => {
         if (!company) {
             return res.status(404).json({ error: "Company not found" });
         }
-        // Regular users can only update their own companies
         if (req.user.role !== 'admin' && !company.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
-        // Validation for required fields
         const errors = [];
         if (businessName === '')
             errors.push("Ragione Sociale cannot be empty");
@@ -195,7 +180,6 @@ const updateCompany = async (req, res) => {
         if (errors.length > 0) {
             return res.status(400).json({ errors });
         }
-        // Update fields
         if (businessName !== undefined)
             company.businessName = businessName;
         if (companyName !== undefined)
@@ -208,7 +192,6 @@ const updateCompany = async (req, res) => {
             company.matricola = matricola;
         if (inpsCode !== undefined)
             company.inpsCode = inpsCode;
-        // Merge nested objects
         if (address) {
             company.address = {
                 ...company.address,
@@ -242,7 +225,6 @@ const updateCompany = async (req, res) => {
     }
     catch (err) {
         console.error("Update company error:", err);
-        // Handle duplicate VAT number error
         if (err.code === 11000 && err.keyPattern && err.keyPattern.vatNumber) {
             return res.status(400).json({ error: "VAT number already exists" });
         }
@@ -250,7 +232,6 @@ const updateCompany = async (req, res) => {
     }
 };
 exports.updateCompany = updateCompany;
-// Delete a company
 const deleteCompany = async (req, res) => {
     try {
         if (!req.user) {
@@ -261,12 +242,10 @@ const deleteCompany = async (req, res) => {
         if (!company) {
             return res.status(404).json({ error: "Company not found" });
         }
-        // Regular users can only delete their own companies
         if (req.user.role !== 'admin' && !company.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
         await company.deleteOne();
-        // Update dashboard stats
         const DashboardStats = require("../models/Dashboard").default;
         await DashboardStats.findOneAndUpdate({ user: req.user._id }, { $inc: { companies: -1 } }, { new: true });
         return res.json({ message: "Company deleted successfully" });
@@ -277,13 +256,11 @@ const deleteCompany = async (req, res) => {
     }
 };
 exports.deleteCompany = deleteCompany;
-// Upload companies from Excel file - fixed version
 const uploadCompaniesFromExcel = async (req, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
-        // Handle file upload using multer
         upload(req, res, async (err) => {
             if (err) {
                 console.error("File upload error:", err);
@@ -294,7 +271,6 @@ const uploadCompaniesFromExcel = async (req, res) => {
             }
             try {
                 console.log("File uploaded successfully:", req.file.path);
-                // Read Excel file
                 const workbook = xlsx_1.default.readFile(req.file.path);
                 const sheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[sheetName];
@@ -302,22 +278,18 @@ const uploadCompaniesFromExcel = async (req, res) => {
                 console.log("Excel data parsed. Row count:", data.length);
                 console.log("Sample row:", data.length > 0 ? JSON.stringify(data[0]) : "No data");
                 if (!data || data.length === 0) {
-                    // Clean up the uploaded file
                     fs_1.default.unlinkSync(req.file.path);
                     return res.status(400).json({ error: "Excel file has no data" });
                 }
-                // Process companies
                 const companies = [];
                 const errors = [];
                 for (const [index, row] of data.entries()) {
                     try {
                         console.log(`Processing row ${index + 1}:`, JSON.stringify(row));
-                        // Map Excel columns to company fields - with bracket notation for safer access
-                        // Updated to match your specified required fields
                         const companyData = {
-                            businessName: row['Ragione Sociale'] || '', // Required
+                            businessName: row['Ragione Sociale'] || '',
                             companyName: row['Azienda'] || row['Ragione Sociale'] || '',
-                            vatNumber: row['Partita IVA'] || '', // Required
+                            vatNumber: row['Partita IVA'] || '',
                             fiscalCode: row['Codice Fiscale'] || '',
                             matricola: row['Matricola'] || '',
                             inpsCode: row['Codice INPS'] || '',
@@ -350,7 +322,6 @@ const uploadCompaniesFromExcel = async (req, res) => {
                                 row['Active'] === 'si' || row['Active'] === 'yes' || row['Active'] === true || true,
                             user: req.user?._id
                         };
-                        // Validate only the required fields you specified
                         if (!companyData.businessName) {
                             throw new Error("Ragione Sociale is required");
                         }
@@ -358,7 +329,6 @@ const uploadCompaniesFromExcel = async (req, res) => {
                             throw new Error("Partita IVA is required");
                         }
                         console.log(`Saving company: ${companyData.businessName}`);
-                        // Create and save company
                         const company = new Company_1.default(companyData);
                         await company.save();
                         companies.push(company);
@@ -366,20 +336,16 @@ const uploadCompaniesFromExcel = async (req, res) => {
                     }
                     catch (rowError) {
                         console.error(`Error processing row ${index + 2}:`, rowError);
-                        // Add error with row index for better identification
                         errors.push(`Row ${index + 2}: ${rowError.message}`);
                     }
                 }
-                // Clean up the uploaded file
                 fs_1.default.unlinkSync(req.file.path);
                 console.log("Uploaded file cleaned up");
-                // Update dashboard stats if any company was created
                 if (companies.length > 0) {
                     const DashboardStats = require("../models/Dashboard").default;
                     await DashboardStats.findOneAndUpdate({ user: req.user?._id }, { $inc: { companies: companies.length } }, { new: true, upsert: true });
                     console.log("Dashboard stats updated");
                 }
-                // Return response
                 console.log(`Import complete: ${companies.length} companies created, ${errors.length} errors`);
                 return res.status(201).json({
                     message: `${companies.length} companies imported successfully${errors.length > 0 ? ` with ${errors.length} errors` : ''}`,
@@ -388,7 +354,6 @@ const uploadCompaniesFromExcel = async (req, res) => {
                 });
             }
             catch (processError) {
-                // Clean up the uploaded file
                 if (req.file && fs_1.default.existsSync(req.file.path)) {
                     fs_1.default.unlinkSync(req.file.path);
                 }

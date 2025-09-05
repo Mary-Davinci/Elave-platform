@@ -34,7 +34,6 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
-// File schema for uploaded documents
 const FileInfoSchema = new mongoose_1.Schema({
     filename: { type: String, required: true },
     originalName: { type: String, required: true },
@@ -42,7 +41,6 @@ const FileInfoSchema = new mongoose_1.Schema({
     mimetype: { type: String, required: true },
     size: { type: Number, required: true }
 }, { _id: false });
-// Procacciatore schema
 const ProcacciatoreSchema = new mongoose_1.Schema({
     firstName: {
         type: String,
@@ -131,14 +129,11 @@ const ProcacciatoreSchema = new mongoose_1.Schema({
     toJSON: { virtuals: true },
     toObject: { virtuals: true }
 });
-// Virtual for full name
 ProcacciatoreSchema.virtual('fullName').get(function () {
     return `${this.firstName} ${this.lastName}`;
 });
-// Create compound indexes
 ProcacciatoreSchema.index({ user: 1, email: 1 });
 ProcacciatoreSchema.index({ user: 1, taxCode: 1 });
-// Add text index for search functionality
 ProcacciatoreSchema.index({
     firstName: 'text',
     lastName: 'text',
@@ -146,14 +141,12 @@ ProcacciatoreSchema.index({
     city: 'text',
     taxCode: 'text'
 });
-// Pre-save middleware
 ProcacciatoreSchema.pre('save', function (next) {
     if (this.taxCode) {
         this.taxCode = this.taxCode.replace(/\s/g, '').toUpperCase();
     }
     next();
 });
-// Static methods
 ProcacciatoreSchema.statics.findByUser = function (userId) {
     return this.find({ user: userId }).sort({ createdAt: -1 });
 };
@@ -164,7 +157,6 @@ ProcacciatoreSchema.statics.findByTaxCode = function (taxCode, userId) {
     }
     return this.findOne(query);
 };
-// Instance methods
 ProcacciatoreSchema.methods.getFullAddress = function () {
     return `${this.address}, ${this.city} ${this.postalCode} (${this.province})`;
 };

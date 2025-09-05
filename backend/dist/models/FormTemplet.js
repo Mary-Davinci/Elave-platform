@@ -80,9 +80,7 @@ const FormTemplateSchema = new mongoose_1.Schema({
 }, {
     timestamps: true
 });
-// Create compound index to ensure unique templates per type and category
 FormTemplateSchema.index({ type: 1, category: 1 }, { unique: true });
-// Add regular indexes for performance
 FormTemplateSchema.index({ category: 1 });
 FormTemplateSchema.index({ uploadedBy: 1 });
 FormTemplateSchema.index({ createdAt: -1 });

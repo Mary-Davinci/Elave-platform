@@ -8,8 +8,6 @@ const authController_1 = require("../controllers/authController");
 const authMiddleware_1 = require("../middleware/authMiddleware");
 const authController_2 = require("../controllers/authController");
 const router = express_1.default.Router();
-// Since the controller functions are now properly typed as RequestHandler,
-// we can use them directly without any wrapper functions
 router.post("/register", authController_1.register);
 router.post("/login", authController_1.login);
 router.get("/me", authMiddleware_1.authMiddleware, authController_2.getCurrentUser);

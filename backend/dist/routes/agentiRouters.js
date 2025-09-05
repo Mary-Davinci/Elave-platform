@@ -8,10 +8,8 @@ const agentiController_1 = require("../controllers/agentiController");
 const authMiddleware_1 = require("../middleware/authMiddleware");
 const roleMiddleware_1 = require("../middleware/roleMiddleware");
 const router = express_1.default.Router();
-// All users can view agenti (with data filtering)
 router.get("/", authMiddleware_1.authMiddleware, roleMiddleware_1.segnalaториRoleMiddleware, agentiController_1.getAgenti);
 router.get("/:id", authMiddleware_1.authMiddleware, roleMiddleware_1.segnalaториRoleMiddleware, agentiController_1.getAgenteById);
-// Only Responsabile Territoriale and above can create/modify agenti
 router.post("/", authMiddleware_1.authMiddleware, roleMiddleware_1.responsabileTerritorialeMiddleware, agentiController_1.createAgente);
 router.put("/:id", authMiddleware_1.authMiddleware, roleMiddleware_1.responsabileTerritorialeMiddleware, agentiController_1.updateAgente);
 router.delete("/:id", authMiddleware_1.authMiddleware, roleMiddleware_1.responsabileTerritorialeMiddleware, agentiController_1.deleteAgente);

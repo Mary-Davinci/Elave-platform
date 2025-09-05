@@ -33,7 +33,6 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-// src/models/User.ts
 const mongoose_1 = __importStar(require("mongoose"));
 const UserSchema = new mongoose_1.Schema({
     username: {
@@ -81,7 +80,6 @@ const UserSchema = new mongoose_1.Schema({
             type: mongoose_1.Schema.Types.ObjectId,
             ref: "Company"
         }],
-    // NEW: Approval system fields
     isApproved: {
         type: Boolean,
         default: false
@@ -101,7 +99,7 @@ const UserSchema = new mongoose_1.Schema({
         type: Number,
         min: 0,
         max: 100,
-        default: 20 // Default to segnalatori percentage
+        default: 20
     },
     isActive: {
         type: Boolean,
@@ -136,11 +134,9 @@ const UserSchema = new mongoose_1.Schema({
 }, {
     timestamps: true
 });
-// Middleware to set permissions and approval status based on role and creator
 UserSchema.pre('save', function (next) {
     if (this.isModified('role')) {
         const role = this.role;
-        // Set permissions based on role
         this.permissions = {
             canViewAll: ["responsabile_territoriale", "admin", "super_admin"].includes(role),
             canCreateSportello: ["responsabile_territoriale", "admin", "super_admin"].includes(role),
@@ -149,7 +145,6 @@ UserSchema.pre('save', function (next) {
             canCreateSegnalatori: ["sportello_lavoro", "responsabile_territoriale", "admin", "super_admin"].includes(role),
             canRequestRefunds: ["sportello_lavoro", "responsabile_territoriale", "admin", "super_admin"].includes(role)
         };
-        // Set default profit sharing if not already set
         if (!this.profitSharePercentage) {
             switch (role) {
                 case "segnalatori":
@@ -170,21 +165,17 @@ UserSchema.pre('save', function (next) {
             }
         }
     }
-    // NEW: Handle approval status
     if (this.isNew) {
-        // Admin and super_admin are automatically approved
         if (["admin", "super_admin"].includes(this.role)) {
             this.isApproved = true;
             this.pendingApproval = false;
         }
         else {
             // All other users need approval if created by responsabile_territoriale
-            // This will be set explicitly in the controller based on who created them
         }
     }
     next();
 });
-// Add indexes for better performance
 UserSchema.index({ email: 1 });
 UserSchema.index({ role: 1 });
 UserSchema.index({ managedBy: 1 });
@@ -192,19 +183,16 @@ UserSchema.index({ isActive: 1 });
 UserSchema.index({ isApproved: 1 });
 UserSchema.index({ pendingApproval: 1 });
 UserSchema.index({ "assignedCompanies": 1 });
-// Virtual to get full name
 UserSchema.virtual('fullName').get(function () {
     return `${this.firstName || ''} ${this.lastName || ''}`.trim();
 });
-// Method to check if user can access specific data
 UserSchema.methods.canAccess = function (resourceUserId) {
     if (["admin", "super_admin"].includes(this.role)) {
-        return true; // Admin and Super Admin can access everything
+        return true;
     }
     if (this.role === "responsabile_territoriale" && this.permissions?.canViewAll) {
-        return true; // Responsabile Territoriale can see everyone
+        return true;
     }
-    // Check if the resource belongs to this user or is managed by them
     return this._id.toString() === resourceUserId ||
         this.manages?.some((id) => id.toString() === resourceUserId);
 };

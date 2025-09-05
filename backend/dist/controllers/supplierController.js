@@ -6,15 +6,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteSupplier = exports.updateSupplier = exports.createSupplier = exports.getSupplierById = exports.getSuppliers = void 0;
 const Supplier_1 = __importDefault(require("../models/Supplier"));
 const mongoose_1 = __importDefault(require("mongoose"));
-// Get all suppliers for the authenticated user
 const getSuppliers = async (req, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
-        // Base query
         let query = {};
-        // Regular users can only see their own suppliers
         if (req.user.role !== 'admin') {
             query.user = req.user._id;
         }
@@ -27,7 +24,6 @@ const getSuppliers = async (req, res) => {
     }
 };
 exports.getSuppliers = getSuppliers;
-// Get a single supplier by ID
 const getSupplierById = async (req, res) => {
     try {
         if (!req.user) {
@@ -38,7 +34,6 @@ const getSupplierById = async (req, res) => {
         if (!supplier) {
             return res.status(404).json({ error: "Supplier not found" });
         }
-        // Regular users can only access their own suppliers
         if (req.user.role !== 'admin' && !supplier.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
@@ -50,14 +45,12 @@ const getSupplierById = async (req, res) => {
     }
 };
 exports.getSupplierById = getSupplierById;
-// Create a new supplier
 const createSupplier = async (req, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
         const { ragioneSociale, indirizzo, citta, cap, provincia, partitaIva, codiceFiscale, referente, cellulare, telefono, email, pec } = req.body;
-        // Validate required fields
         const errors = [];
         if (!ragioneSociale)
             errors.push("Ragione sociale is required");
@@ -77,11 +70,9 @@ const createSupplier = async (req, res) => {
             errors.push("Cellulare is required");
         if (!email)
             errors.push("Email is required");
-        // If there are validation errors, return them
         if (errors.length > 0) {
             return res.status(400).json({ errors });
         }
-        // Create the new supplier
         const newSupplier = new Supplier_1.default({
             ragioneSociale,
             indirizzo,
@@ -95,17 +86,15 @@ const createSupplier = async (req, res) => {
             telefono,
             email,
             pec,
-            user: new mongoose_1.default.Types.ObjectId(req.user._id) // Associate supplier with the current user
+            user: new mongoose_1.default.Types.ObjectId(req.user._id)
         });
         await newSupplier.save();
-        // Update dashboard stats
         const DashboardStats = require("../models/Dashboard").default;
         await DashboardStats.findOneAndUpdate({ user: req.user._id }, { $inc: { suppliers: 1 } }, { new: true, upsert: true });
         return res.status(201).json(newSupplier);
     }
     catch (error) {
         console.error("Create supplier error:", error);
-        // Handle duplicate Partita IVA error
         if (error.code === 11000 && error.keyPattern && error.keyPattern.partitaIva) {
             return res.status(400).json({ error: "Partita IVA already exists" });
         }
@@ -113,7 +102,6 @@ const createSupplier = async (req, res) => {
     }
 };
 exports.createSupplier = createSupplier;
-// Update a supplier
 const updateSupplier = async (req, res) => {
     try {
         if (!req.user) {
@@ -125,11 +113,9 @@ const updateSupplier = async (req, res) => {
         if (!supplier) {
             return res.status(404).json({ error: "Supplier not found" });
         }
-        // Regular users can only update their own suppliers
         if (req.user.role !== 'admin' && !supplier.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
-        // Update fields
         if (ragioneSociale)
             supplier.ragioneSociale = ragioneSociale;
         if (indirizzo)
@@ -159,7 +145,6 @@ const updateSupplier = async (req, res) => {
     }
     catch (error) {
         console.error("Update supplier error:", error);
-        // Handle duplicate Partita IVA error
         if (error.code === 11000 && error.keyPattern && error.keyPattern.partitaIva) {
             return res.status(400).json({ error: "Partita IVA already exists" });
         }
@@ -167,7 +152,6 @@ const updateSupplier = async (req, res) => {
     }
 };
 exports.updateSupplier = updateSupplier;
-// Delete a supplier
 const deleteSupplier = async (req, res) => {
     try {
         if (!req.user) {
@@ -178,12 +162,10 @@ const deleteSupplier = async (req, res) => {
         if (!supplier) {
             return res.status(404).json({ error: "Supplier not found" });
         }
-        // Regular users can only delete their own suppliers
         if (req.user.role !== 'admin' && !supplier.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
         await supplier.deleteOne();
-        // Update dashboard stats
         const DashboardStats = require("../models/Dashboard").default;
         await DashboardStats.findOneAndUpdate({ user: req.user._id }, { $inc: { suppliers: -1 } }, { new: true });
         return res.json({ message: "Supplier deleted successfully" });

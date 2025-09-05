@@ -8,18 +8,15 @@ const Utilities_1 = __importDefault(require("../models/Utilities"));
 const multer_1 = __importDefault(require("multer"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
-// Configure multer for file uploads
 const storage = multer_1.default.diskStorage({
     destination: function (req, file, cb) {
         const uploadDir = path_1.default.join(__dirname, '../../uploads/utilities');
-        // Create directory if it doesn't exist
         if (!fs_1.default.existsSync(uploadDir)) {
             fs_1.default.mkdirSync(uploadDir, { recursive: true });
         }
         cb(null, uploadDir);
     },
     filename: function (req, file, cb) {
-        // Generate unique filename
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         const fileExtension = path_1.default.extname(file.originalname);
         cb(null, file.fieldname + '-' + uniqueSuffix + fileExtension);
@@ -31,7 +28,6 @@ const upload = (0, multer_1.default)({
         fileSize: 10 * 1024 * 1024, // 10MB limit
     },
     fileFilter: function (req, file, cb) {
-        // Allow specific file types
         const allowedTypes = /pdf|doc|docx|xls|xlsx|txt|zip|rar/;
         const extname = allowedTypes.test(path_1.default.extname(file.originalname).toLowerCase());
         const mimetype = allowedTypes.test(file.mimetype) ||
@@ -49,19 +45,14 @@ const upload = (0, multer_1.default)({
         }
     }
 });
-// Middleware for single file upload
 exports.uploadMiddleware = upload.single('file');
-// Helper function to determine file type based on extension or MIME type
 const getFileType = (file, providedType) => {
-    // If type is explicitly provided and valid, use it
     const validTypes = ['form', 'faq', 'manual', 'document', 'spreadsheet', 'other'];
     if (providedType && validTypes.includes(providedType)) {
         return providedType;
     }
-    // Otherwise, determine based on file extension or MIME type
     const extension = path_1.default.extname(file.originalname).toLowerCase();
     const mimeType = file.mimetype;
-    // Map file types to categories
     if (extension === '.pdf' || mimeType === 'application/pdf') {
         return 'document';
     }
@@ -80,12 +71,10 @@ const getFileType = (file, providedType) => {
         ['application/zip', 'application/x-rar-compressed'].includes(mimeType)) {
         return 'other';
     }
-    return 'other'; // Default fallback
+    return 'other';
 };
-// Get all utilities
 const getUtilities = async (req, res) => {
     try {
-        // Everyone can view utilities
         const utilities = await Utilities_1.default.find().sort({ name: 1 });
         return res.json(utilities);
     }
@@ -95,30 +84,24 @@ const getUtilities = async (req, res) => {
     }
 };
 exports.getUtilities = getUtilities;
-// Upload a new utility file (admin only)
 const uploadUtility = async (req, res) => {
     try {
         if (!req.user || req.user.role !== 'admin') {
             return res.status(403).json({ error: "Admin access required" });
         }
-        // Check if file was uploaded
         if (!req.file) {
             return res.status(400).json({ error: "No file uploaded" });
         }
         const { name, type, isPublic, category } = req.body;
-        // Use original filename if name not provided
         const utilityName = name || req.file.originalname;
-        // Generate file URL (adjust based on your server setup)
         const fileUrl = `/uploads/utilities/${req.file.filename}`;
-        // Determine the correct type using helper function
         const utilityType = getFileType(req.file, type);
-        // Create the new utility
         const newUtility = new Utilities_1.default({
             name: utilityName,
             fileUrl: fileUrl,
             type: utilityType,
-            isPublic: isPublic !== 'false', // default to true unless explicitly false.
-            category: category || 'uncategorized', // optional fallback
+            isPublic: isPublic !== 'false',
+            category: category || 'uncategorized',
         });
         await newUtility.save();
         return res.status(201).json(newUtility);
@@ -129,25 +112,21 @@ const uploadUtility = async (req, res) => {
     }
 };
 exports.uploadUtility = uploadUtility;
-// Add a new utility (admin only) - for manual entry
 const addUtility = async (req, res) => {
     try {
         if (!req.user || req.user.role !== 'admin') {
             return res.status(403).json({ error: "Admin access required" });
         }
         const { name, fileUrl, type, isPublic } = req.body;
-        // Validate required fields
         if (!name || !fileUrl || !type) {
             return res.status(400).json({ error: "Name, file URL, and type are required" });
         }
-        // Validate type is in allowed enum values
         const validTypes = ['form', 'faq', 'manual', 'document', 'spreadsheet', 'other'];
         if (!validTypes.includes(type)) {
             return res.status(400).json({
                 error: `Invalid type. Must be one of: ${validTypes.join(', ')}`
             });
         }
-        // Create the new utility
         const newUtility = new Utilities_1.default({
             name,
             fileUrl,
@@ -163,7 +142,6 @@ const addUtility = async (req, res) => {
     }
 };
 exports.addUtility = addUtility;
-// Delete a utility (admin only)
 const deleteUtility = async (req, res) => {
     try {
         if (!req.user || req.user.role !== 'admin') {
@@ -174,14 +152,12 @@ const deleteUtility = async (req, res) => {
         if (!utility) {
             return res.status(404).json({ error: "Utility not found" });
         }
-        // Delete the file from filesystem if it exists
         if (utility.fileUrl.startsWith('/uploads/')) {
             const filePath = path_1.default.join(__dirname, '../../', utility.fileUrl);
             if (fs_1.default.existsSync(filePath)) {
                 fs_1.default.unlinkSync(filePath);
             }
         }
-        // Delete from database
         await Utilities_1.default.findByIdAndDelete(id);
         return res.json({ message: "Utility deleted successfully" });
     }
@@ -191,18 +167,15 @@ const deleteUtility = async (req, res) => {
     }
 };
 exports.deleteUtility = deleteUtility;
-// Initialize default utilities (admin only)
 const initializeUtilities = async (req, res) => {
     try {
         if (!req.user || req.user.role !== 'admin') {
             return res.status(403).json({ error: "Admin access required" });
         }
-        // Check if utilities already exist
         const existingUtilities = await Utilities_1.default.countDocuments();
         if (existingUtilities > 0) {
             return res.status(200).json({ message: "Utilities already initialized" });
         }
-        // Create sample utilities
         const defaultUtilities = [
             {
                 name: "User Manual",
@@ -232,7 +205,6 @@ const initializeUtilities = async (req, res) => {
     }
 };
 exports.initializeUtilities = initializeUtilities;
-// Download a utility
 const downloadUtility = async (req, res) => {
     try {
         const { id } = req.params;
@@ -240,11 +212,9 @@ const downloadUtility = async (req, res) => {
         if (!utility) {
             return res.status(404).json({ error: "Utility not found" });
         }
-        // For public utilities, anyone can download
         if (utility.isPublic) {
             return res.json({ fileUrl: utility.fileUrl });
         }
-        // For non-public utilities, check if user is authenticated
         if (!req.user) {
             return res.status(401).json({ error: "Authentication required" });
         }

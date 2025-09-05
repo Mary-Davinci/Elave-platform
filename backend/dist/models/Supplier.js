@@ -33,7 +33,6 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-// src/models/Supplier.ts
 const mongoose_1 = __importStar(require("mongoose"));
 const SupplierSchema = new mongoose_1.Schema({
     ragioneSociale: {
@@ -103,7 +102,6 @@ const SupplierSchema = new mongoose_1.Schema({
 }, {
     timestamps: true,
 });
-// Add indexes for faster queries
 SupplierSchema.index({ user: 1 });
 SupplierSchema.index({ ragioneSociale: 1 });
 SupplierSchema.index({ partitaIva: 1 }, { unique: true });

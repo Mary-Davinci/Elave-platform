@@ -15,17 +15,11 @@ router.get('/test', (req, res) => {
         timestamp: new Date().toISOString()
     });
 });
-// Upload route MUST come before /:id route to avoid conflicts
 router.post('/upload', authMiddleware_1.authMiddleware, roleMiddleware_1.segnalaториRoleMiddleware, procacciatoreController_1.uploadProcacciatoriFromExcel);
-// Get all procacciatori
 router.get('/', authMiddleware_1.authMiddleware, procacciatoreController_1.getProcacciatori);
-// Get single procacciatore by ID
 router.get('/:id', authMiddleware_1.authMiddleware, procacciatoreController_1.getProcacciatoreById);
-// Create new procacciatore
 router.post('/', authMiddleware_1.authMiddleware, roleMiddleware_1.segnalaториRoleMiddleware, procacciatoreController_1.createProcacciatore);
-// Update existing procacciatore by ID
 router.put('/:id', authMiddleware_1.authMiddleware, roleMiddleware_1.segnalaториRoleMiddleware, procacciatoreController_1.updateProcacciatore);
-// Delete procacciatore by ID
 router.delete('/:id', authMiddleware_1.authMiddleware, roleMiddleware_1.segnalaториRoleMiddleware, procacciatoreController_1.deleteProcacciatore);
 exports.default = router;
 //# sourceMappingURL=procacciatoreRoutes.js.map

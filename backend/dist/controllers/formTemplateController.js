@@ -8,7 +8,6 @@ const multer_1 = __importDefault(require("multer"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const FormTemplet_1 = __importDefault(require("../models/FormTemplet"));
-// Set up multer for template uploads
 const templateStorage = multer_1.default.diskStorage({
     destination: (req, file, cb) => {
         const uploadDir = path_1.default.join(__dirname, '../uploads/templates');
@@ -38,7 +37,6 @@ const templateUpload = (0, multer_1.default)({
         }
     }
 }).single('template');
-// Get all form templates
 const getFormTemplates = async (req, res) => {
     try {
         if (!req.user) {
@@ -53,7 +51,6 @@ const getFormTemplates = async (req, res) => {
     }
 };
 exports.getFormTemplates = getFormTemplates;
-// NEW: Get form templates by category
 const getFormTemplatesByCategory = async (req, res) => {
     try {
         if (!req.user) {
@@ -72,15 +69,12 @@ const getFormTemplatesByCategory = async (req, res) => {
     }
 };
 exports.getFormTemplatesByCategory = getFormTemplatesByCategory;
-// Upload a new form template (admin only)
 const uploadFormTemplate = async (req, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
-        // Type assertion to ensure req.user is available for the rest of the function
         const authenticatedReq = req;
-        // Check if user is admin or super_admin
         if (!['admin', 'super_admin'].includes(authenticatedReq.user.role)) {
             return res.status(403).json({ error: "Only admins can upload form templates" });
         }
@@ -94,7 +88,6 @@ const uploadFormTemplate = async (req, res) => {
             if (!file) {
                 return res.status(400).json({ error: "No file provided" });
             }
-            // Validate type based on category
             let validTypes = [];
             if (category === 'agenti') {
                 validTypes = ['contract', 'legal'];
@@ -103,7 +96,6 @@ const uploadFormTemplate = async (req, res) => {
                 validTypes = ['contract', 'id'];
             }
             else {
-                // Default for backward compatibility
                 validTypes = ['contract', 'legal'];
             }
             if (!type || !validTypes.includes(type)) {
@@ -112,17 +104,14 @@ const uploadFormTemplate = async (req, res) => {
                 });
             }
             try {
-                // Check if template of this type and category already exists and delete it
                 const query = category ? { type, category } : { type };
                 const existingTemplate = await FormTemplet_1.default.findOne(query);
                 if (existingTemplate) {
-                    // Delete the old file
                     if (fs_1.default.existsSync(existingTemplate.filePath)) {
                         fs_1.default.unlinkSync(existingTemplate.filePath);
                     }
                     await FormTemplet_1.default.deleteOne(query);
                 }
-                // Create template name based on type and category
                 let templateName = '';
                 if (category === 'segnalatore') {
                     templateName = type === 'contract' ? 'Modulo Contratto Segnalatore' : 'Modulo Documento Identità';
@@ -130,11 +119,10 @@ const uploadFormTemplate = async (req, res) => {
                 else {
                     templateName = type === 'contract' ? 'Modulo Contratto Agenti' : 'Modulo Documento Legale';
                 }
-                // Create new template record
                 const newTemplate = new FormTemplet_1.default({
                     name: templateName,
                     type,
-                    category: category || 'agenti', // Default to agenti for backward compatibility
+                    category: category || 'agenti',
                     fileName: file.filename,
                     originalName: file.originalname,
                     filePath: file.path,
@@ -150,7 +138,6 @@ const uploadFormTemplate = async (req, res) => {
             }
             catch (saveError) {
                 console.error("Save template error:", saveError);
-                // Clean up uploaded file if save fails
                 if (fs_1.default.existsSync(file.path)) {
                     fs_1.default.unlinkSync(file.path);
                 }
@@ -164,7 +151,6 @@ const uploadFormTemplate = async (req, res) => {
     }
 };
 exports.uploadFormTemplate = uploadFormTemplate;
-// Download a form template (original route for backward compatibility)
 const downloadFormTemplate = async (req, res) => {
     try {
         if (!req.user) {
@@ -174,7 +160,6 @@ const downloadFormTemplate = async (req, res) => {
         if (!type || !['contract', 'legal'].includes(type)) {
             return res.status(400).json({ error: "Invalid template type" });
         }
-        // Look for template without category (backward compatibility)
         const template = await FormTemplet_1.default.findOne({
             type,
             $or: [{ category: { $exists: false } }, { category: 'agenti' }]
@@ -185,10 +170,8 @@ const downloadFormTemplate = async (req, res) => {
         if (!fs_1.default.existsSync(template.filePath)) {
             return res.status(404).json({ error: "Template file not found on server" });
         }
-        // Set appropriate headers for file download
         res.setHeader('Content-Disposition', `attachment; filename="${template.originalName}"`);
         res.setHeader('Content-Type', template.mimetype);
-        // Stream the file
         const fileStream = fs_1.default.createReadStream(template.filePath);
         fileStream.pipe(res);
     }
@@ -198,7 +181,6 @@ const downloadFormTemplate = async (req, res) => {
     }
 };
 exports.downloadFormTemplate = downloadFormTemplate;
-// NEW: Download a form template by category and type
 const downloadFormTemplateByCategory = async (req, res) => {
     try {
         if (!req.user) {
@@ -208,7 +190,6 @@ const downloadFormTemplateByCategory = async (req, res) => {
         if (!category || !['agenti', 'segnalatore'].includes(category)) {
             return res.status(400).json({ error: "Invalid category. Must be 'agenti' or 'segnalatore'" });
         }
-        // Validate type based on category
         let validTypes = [];
         if (category === 'agenti') {
             validTypes = ['contract', 'legal'];
@@ -228,10 +209,8 @@ const downloadFormTemplateByCategory = async (req, res) => {
         if (!fs_1.default.existsSync(template.filePath)) {
             return res.status(404).json({ error: "Template file not found on server" });
         }
-        // Set appropriate headers for file download
         res.setHeader('Content-Disposition', `attachment; filename="${template.originalName}"`);
         res.setHeader('Content-Type', template.mimetype);
-        // Stream the file
         const fileStream = fs_1.default.createReadStream(template.filePath);
         fileStream.pipe(res);
     }
@@ -241,13 +220,11 @@ const downloadFormTemplateByCategory = async (req, res) => {
     }
 };
 exports.downloadFormTemplateByCategory = downloadFormTemplateByCategory;
-// Delete a form template (admin only)
 const deleteFormTemplate = async (req, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
-        // Type assertion to ensure req.user is available
         const authenticatedReq = req;
         if (!['admin', 'super_admin'].includes(authenticatedReq.user.role)) {
             return res.status(403).json({ error: "Only admins can delete form templates" });
@@ -257,11 +234,9 @@ const deleteFormTemplate = async (req, res) => {
         if (!template) {
             return res.status(404).json({ error: "Template not found" });
         }
-        // Delete the file
         if (fs_1.default.existsSync(template.filePath)) {
             fs_1.default.unlinkSync(template.filePath);
         }
-        // Delete the database record
         await FormTemplet_1.default.deleteOne({ type });
         return res.json({ message: "Template deleted successfully" });
     }

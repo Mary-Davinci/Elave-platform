@@ -33,9 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-// src/models/Agente.ts
 const mongoose_1 = __importStar(require("mongoose"));
-// File schema for uploaded documents
 const FileInfoSchema = new mongoose_1.Schema({
     filename: { type: String, required: true },
     originalName: { type: String, required: true },
@@ -136,24 +134,19 @@ const AgenteSchema = new mongoose_1.Schema({
     toJSON: { virtuals: true },
     toObject: { virtuals: true }
 });
-// Create compound index for user + vatNumber for faster queries
 AgenteSchema.index({ user: 1, vatNumber: 1 });
-// Add text index for search functionality
 AgenteSchema.index({
     businessName: 'text',
     vatNumber: 'text',
     city: 'text',
     email: 'text'
 });
-// Pre-save middleware to ensure VAT number format
 AgenteSchema.pre('save', function (next) {
     if (this.vatNumber) {
-        // Remove spaces and convert to uppercase for consistency
         this.vatNumber = this.vatNumber.replace(/\s/g, '').toUpperCase();
     }
     next();
 });
-// Static methods
 AgenteSchema.statics.findByUser = function (userId) {
     return this.find({ user: userId }).sort({ createdAt: -1 });
 };
@@ -164,11 +157,9 @@ AgenteSchema.statics.findByVatNumber = function (vatNumber, userId) {
     }
     return this.findOne(query);
 };
-// Instance methods
 AgenteSchema.methods.getFullAddress = function () {
     return `${this.address}, ${this.city} ${this.postalCode} (${this.province})`;
 };
-// Error handling for duplicate VAT number
 AgenteSchema.post('save', function (error, doc, next) {
     if (error.name === 'MongoError' && error.code === 11000) {
         if (error.keyPattern && error.keyPattern.vatNumber) {

@@ -33,7 +33,6 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-// src/models/ProjectTemplate.ts
 const mongoose_1 = __importStar(require("mongoose"));
 const ProjectTemplateSchema = new mongoose_1.Schema({
     code: {
@@ -94,7 +93,6 @@ const ProjectTemplateSchema = new mongoose_1.Schema({
 }, {
     timestamps: true,
 });
-// Add indexes for faster queries
 ProjectTemplateSchema.index({ code: 1 });
 ProjectTemplateSchema.index({ category: 1 });
 ProjectTemplateSchema.index({ subcategory: 1 });

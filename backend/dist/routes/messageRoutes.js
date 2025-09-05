@@ -7,7 +7,6 @@ const express_1 = __importDefault(require("express"));
 const messageController_1 = require("../controllers/messageController");
 const authMiddleware_1 = require("../middleware/authMiddleware");
 const router = express_1.default.Router();
-// Logging middleware for debugging
 const routeLogger = (req, res, next) => {
     console.log('===== Message Route Called =====');
     console.log(`Path: ${req.path}`);
@@ -18,11 +17,8 @@ const routeLogger = (req, res, next) => {
     console.log('===============================');
     next();
 };
-// Apply logging middleware to all routes
 router.use(routeLogger);
-// Apply auth middleware to all message routes
 router.use(authMiddleware_1.authMiddleware);
-// GET routes with explicit path logging
 router.get('/', (req, res, next) => {
     console.log('Messages route hit with status:', req.query.status);
     next();
@@ -34,16 +30,12 @@ router.get('/stats', (req, res, next) => {
 router.get('/search', messageController_1.searchMessages);
 router.get('/:id', messageController_1.getMessageById);
 router.get('/:messageId/attachments/:attachmentId', messageController_1.downloadAttachment);
-// POST routes
 router.post('/', messageController_1.upload.array('attachments', 5), messageController_1.sendMessage);
 router.post('/drafts', messageController_1.upload.array('attachments', 5), messageController_1.saveDraft);
-// PUT routes
 router.put('/drafts/:id', messageController_1.upload.array('attachments', 5), messageController_1.saveDraft);
 router.put('/:id/read', messageController_1.markReadStatus);
 router.put('/:id/trash', messageController_1.moveToTrash);
-// DELETE routes
 router.delete('/:id', messageController_1.deleteMessage);
-// Error handling middleware
 router.use((err, req, res, next) => {
     console.error('Message Route Error:', err);
     res.status(500).json({

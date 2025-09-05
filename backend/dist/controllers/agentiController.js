@@ -10,7 +10,6 @@ const multer_1 = __importDefault(require("multer"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const xlsx_1 = __importDefault(require("xlsx"));
-// Set up multer for file uploads with support for contract and legal documents
 const storage = multer_1.default.diskStorage({
     destination: (req, file, cb) => {
         const uploadDir = path_1.default.join(__dirname, '../uploads/agenti');
@@ -33,7 +32,6 @@ const upload = (0, multer_1.default)({
             mimetype: file.mimetype,
             extension: path_1.default.extname(file.originalname).toLowerCase()
         });
-        // For Excel uploads
         if (file.fieldname === 'file') {
             const validExtensions = /\.xlsx$|\.xls$/i;
             const hasValidExtension = validExtensions.test(path_1.default.extname(file.originalname).toLowerCase());
@@ -52,7 +50,6 @@ const upload = (0, multer_1.default)({
                 return cb(new Error('Only Excel files (.xlsx, .xls) are allowed for bulk upload!'));
             }
         }
-        // For document uploads (contracts and legal documents)
         if (file.fieldname === 'signedContractFile' || file.fieldname === 'legalDocumentFile') {
             const validExtensions = /\.pdf$|\.doc$|\.docx$|\.jpg$|\.jpeg$|\.png$/i;
             const hasValidExtension = validExtensions.test(path_1.default.extname(file.originalname).toLowerCase());
@@ -70,14 +67,12 @@ const upload = (0, multer_1.default)({
     { name: 'signedContractFile', maxCount: 1 },
     { name: 'legalDocumentFile', maxCount: 1 }
 ]);
-// Get all agents for the authenticated user
 const getAgenti = async (req, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
         let query = {};
-        // Regular users can only see their own agents
         if (req.user.role !== 'admin') {
             query = { user: req.user._id };
         }
@@ -90,7 +85,6 @@ const getAgenti = async (req, res) => {
     }
 };
 exports.getAgenti = getAgenti;
-// Get a single agent by ID
 const getAgenteById = async (req, res) => {
     try {
         if (!req.user) {
@@ -101,7 +95,6 @@ const getAgenteById = async (req, res) => {
         if (!agente) {
             return res.status(404).json({ error: "Agente not found" });
         }
-        // Regular users can only access their own agents
         if (req.user.role !== 'admin' && !agente.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
@@ -113,20 +106,17 @@ const getAgenteById = async (req, res) => {
     }
 };
 exports.getAgenteById = getAgenteById;
-// Create a new agent
 const createAgente = async (req, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
-        // Handle file uploads
         upload(req, res, async (err) => {
             if (err) {
                 console.error("File upload error:", err);
                 return res.status(400).json({ error: err.message });
             }
             const { businessName, vatNumber, address, city, postalCode, province, agreedCommission, email, pec } = req.body;
-            // Validate required fields
             const errors = [];
             if (!businessName)
                 errors.push("Ragione Sociale is required");
@@ -143,7 +133,6 @@ const createAgente = async (req, res) => {
             if (!agreedCommission || isNaN(parseFloat(agreedCommission))) {
                 errors.push("Competenze concordate is required and must be a valid number");
             }
-            // If there are validation errors, return them
             if (errors.length > 0) {
                 return res.status(400).json({ errors });
             }
@@ -151,11 +140,9 @@ const createAgente = async (req, res) => {
                 return res.status(401).json({ message: 'User not authenticated' });
             }
             try {
-                // Handle file uploads with proper typing
                 const files = req.files;
                 const signedContractFile = files?.signedContractFile?.[0];
                 const legalDocumentFile = files?.legalDocumentFile?.[0];
-                // Create the new agent
                 const newAgente = new Agenti_1.default({
                     businessName,
                     vatNumber,
@@ -183,14 +170,12 @@ const createAgente = async (req, res) => {
                     user: new mongoose_1.default.Types.ObjectId(req.user._id)
                 });
                 await newAgente.save();
-                // Update dashboard stats
                 const DashboardStats = require("../models/Dashboard").default;
                 await DashboardStats.findOneAndUpdate({ user: req.user._id }, { $inc: { agenti: 1 } }, { new: true, upsert: true });
                 return res.status(201).json(newAgente);
             }
             catch (saveError) {
                 console.error("Create agente error:", saveError);
-                // Handle duplicate VAT number error
                 if (saveError.code === 11000 && saveError.keyPattern && saveError.keyPattern.vatNumber) {
                     return res.status(400).json({ error: "VAT number already exists" });
                 }
@@ -204,14 +189,12 @@ const createAgente = async (req, res) => {
     }
 };
 exports.createAgente = createAgente;
-// Update an agent
 const updateAgente = async (req, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
         const { id } = req.params;
-        // Handle file uploads
         upload(req, res, async (err) => {
             if (err) {
                 console.error("File upload error:", err);
@@ -225,11 +208,9 @@ const updateAgente = async (req, res) => {
             if (!req.user) {
                 return res.status(401).json({ message: 'Unauthorized' });
             }
-            // Regular users can only update their own agents
             if (req.user.role !== 'admin' && !agente.user.equals(req.user._id)) {
                 return res.status(403).json({ error: "Access denied" });
             }
-            // Validation for required fields
             const errors = [];
             if (businessName === '')
                 errors.push("Ragione Sociale cannot be empty");
@@ -247,11 +228,9 @@ const updateAgente = async (req, res) => {
                 return res.status(400).json({ errors });
             }
             try {
-                // Handle file uploads with proper typing
                 const files = req.files;
                 const signedContractFile = files?.signedContractFile?.[0];
                 const legalDocumentFile = files?.legalDocumentFile?.[0];
-                // Update fields
                 if (businessName !== undefined)
                     agente.businessName = businessName;
                 if (vatNumber !== undefined)
@@ -270,7 +249,6 @@ const updateAgente = async (req, res) => {
                     agente.email = email;
                 if (pec !== undefined)
                     agente.pec = pec;
-                // Update files if provided
                 if (signedContractFile) {
                     agente.signedContractFile = {
                         filename: signedContractFile.filename,
@@ -294,7 +272,6 @@ const updateAgente = async (req, res) => {
             }
             catch (updateError) {
                 console.error("Update agente error:", updateError);
-                // Handle duplicate VAT number error
                 if (updateError.code === 11000 && updateError.keyPattern && updateError.keyPattern.vatNumber) {
                     return res.status(400).json({ error: "VAT number already exists" });
                 }
@@ -308,7 +285,6 @@ const updateAgente = async (req, res) => {
     }
 };
 exports.updateAgente = updateAgente;
-// Delete an agent
 const deleteAgente = async (req, res) => {
     try {
         if (!req.user) {
@@ -319,11 +295,9 @@ const deleteAgente = async (req, res) => {
         if (!agente) {
             return res.status(404).json({ error: "Agente not found" });
         }
-        // Regular users can only delete their own agents
         if (req.user.role !== 'admin' && !agente.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
-        // Delete associated files
         if (agente.signedContractFile?.path && fs_1.default.existsSync(agente.signedContractFile.path)) {
             fs_1.default.unlinkSync(agente.signedContractFile.path);
         }
@@ -331,7 +305,6 @@ const deleteAgente = async (req, res) => {
             fs_1.default.unlinkSync(agente.legalDocumentFile.path);
         }
         await agente.deleteOne();
-        // Update dashboard stats
         const DashboardStats = require("../models/Dashboard").default;
         await DashboardStats.findOneAndUpdate({ user: req.user._id }, { $inc: { agenti: -1 } }, { new: true });
         return res.json({ message: "Agente deleted successfully" });
@@ -342,13 +315,11 @@ const deleteAgente = async (req, res) => {
     }
 };
 exports.deleteAgente = deleteAgente;
-// Upload agents from Excel file
 const uploadAgentiFromExcel = async (req, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
-        // Handle file upload using multer
         upload(req, res, async (err) => {
             if (err) {
                 console.error("File upload error:", err);
@@ -361,7 +332,6 @@ const uploadAgentiFromExcel = async (req, res) => {
             }
             try {
                 console.log("File uploaded successfully:", file.path);
-                // Read Excel file
                 const workbook = xlsx_1.default.readFile(file.path);
                 const sheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[sheetName];
@@ -369,20 +339,17 @@ const uploadAgentiFromExcel = async (req, res) => {
                 console.log("Excel data parsed. Row count:", data.length);
                 console.log("Sample row:", data.length > 0 ? JSON.stringify(data[0]) : "No data");
                 if (!data || data.length === 0) {
-                    // Clean up the uploaded file
                     fs_1.default.unlinkSync(file.path);
                     return res.status(400).json({ error: "Excel file has no data" });
                 }
                 if (!req.user) {
                     return res.status(401).json({ message: 'Unauthorized' });
                 }
-                // Process agents
                 const agenti = [];
                 const errors = [];
                 for (const [index, row] of data.entries()) {
                     try {
                         console.log(`Processing row ${index + 1}:`, JSON.stringify(row));
-                        // Map Excel columns to agent fields
                         const agenteData = {
                             businessName: row['Ragione Sociale'] || '',
                             vatNumber: row['Partita IVA'] || '',
@@ -395,7 +362,6 @@ const uploadAgentiFromExcel = async (req, res) => {
                             pec: row['PEC'] || '',
                             user: req.user._id
                         };
-                        // Validate required fields
                         if (!agenteData.businessName) {
                             throw new Error("Ragione Sociale is required");
                         }
@@ -418,7 +384,6 @@ const uploadAgentiFromExcel = async (req, res) => {
                             throw new Error("Competenze concordate is required and must be greater than 0");
                         }
                         console.log(`Saving agente: ${agenteData.businessName}`);
-                        // Create and save agent
                         const agente = new Agenti_1.default(agenteData);
                         await agente.save();
                         agenti.push(agente);
@@ -429,16 +394,13 @@ const uploadAgentiFromExcel = async (req, res) => {
                         errors.push(`Row ${index + 2}: ${rowError.message}`);
                     }
                 }
-                // Clean up the uploaded file
                 fs_1.default.unlinkSync(file.path);
                 console.log("Uploaded file cleaned up");
-                // Update dashboard stats if any agent was created
                 if (agenti.length > 0) {
                     const DashboardStats = require("../models/Dashboard").default;
                     await DashboardStats.findOneAndUpdate({ user: req.user._id }, { $inc: { agenti: agenti.length } }, { new: true, upsert: true });
                     console.log("Dashboard stats updated");
                 }
-                // Return response
                 console.log(`Import complete: ${agenti.length} agenti created, ${errors.length} errors`);
                 return res.status(201).json({
                     message: `${agenti.length} agenti imported successfully${errors.length > 0 ? ` with ${errors.length} errors` : ''}`,
@@ -447,7 +409,6 @@ const uploadAgentiFromExcel = async (req, res) => {
                 });
             }
             catch (processError) {
-                // Clean up the uploaded file
                 if (file && fs_1.default.existsSync(file.path)) {
                     fs_1.default.unlinkSync(file.path);
                 }

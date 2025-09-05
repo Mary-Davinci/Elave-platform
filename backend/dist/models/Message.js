@@ -33,7 +33,6 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-// src/models/Message.ts
 const mongoose_1 = __importStar(require("mongoose"));
 const AttachmentSchema = new mongoose_1.Schema({
     filename: {
@@ -86,7 +85,6 @@ const MessageSchema = new mongoose_1.Schema({
 }, {
     timestamps: true
 });
-// Add indexes for faster queries
 MessageSchema.index({ sender: 1 });
 MessageSchema.index({ recipients: 1 });
 MessageSchema.index({ status: 1 });

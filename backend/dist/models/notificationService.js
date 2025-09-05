@@ -4,9 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NotificationService = void 0;
-// src/models/notificationService.ts - Complete backend notification service
 const mongoose_1 = __importDefault(require("mongoose"));
-// Define the notification schema
 const notificationSchema = new mongoose_1.default.Schema({
     title: {
         type: String,
@@ -55,19 +53,13 @@ const notificationSchema = new mongoose_1.default.Schema({
 }, {
     timestamps: true
 });
-// Create index for better performance
 notificationSchema.index({ recipients: 1, createdAt: -1 });
 notificationSchema.index({ 'readBy.user': 1 });
 const Notification = mongoose_1.default.model('Notification', notificationSchema);
 class NotificationService {
-    /**
-     * Notify all admins of a pending approval
-     */
     static async notifyAdminsOfPendingApproval(data) {
         try {
-            // Import User model dynamically to avoid circular dependencies
             const User = require('./User').default;
-            // Find all admin and super_admin users
             const adminUsers = await User.find({
                 role: { $in: ['admin', 'super_admin'] },
                 isActive: true
@@ -76,7 +68,6 @@ class NotificationService {
                 console.warn('No admin users found to notify');
                 return;
             }
-            // Create notification
             const notification = new Notification({
                 title: data.title,
                 message: data.message,
@@ -86,19 +77,15 @@ class NotificationService {
                 createdBy: new mongoose_1.default.Types.ObjectId(data.createdBy),
                 createdByName: data.createdByName,
                 recipients: adminUsers.map((user) => user._id),
-                readBy: [] // Initially unread by all
+                readBy: []
             });
             await notification.save();
             console.log(`Notification created for ${adminUsers.length} admin(s): ${data.title}`);
         }
         catch (error) {
             console.error('Error creating notification:', error);
-            // Don't throw error to avoid breaking the main workflow
         }
     }
-    /**
-     * Get unread notifications for a specific user
-     */
     static async getNotificationsForUser(userId) {
         try {
             const userObjectId = new mongoose_1.default.Types.ObjectId(userId);
@@ -108,7 +95,7 @@ class NotificationService {
             })
                 .populate('createdBy', 'username firstName lastName')
                 .sort({ createdAt: -1 })
-                .limit(50) // Limit to last 50 notifications
+                .limit(50)
                 .lean();
             return notifications;
         }
@@ -117,16 +104,13 @@ class NotificationService {
             return [];
         }
     }
-    /**
-     * Mark a notification as read by a specific user
-     */
     static async markAsRead(notificationId, userId) {
         try {
             const userObjectId = new mongoose_1.default.Types.ObjectId(userId);
             const result = await Notification.updateOne({
                 _id: new mongoose_1.default.Types.ObjectId(notificationId),
                 recipients: userObjectId,
-                'readBy.user': { $ne: userObjectId } // Only if not already read
+                'readBy.user': { $ne: userObjectId }
             }, {
                 $push: {
                     readBy: {
@@ -144,15 +128,12 @@ class NotificationService {
             throw error;
         }
     }
-    /**
-     * Mark all notifications as read for a specific user
-     */
     static async markAllAsReadForUser(userId) {
         try {
             const userObjectId = new mongoose_1.default.Types.ObjectId(userId);
             await Notification.updateMany({
                 recipients: userObjectId,
-                'readBy.user': { $ne: userObjectId } // Only unread notifications
+                'readBy.user': { $ne: userObjectId }
             }, {
                 $push: {
                     readBy: {
@@ -167,9 +148,6 @@ class NotificationService {
             throw error;
         }
     }
-    /**
-     * Delete a notification (only if user is in recipients)
-     */
     static async deleteNotification(notificationId, userId) {
         try {
             const userObjectId = new mongoose_1.default.Types.ObjectId(userId);
@@ -186,9 +164,6 @@ class NotificationService {
             throw error;
         }
     }
-    /**
-     * Clean up old notifications (older than 30 days)
-     */
     static async cleanupOldNotifications() {
         try {
             const thirtyDaysAgo = new Date();
@@ -202,9 +177,6 @@ class NotificationService {
             console.error('Error cleaning up old notifications:', error);
         }
     }
-    /**
-     * Get notification statistics
-     */
     static async getNotificationStats() {
         try {
             const stats = await Notification.aggregate([

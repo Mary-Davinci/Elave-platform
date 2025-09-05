@@ -6,9 +6,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.changePassword = void 0;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const User_1 = __importDefault(require("../models/User"));
-/**
- * Change user password
- */
 const changePassword = async (req, res) => {
     try {
         if (!req.user) {
@@ -22,21 +19,17 @@ const changePassword = async (req, res) => {
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
-        // Compare current password using bcrypt
         const isMatch = await bcryptjs_1.default.compare(currentPassword, user.password);
         if (!isMatch) {
             return res.status(400).json({ error: 'Current password is incorrect' });
         }
-        // Validate new password strength
         const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,}$/;
         if (!passwordRegex.test(newPassword)) {
             return res.status(400).json({
                 error: 'New password must be at least 8 characters and include uppercase, lowercase, and a number'
             });
         }
-        // Hash the new password
         const hashedPassword = await bcryptjs_1.default.hash(newPassword, 10);
-        // Save the new password
         user.password = hashedPassword;
         await user.save();
         return res.status(200).json({ message: 'Password updated successfully' });
@@ -47,6 +40,5 @@ const changePassword = async (req, res) => {
     }
 };
 exports.changePassword = changePassword;
-// Default export
 exports.default = { changePassword: exports.changePassword };
 //# sourceMappingURL=editpassword.js.map

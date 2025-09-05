@@ -14,20 +14,16 @@ const authMiddleware = async (req, res, next) => {
         if (!token) {
             return res.status(401).json({ message: "No authentication token, access denied" });
         }
-        // Verify the token
         const jwtSecret = process.env.JWT_SECRET;
         if (!jwtSecret) {
             throw new Error("JWT_SECRET is not defined in environment variables");
         }
         const decoded = jsonwebtoken_1.default.verify(token, jwtSecret);
-        // Get the user from the database
         const user = await User_1.default.findById(decoded.userId).select("-password");
         if (!user) {
             return res.status(401).json({ message: "Token is valid but user not found" });
         }
-        // Attach the user to the request
         req.user = user;
-        // Continue
         next();
     }
     catch (error) {
@@ -36,7 +32,6 @@ const authMiddleware = async (req, res, next) => {
     }
 };
 exports.authMiddleware = authMiddleware;
-// UPDATED: Auth middleware with approval check
 const authWithApprovalMiddleware = async (req, res, next) => {
     try {
         const rawAuthHeader = req.header("Authorization");
@@ -53,7 +48,6 @@ const authWithApprovalMiddleware = async (req, res, next) => {
         if (!user) {
             return res.status(401).json({ message: "Token is valid but user not found" });
         }
-        // Check if user is approved (admin and super_admin are always approved)
         if (!["admin", "super_admin"].includes(user.role) && !user.isApproved) {
             return res.status(403).json({
                 message: "Your account is pending approval. Please contact an administrator.",
@@ -69,7 +63,6 @@ const authWithApprovalMiddleware = async (req, res, next) => {
     }
 };
 exports.authWithApprovalMiddleware = authWithApprovalMiddleware;
-// Admin authorization middleware (admin or super_admin)
 const adminMiddleware = (req, res, next) => {
     if (req.user && (req.user.role === "admin" || req.user.role === "super_admin")) {
         next();
@@ -79,7 +72,6 @@ const adminMiddleware = (req, res, next) => {
     }
 };
 exports.adminMiddleware = adminMiddleware;
-// Super Admin authorization middleware (only super_admin)
 const superAdminMiddleware = (req, res, next) => {
     if (req.user && req.user.role === "super_admin") {
         next();

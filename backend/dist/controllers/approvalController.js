@@ -10,18 +10,15 @@ const sportello_1 = __importDefault(require("../models/sportello"));
 const Agenti_1 = __importDefault(require("../models/Agenti"));
 const Segnalatore_1 = __importDefault(require("../models/Segnalatore"));
 const User_1 = __importDefault(require("../models/User"));
-// Get all pending items - REAL DATABASE QUERIES
 const getPendingItems = async (req, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
-        // Only admin and super_admin can view pending items
         if (!['admin', 'super_admin'].includes(req.user.role)) {
             return res.status(403).json({ error: "Access denied. Admin privileges required." });
         }
-        console.log('🔍 Fetching real pending items from database...');
-        // REAL DATABASE QUERIES - Find all pending items
+        console.log(' Fetching real pending items from database...');
         const companies = await Company_1.default.find({
             $or: [
                 { isApproved: false },
@@ -52,7 +49,6 @@ const getPendingItems = async (req, res) => {
             .populate('user', 'username firstName lastName role')
             .sort({ createdAt: -1 })
             .lean();
-        // For users/segnalatori, look for both User model and Segnalatore model
         const pendingUsers = await User_1.default.find({
             role: 'segnalatori',
             $or: [
@@ -73,7 +69,6 @@ const getPendingItems = async (req, res) => {
             .populate('user', 'username firstName lastName role')
             .sort({ createdAt: -1 })
             .lean();
-        // Combine both user types for segnalatori
         const allSegnalatori = [
             ...pendingUsers.map((user) => ({
                 _id: user._id,
@@ -103,7 +98,7 @@ const getPendingItems = async (req, res) => {
             }))
         ];
         const total = companies.length + sportelloLavoro.length + agenti.length + allSegnalatori.length;
-        console.log('✅ Real pending items fetched:', {
+        console.log('Real pending items fetched:', {
             companies: companies.length,
             sportelloLavoro: sportelloLavoro.length,
             agenti: agenti.length,
@@ -159,12 +154,11 @@ const getPendingItems = async (req, res) => {
         });
     }
     catch (err) {
-        console.error("❌ Get pending items error:", err);
+        console.error(" Get pending items error:", err);
         return res.status(500).json({ error: "Server error while fetching pending items" });
     }
 };
 exports.getPendingItems = getPendingItems;
-// Approve company - REAL DATABASE
 const approveCompany = async (req, res) => {
     try {
         if (!req.user) {
@@ -175,12 +169,10 @@ const approveCompany = async (req, res) => {
         }
         const { id } = req.params;
         console.log('✅ Approving company with real database:', id);
-        // REAL DATABASE QUERY
         const company = await Company_1.default.findById(id).populate('user');
         if (!company) {
             return res.status(404).json({ error: "Company not found" });
         }
-        // Update company approval status
         company.isApproved = true;
         company.pendingApproval = false;
         company.isActive = true;
@@ -188,7 +180,6 @@ const approveCompany = async (req, res) => {
         company.approvedAt = new Date();
         await company.save();
         console.log('✅ Company approved successfully in database');
-        // Send notification
         try {
             const companyName = company.businessName || company.companyName || 'Unknown Company';
             await notificationService_1.NotificationService.notifyAdminsOfPendingApproval({
@@ -219,7 +210,6 @@ const approveCompany = async (req, res) => {
     }
 };
 exports.approveCompany = approveCompany;
-// Approve sportello lavoro - REAL DATABASE
 const approveSportelloLavoro = async (req, res) => {
     try {
         if (!req.user) {
@@ -230,12 +220,10 @@ const approveSportelloLavoro = async (req, res) => {
         }
         const { id } = req.params;
         console.log('✅ Approving sportello lavoro with real database:', id);
-        // REAL DATABASE QUERY
         const sportello = await sportello_1.default.findById(id).populate('user');
         if (!sportello) {
             return res.status(404).json({ error: "Sportello Lavoro not found" });
         }
-        // Note: SportelloLavoro model is missing some approval fields, so we'll add them dynamically
         await sportello_1.default.updateOne({ _id: id }, {
             $set: {
                 isApproved: true,
@@ -246,7 +234,6 @@ const approveSportelloLavoro = async (req, res) => {
             }
         });
         console.log('✅ Sportello Lavoro approved successfully in database');
-        // Send notification
         try {
             await notificationService_1.NotificationService.notifyAdminsOfPendingApproval({
                 title: `Job Center Approved: ${sportello.businessName}`,
@@ -271,12 +258,11 @@ const approveSportelloLavoro = async (req, res) => {
         });
     }
     catch (err) {
-        console.error("❌ Approve sportello error:", err);
+        console.error(" Approve sportello error:", err);
         return res.status(500).json({ error: "Server error while approving sportello" });
     }
 };
 exports.approveSportelloLavoro = approveSportelloLavoro;
-// Approve agente - REAL DATABASE
 const approveAgente = async (req, res) => {
     try {
         if (!req.user) {
@@ -286,21 +272,18 @@ const approveAgente = async (req, res) => {
             return res.status(403).json({ error: "Access denied" });
         }
         const { id } = req.params;
-        console.log('✅ Approving agente with real database:', id);
-        // REAL DATABASE QUERY
+        console.log('Approving agente with real database:', id);
         const agente = await Agenti_1.default.findById(id).populate('user');
         if (!agente) {
             return res.status(404).json({ error: "Agente not found" });
         }
-        // Update agente approval status
         agente.isApproved = true;
         agente.pendingApproval = false;
         agente.isActive = true;
         agente.approvedBy = req.user._id;
         agente.approvedAt = new Date();
         await agente.save();
-        console.log('✅ Agente approved successfully in database');
-        // Send notification
+        console.log(' Agente approved successfully in database');
         try {
             await notificationService_1.NotificationService.notifyAdminsOfPendingApproval({
                 title: `Agent Approved: ${agente.businessName}`,
@@ -326,12 +309,11 @@ const approveAgente = async (req, res) => {
         });
     }
     catch (err) {
-        console.error("❌ Approve agente error:", err);
+        console.error("Approve agente error:", err);
         return res.status(500).json({ error: "Server error while approving agente" });
     }
 };
 exports.approveAgente = approveAgente;
-// Approve user (segnalatore) - REAL DATABASE
 const approveUser = async (req, res) => {
     try {
         if (!req.user) {
@@ -341,13 +323,11 @@ const approveUser = async (req, res) => {
             return res.status(403).json({ error: "Access denied" });
         }
         const { id } = req.params;
-        console.log('✅ Approving user/segnalatore with real database:', id);
-        // Try to find in User model first
+        console.log(' Approving user/segnalatore with real database:', id);
         let user = await User_1.default.findById(id);
         let segnalatore = null;
         let entityName = '';
         if (user) {
-            // Update user approval status
             user.isApproved = true;
             user.pendingApproval = false;
             user.isActive = true;
@@ -358,12 +338,10 @@ const approveUser = async (req, res) => {
             console.log('✅ User approved successfully in database');
         }
         else {
-            // Try to find in Segnalatore model
             segnalatore = await Segnalatore_1.default.findById(id).populate('user');
             if (!segnalatore) {
                 return res.status(404).json({ error: "User not found" });
             }
-            // Update segnalatore approval status (add fields dynamically if missing)
             await Segnalatore_1.default.updateOne({ _id: id }, {
                 $set: {
                     isApproved: true,
@@ -374,7 +352,7 @@ const approveUser = async (req, res) => {
                 }
             });
             entityName = `${segnalatore.firstName} ${segnalatore.lastName}`;
-            console.log('✅ Segnalatore approved successfully in database');
+            console.log(' Segnalatore approved successfully in database');
         }
         // Send notification
         try {
@@ -403,12 +381,11 @@ const approveUser = async (req, res) => {
         });
     }
     catch (err) {
-        console.error("❌ Approve user error:", err);
+        console.error(" Approve user error:", err);
         return res.status(500).json({ error: "Server error while approving user" });
     }
 };
 exports.approveUser = approveUser;
-// Reject item - REAL DATABASE
 const rejectItem = async (req, res) => {
     try {
         if (!req.user) {
@@ -419,10 +396,9 @@ const rejectItem = async (req, res) => {
         }
         const { type, id } = req.params;
         const { reason } = req.body;
-        console.log(`❌ Rejecting ${type} with real database:`, id);
+        console.log(` Rejecting ${type} with real database:`, id);
         let item = null;
         let itemName = '';
-        // Find and update the item based on type
         switch (type) {
             case 'company':
                 item = await Company_1.default.findById(id);
@@ -462,7 +438,6 @@ const rejectItem = async (req, res) => {
                     item.isApproved = false;
                     item.pendingApproval = false;
                     item.isActive = false;
-                    // Add rejection fields dynamically
                     item.rejectionReason = reason;
                     item.rejectedBy = req.user._id;
                     item.rejectedAt = new Date();
@@ -471,13 +446,11 @@ const rejectItem = async (req, res) => {
                 }
                 break;
             case 'user':
-                // Try User model first
                 let user = await User_1.default.findById(id);
                 if (user) {
                     user.isApproved = false;
                     user.pendingApproval = false;
                     user.isActive = false;
-                    // Add rejection fields dynamically
                     user.rejectionReason = reason;
                     user.rejectedBy = req.user._id;
                     user.rejectedAt = new Date();
@@ -486,7 +459,6 @@ const rejectItem = async (req, res) => {
                     item = user;
                 }
                 else {
-                    // Try Segnalatore model
                     let segnalatore = await Segnalatore_1.default.findById(id);
                     if (segnalatore) {
                         await Segnalatore_1.default.updateOne({ _id: id }, {
@@ -510,8 +482,7 @@ const rejectItem = async (req, res) => {
         if (!item) {
             return res.status(404).json({ error: "Item not found" });
         }
-        console.log(`✅ ${type} rejected successfully in database`);
-        // Send notification about rejection
+        console.log(` ${type} rejected successfully in database`);
         try {
             const notificationType = `${type}_pending`;
             await notificationService_1.NotificationService.notifyAdminsOfPendingApproval({
@@ -538,7 +509,7 @@ const rejectItem = async (req, res) => {
         });
     }
     catch (err) {
-        console.error("❌ Reject item error:", err);
+        console.error(" Reject item error:", err);
         return res.status(500).json({ error: "Server error while rejecting item" });
     }
 };

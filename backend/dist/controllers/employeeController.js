@@ -11,10 +11,7 @@ const multer_1 = __importDefault(require("multer"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const xlsx_1 = __importDefault(require("xlsx"));
-// IMPORTANT: Make sure you have the Employee model imported correctly
-// If this line fails, the Employee model doesn't exist or isn't exported properly
 console.log("Employee model loaded:", Employee_1.default);
-// Set up multer for file uploads
 const storage = multer_1.default.diskStorage({
     destination: (req, file, cb) => {
         const uploadDir = path_1.default.join(__dirname, '../uploads');
@@ -45,7 +42,6 @@ const upload = (0, multer_1.default)({
         }
     }
 }).single('file');
-// Get all employees for a company
 const getEmployeesByCompany = async (req, res) => {
     try {
         console.log("=== GET EMPLOYEES BY COMPANY ===");
@@ -56,13 +52,11 @@ const getEmployeesByCompany = async (req, res) => {
             return res.status(401).json({ error: "User not authenticated" });
         }
         const { companyId } = req.params;
-        // Verify company exists and user has access
         const company = await Company_1.default.findById(companyId);
         if (!company) {
             console.log("ERROR: Company not found");
             return res.status(404).json({ error: "Company not found" });
         }
-        // Check if user has access to this company
         if (req.user.role !== 'admin' && !company.user.equals(req.user._id)) {
             console.log("ERROR: Access denied");
             return res.status(403).json({ error: "Access denied" });
@@ -77,7 +71,6 @@ const getEmployeesByCompany = async (req, res) => {
     }
 };
 exports.getEmployeesByCompany = getEmployeesByCompany;
-// Get single employee by ID
 const getEmployeeById = async (req, res) => {
     try {
         console.log("=== GET EMPLOYEE BY ID ===");
@@ -91,7 +84,6 @@ const getEmployeeById = async (req, res) => {
             console.log("ERROR: Employee not found");
             return res.status(404).json({ error: "Employee not found" });
         }
-        // Check if user has access to this employee's company
         const company = await Company_1.default.findById(employee.companyId);
         if (!company || (req.user.role !== 'admin' && !company.user.equals(req.user._id))) {
             console.log("ERROR: Access denied");
@@ -105,7 +97,6 @@ const getEmployeeById = async (req, res) => {
     }
 };
 exports.getEmployeeById = getEmployeeById;
-// Create a new employee
 const createEmployee = async (req, res) => {
     try {
         console.log("=== CREATE EMPLOYEE ===");
@@ -135,7 +126,6 @@ const createEmployee = async (req, res) => {
             email,
             attivo
         });
-        // Validate required fields
         const errors = [];
         if (!companyId)
             errors.push("Company ID is required");
@@ -167,20 +157,17 @@ const createEmployee = async (req, res) => {
             console.log("Validation errors:", errors);
             return res.status(400).json({ errors });
         }
-        // Verify company exists and user has access
         console.log("Verifying company access...");
         const company = await Company_1.default.findById(companyId);
         if (!company) {
             console.log("ERROR: Company not found for ID:", companyId);
             return res.status(404).json({ error: "Company not found" });
         }
-        // Check if user has access to this company
         if (req.user.role !== 'admin' && !company.user.equals(req.user._id)) {
             console.log("ERROR: Access denied. User role:", req.user.role, "Company user:", company.user, "Request user:", req.user._id);
             return res.status(403).json({ error: "Access denied" });
         }
         console.log("Company access verified. Creating employee...");
-        // Create new employee
         const employeeData = {
             companyId: new mongoose_1.default.Types.ObjectId(companyId),
             nome: nome.trim(),
@@ -213,7 +200,6 @@ const createEmployee = async (req, res) => {
         console.error("Error type:", err.constructor.name);
         console.error("Error message:", err.message);
         console.error("Error stack:", err.stack);
-        // More specific error handling
         if (err.name === 'ValidationError') {
             console.error("Validation error details:", err.errors);
             const validationErrors = Object.values(err.errors).map((e) => e.message);
@@ -238,7 +224,6 @@ const createEmployee = async (req, res) => {
     }
 };
 exports.createEmployee = createEmployee;
-// Update employee
 const updateEmployee = async (req, res) => {
     try {
         console.log("=== UPDATE EMPLOYEE ===");
@@ -251,12 +236,10 @@ const updateEmployee = async (req, res) => {
         if (!employee) {
             return res.status(404).json({ error: "Employee not found" });
         }
-        // Check if user has access to this employee's company
         const company = await Company_1.default.findById(employee.companyId);
         if (!company || (req.user.role !== 'admin' && !company.user.equals(req.user._id))) {
             return res.status(403).json({ error: "Access denied" });
         }
-        // Update fields
         if (nome !== undefined)
             employee.nome = nome.trim();
         if (cognome !== undefined)
@@ -303,7 +286,6 @@ const updateEmployee = async (req, res) => {
     }
 };
 exports.updateEmployee = updateEmployee;
-// Delete employee
 const deleteEmployee = async (req, res) => {
     try {
         console.log("=== DELETE EMPLOYEE ===");
@@ -315,7 +297,6 @@ const deleteEmployee = async (req, res) => {
         if (!employee) {
             return res.status(404).json({ error: "Employee not found" });
         }
-        // Check if user has access to this employee's company
         const company = await Company_1.default.findById(employee.companyId);
         if (!company || (req.user.role !== 'admin' && !company.user.equals(req.user._id))) {
             return res.status(403).json({ error: "Access denied" });
@@ -329,7 +310,6 @@ const deleteEmployee = async (req, res) => {
     }
 };
 exports.deleteEmployee = deleteEmployee;
-// Upload employees from Excel file
 const uploadEmployeesFromExcel = async (req, res) => {
     try {
         console.log("=== UPLOAD EMPLOYEES FROM EXCEL ===");
@@ -338,7 +318,6 @@ const uploadEmployeesFromExcel = async (req, res) => {
         }
         const { companyId } = req.params;
         console.log("Company ID:", companyId);
-        // Verify company exists and user has access
         const company = await Company_1.default.findById(companyId);
         if (!company) {
             return res.status(404).json({ error: "Company not found" });
@@ -346,7 +325,6 @@ const uploadEmployeesFromExcel = async (req, res) => {
         if (req.user.role !== 'admin' && !company.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
-        // Handle file upload using multer
         upload(req, res, async (err) => {
             if (err) {
                 console.error("File upload error:", err);
@@ -357,7 +335,6 @@ const uploadEmployeesFromExcel = async (req, res) => {
             }
             try {
                 console.log("Employee Excel file uploaded successfully:", req.file.path);
-                // Read Excel file
                 const workbook = xlsx_1.default.readFile(req.file.path);
                 const sheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[sheetName];
@@ -367,7 +344,6 @@ const uploadEmployeesFromExcel = async (req, res) => {
                     fs_1.default.unlinkSync(req.file.path);
                     return res.status(400).json({ error: "Excel file has no data" });
                 }
-                // Process employees
                 const employees = [];
                 const errors = [];
                 for (const [index, row] of data.entries()) {
@@ -394,7 +370,6 @@ const uploadEmployeesFromExcel = async (req, res) => {
                                 row['Active'] === 'si' || row['Active'] === 'yes' || row['Active'] === true ||
                                 row['Stato'] === 'attivo') ? 'attivo' : 'inattivo'
                         };
-                        // Validate required fields
                         const requiredFields = ['nome', 'cognome', 'dataNascita', 'cittaNascita', 'provinciaNascita', 'genere', 'codiceFiscale', 'indirizzo', 'numeroCivico', 'citta', 'provincia', 'cap'];
                         for (const field of requiredFields) {
                             if (!employeeData[field]) {
@@ -402,7 +377,6 @@ const uploadEmployeesFromExcel = async (req, res) => {
                             }
                         }
                         console.log(`Saving employee: ${employeeData.nome} ${employeeData.cognome}`);
-                        // Create and save employee
                         const employee = new Employee_1.default(employeeData);
                         await employee.save();
                         employees.push(employee);
@@ -413,10 +387,8 @@ const uploadEmployeesFromExcel = async (req, res) => {
                         errors.push(`Row ${index + 2}: ${rowError.message}`);
                     }
                 }
-                // Clean up the uploaded file
                 fs_1.default.unlinkSync(req.file.path);
                 console.log("Employee uploaded file cleaned up");
-                // Return response
                 console.log(`Employee import complete: ${employees.length} employees created, ${errors.length} errors`);
                 return res.status(201).json({
                     message: `${employees.length} employees imported successfully${errors.length > 0 ? ` with ${errors.length} errors` : ''}`,
@@ -425,7 +397,6 @@ const uploadEmployeesFromExcel = async (req, res) => {
                 });
             }
             catch (processError) {
-                // Clean up the uploaded file
                 if (req.file && fs_1.default.existsSync(req.file.path)) {
                     fs_1.default.unlinkSync(req.file.path);
                 }

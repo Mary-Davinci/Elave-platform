@@ -10,7 +10,6 @@ const multer_1 = __importDefault(require("multer"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const xlsx_1 = __importDefault(require("xlsx"));
-// Set up multer for file uploads
 const storage = multer_1.default.diskStorage({
     destination: (req, file, cb) => {
         const uploadDir = path_1.default.join(__dirname, '../uploads/segnalatori');
@@ -33,7 +32,6 @@ const upload = (0, multer_1.default)({
             mimetype: file.mimetype,
             extension: path_1.default.extname(file.originalname).toLowerCase()
         });
-        // For Excel uploads
         if (file.fieldname === 'file') {
             const validExtensions = /\.xlsx$|\.xls$/i;
             const hasValidExtension = validExtensions.test(path_1.default.extname(file.originalname).toLowerCase());
@@ -44,7 +42,6 @@ const upload = (0, multer_1.default)({
                 return cb(new Error('Only Excel files (.xlsx, .xls) are allowed for bulk upload!'));
             }
         }
-        // For document uploads
         if (file.fieldname === 'contractFile' || file.fieldname === 'idDocumentFile') {
             const validExtensions = /\.pdf$|\.doc$|\.docx$|\.jpg$|\.jpeg$|\.png$/i;
             const hasValidExtension = validExtensions.test(path_1.default.extname(file.originalname).toLowerCase());
@@ -62,14 +59,12 @@ const upload = (0, multer_1.default)({
     { name: 'contractFile', maxCount: 1 },
     { name: 'idDocumentFile', maxCount: 1 }
 ]);
-// Get all segnalatori for the authenticated user
 const getSegnalatori = async (req, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
         let query = {};
-        // Regular users can only see their own segnalatori
         if (req.user.role !== 'admin') {
             query = { user: req.user._id };
         }
@@ -82,7 +77,6 @@ const getSegnalatori = async (req, res) => {
     }
 };
 exports.getSegnalatori = getSegnalatori;
-// Get a single segnalatore by ID
 const getSegnalatoreById = async (req, res) => {
     try {
         if (!req.user) {
@@ -93,7 +87,6 @@ const getSegnalatoreById = async (req, res) => {
         if (!segnalatore) {
             return res.status(404).json({ error: "Segnalatore not found" });
         }
-        // Regular users can only access their own segnalatori
         if (req.user.role !== 'admin' && !segnalatore.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
@@ -105,20 +98,17 @@ const getSegnalatoreById = async (req, res) => {
     }
 };
 exports.getSegnalatoreById = getSegnalatoreById;
-// Create a new segnalatore
 const createSegnalatore = async (req, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
-        // Handle file uploads
         upload(req, res, async (err) => {
             if (err) {
                 console.error("File upload error:", err);
                 return res.status(400).json({ error: err.message });
             }
             const { firstName, lastName, email, phone, address, city, postalCode, province, taxCode, agreementPercentage, specialization, notes } = req.body;
-            // Validate required fields
             const errors = [];
             if (!firstName)
                 errors.push("Nome is required");
@@ -139,7 +129,6 @@ const createSegnalatore = async (req, res) => {
             if (!agreementPercentage || isNaN(parseFloat(agreementPercentage))) {
                 errors.push("Percentuale accordo is required and must be a valid number");
             }
-            // If there are validation errors, return them
             if (errors.length > 0) {
                 return res.status(400).json({ errors });
             }
@@ -147,11 +136,9 @@ const createSegnalatore = async (req, res) => {
                 return res.status(401).json({ message: 'User not authenticated' });
             }
             try {
-                // Handle file uploads with proper typing
                 const files = req.files;
                 const contractFile = files?.contractFile?.[0];
                 const idDocumentFile = files?.idDocumentFile?.[0];
-                // Create the new segnalatore
                 const newSegnalatore = new Segnalatore_1.default({
                     firstName,
                     lastName,
@@ -182,14 +169,12 @@ const createSegnalatore = async (req, res) => {
                     user: new mongoose_1.default.Types.ObjectId(req.user._id)
                 });
                 await newSegnalatore.save();
-                // Update dashboard stats
                 const DashboardStats = require("../models/Dashboard").default;
                 await DashboardStats.findOneAndUpdate({ user: req.user._id }, { $inc: { segnalatori: 1 } }, { new: true, upsert: true });
                 return res.status(201).json(newSegnalatore);
             }
             catch (saveError) {
                 console.error("Create segnalatore error:", saveError);
-                // Handle duplicate email or tax code error
                 if (saveError.code === 11000) {
                     if (saveError.keyPattern && saveError.keyPattern.email) {
                         return res.status(400).json({ error: "Email already exists" });
@@ -208,14 +193,12 @@ const createSegnalatore = async (req, res) => {
     }
 };
 exports.createSegnalatore = createSegnalatore;
-// Update a segnalatore
 const updateSegnalatore = async (req, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
         const { id } = req.params;
-        // Handle file uploads
         upload(req, res, async (err) => {
             if (err) {
                 console.error("File upload error:", err);
@@ -229,11 +212,9 @@ const updateSegnalatore = async (req, res) => {
             if (!req.user) {
                 return res.status(401).json({ message: 'Unauthorized' });
             }
-            // Regular users can only update their own segnalatori
             if (req.user.role !== 'admin' && !segnalatore.user.equals(req.user._id)) {
                 return res.status(403).json({ error: "Access denied" });
             }
-            // Validation for required fields
             const errors = [];
             if (firstName === '')
                 errors.push("Nome cannot be empty");
@@ -255,11 +236,9 @@ const updateSegnalatore = async (req, res) => {
                 return res.status(400).json({ errors });
             }
             try {
-                // Handle file uploads with proper typing
                 const files = req.files;
                 const contractFile = files?.contractFile?.[0];
                 const idDocumentFile = files?.idDocumentFile?.[0];
-                // Update fields
                 if (firstName !== undefined)
                     segnalatore.firstName = firstName;
                 if (lastName !== undefined)
@@ -286,7 +265,6 @@ const updateSegnalatore = async (req, res) => {
                     segnalatore.notes = notes;
                 if (isActive !== undefined)
                     segnalatore.isActive = Boolean(isActive);
-                // Update files if provided
                 if (contractFile) {
                     segnalatore.contractFile = {
                         filename: contractFile.filename,
@@ -310,7 +288,6 @@ const updateSegnalatore = async (req, res) => {
             }
             catch (updateError) {
                 console.error("Update segnalatore error:", updateError);
-                // Handle duplicate email or tax code error
                 if (updateError.code === 11000) {
                     if (updateError.keyPattern && updateError.keyPattern.email) {
                         return res.status(400).json({ error: "Email already exists" });
@@ -329,7 +306,6 @@ const updateSegnalatore = async (req, res) => {
     }
 };
 exports.updateSegnalatore = updateSegnalatore;
-// Delete a segnalatore
 const deleteSegnalatore = async (req, res) => {
     try {
         if (!req.user) {
@@ -340,11 +316,9 @@ const deleteSegnalatore = async (req, res) => {
         if (!segnalatore) {
             return res.status(404).json({ error: "Segnalatore not found" });
         }
-        // Regular users can only delete their own segnalatori
         if (req.user.role !== 'admin' && !segnalatore.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
-        // Delete associated files
         if (segnalatore.contractFile?.path && fs_1.default.existsSync(segnalatore.contractFile.path)) {
             fs_1.default.unlinkSync(segnalatore.contractFile.path);
         }
@@ -352,7 +326,6 @@ const deleteSegnalatore = async (req, res) => {
             fs_1.default.unlinkSync(segnalatore.idDocumentFile.path);
         }
         await segnalatore.deleteOne();
-        // Update dashboard stats
         const DashboardStats = require("../models/Dashboard").default;
         await DashboardStats.findOneAndUpdate({ user: req.user._id }, { $inc: { segnalatori: -1 } }, { new: true });
         return res.json({ message: "Segnalatore deleted successfully" });
@@ -363,13 +336,11 @@ const deleteSegnalatore = async (req, res) => {
     }
 };
 exports.deleteSegnalatore = deleteSegnalatore;
-// Upload segnalatori from Excel file
 const uploadSegnalatoriFromExcel = async (req, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
-        // Handle file upload using multer
         upload(req, res, async (err) => {
             if (err) {
                 console.error("File upload error:", err);
@@ -382,7 +353,6 @@ const uploadSegnalatoriFromExcel = async (req, res) => {
             }
             try {
                 console.log("File uploaded successfully:", file.path);
-                // Read Excel file
                 const workbook = xlsx_1.default.readFile(file.path);
                 const sheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[sheetName];
@@ -390,20 +360,17 @@ const uploadSegnalatoriFromExcel = async (req, res) => {
                 console.log("Excel data parsed. Row count:", data.length);
                 console.log("Sample row:", data.length > 0 ? JSON.stringify(data[0]) : "No data");
                 if (!data || data.length === 0) {
-                    // Clean up the uploaded file
                     fs_1.default.unlinkSync(file.path);
                     return res.status(400).json({ error: "Excel file has no data" });
                 }
                 if (!req.user) {
                     return res.status(401).json({ message: 'Unauthorized' });
                 }
-                // Process segnalatori
                 const segnalatori = [];
                 const errors = [];
                 for (const [index, row] of data.entries()) {
                     try {
                         console.log(`Processing row ${index + 1}:`, JSON.stringify(row));
-                        // Map Excel columns to segnalatore fields
                         const segnalatoreData = {
                             firstName: row['Nome'] || '',
                             lastName: row['Cognome'] || '',
@@ -419,7 +386,6 @@ const uploadSegnalatoriFromExcel = async (req, res) => {
                             notes: row['Note'] || '',
                             user: req.user._id
                         };
-                        // Validate required fields
                         if (!segnalatoreData.firstName) {
                             throw new Error("Nome is required");
                         }
@@ -448,7 +414,6 @@ const uploadSegnalatoriFromExcel = async (req, res) => {
                             throw new Error("Percentuale Accordo is required and must be greater than 0");
                         }
                         console.log(`Saving segnalatore: ${segnalatoreData.firstName} ${segnalatoreData.lastName}`);
-                        // Create and save segnalatore
                         const segnalatoreRecord = new Segnalatore_1.default(segnalatoreData);
                         await segnalatoreRecord.save();
                         segnalatori.push(segnalatoreRecord);
@@ -459,16 +424,13 @@ const uploadSegnalatoriFromExcel = async (req, res) => {
                         errors.push(`Row ${index + 2}: ${rowError.message}`);
                     }
                 }
-                // Clean up the uploaded file
                 fs_1.default.unlinkSync(file.path);
                 console.log("Uploaded file cleaned up");
-                // Update dashboard stats if any segnalatori was created
                 if (segnalatori.length > 0) {
                     const DashboardStats = require("../models/Dashboard").default;
                     await DashboardStats.findOneAndUpdate({ user: req.user._id }, { $inc: { segnalatori: segnalatori.length } }, { new: true, upsert: true });
                     console.log("Dashboard stats updated");
                 }
-                // Return response
                 console.log(`Import complete: ${segnalatori.length} segnalatori created, ${errors.length} errors`);
                 return res.status(201).json({
                     message: `${segnalatori.length} segnalatori imported successfully${errors.length > 0 ? ` with ${errors.length} errors` : ''}`,
@@ -477,7 +439,6 @@ const uploadSegnalatoriFromExcel = async (req, res) => {
                 });
             }
             catch (processError) {
-                // Clean up the uploaded file
                 if (file && fs_1.default.existsSync(file.path)) {
                     fs_1.default.unlinkSync(file.path);
                 }

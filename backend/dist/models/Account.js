@@ -57,7 +57,6 @@ const AccountSchema = new mongoose_1.Schema({
 }, {
     timestamps: true,
 });
-// Add indexes for faster queries
 AccountSchema.index({ user: 1 });
 AccountSchema.index({ type: 1 });
 const Account = mongoose_1.default.model("Account", AccountSchema);

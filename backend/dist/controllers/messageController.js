@@ -12,11 +12,9 @@ const fs_1 = __importDefault(require("fs"));
 const multer_1 = __importDefault(require("multer"));
 const nodemailer_1 = __importDefault(require("nodemailer"));
 const util_1 = require("util");
-// Configure file storage for attachments
 const storage = multer_1.default.diskStorage({
     destination: (req, file, cb) => {
         const uploadDir = path_1.default.join(__dirname, "../uploads/attachments");
-        // Create directory if it doesn't exist
         if (!fs_1.default.existsSync(uploadDir)) {
             fs_1.default.mkdirSync(uploadDir, { recursive: true });
         }
@@ -86,14 +84,12 @@ const getMessages = async (req, res) => {
     }
 };
 exports.getMessages = getMessages;
-// Get a single message by ID
 const getMessageById = async (req, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
         const { id } = req.params;
-        // Validate MongoDB ID
         if (!mongoose_1.default.Types.ObjectId.isValid(id)) {
             return res.status(400).json({ error: "Invalid message ID" });
         }
@@ -103,7 +99,6 @@ const getMessageById = async (req, res) => {
         if (!message) {
             return res.status(404).json({ error: "Message not found" });
         }
-        // Check if user has access to this message
         const isRecipient = message.recipients.some(recipient => recipient._id.toString() === req.user._id.toString());
         const isSender = message.sender._id.toString() === req.user._id.toString();
         if (!isRecipient && !isSender) {
@@ -139,7 +134,6 @@ const sendMessage = async (req, res) => {
         if (!body) {
             return res.status(400).json({ error: "Message body is required" });
         }
-        // Get recipient users
         let recipientUsers = [];
         try {
             recipientUsers = await User_1.default.find({
@@ -176,7 +170,7 @@ const sendMessage = async (req, res) => {
             status: 'sent'
         });
         await newMessage.save();
-        // Also save a copy in each recipient's inbox
+        //  save a copy in each recipient's inbox
         for (const recipient of recipientUsers) {
             const inboxCopy = new Message_1.default({
                 sender: req.user._id,
@@ -205,7 +199,6 @@ const sendMessage = async (req, res) => {
                 }
                 catch (emailError) {
                     console.error("Email sending error:", emailError);
-                    // Continue with the process even if email fails
                 }
             }
         }
@@ -221,16 +214,13 @@ const sendMessage = async (req, res) => {
     }
 };
 exports.sendMessage = sendMessage;
-// Save message as draft
-// Save message as draft
 const saveDraft = async (req, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
         const { recipients, subject, body } = req.body;
-        const { id } = req.params; // Optional draft ID if updating existing draft
-        // Process attachments if present
+        const { id } = req.params;
         const attachments = [];
         const multerReq = req;
         if (multerReq.files && Array.isArray(multerReq.files)) {
@@ -244,7 +234,6 @@ const saveDraft = async (req, res) => {
             });
         }
         let draft;
-        // Update existing draft or create new one
         if (id && mongoose_1.default.Types.ObjectId.isValid(id)) {
             draft = await Message_1.default.findOne({
                 _id: id,
@@ -254,7 +243,6 @@ const saveDraft = async (req, res) => {
             if (!draft) {
                 return res.status(404).json({ error: "Draft not found" });
             }
-            // Update draft fields
             if (recipients && Array.isArray(recipients)) {
                 draft.recipients = recipients;
             }
@@ -264,13 +252,10 @@ const saveDraft = async (req, res) => {
             if (body !== undefined) {
                 draft.body = body;
             }
-            // Fix: Handle attachments properly for Mongoose DocumentArray
             if (attachments.length > 0) {
-                // Clear existing attachments
                 while (draft.attachments.length > 0) {
                     draft.attachments.pop();
                 }
-                // Add new attachments
                 for (const attachment of attachments) {
                     draft.attachments.push(attachment);
                 }
@@ -278,14 +263,13 @@ const saveDraft = async (req, res) => {
             await draft.save();
         }
         else {
-            // Create new draft
             draft = new Message_1.default({
                 sender: req.user._id,
                 recipients: recipients || [],
                 subject: subject || '',
                 body: body || '',
-                attachments, // This works for new documents because Mongoose handles initial assignment
-                read: true, // Drafts are always read
+                attachments,
+                read: true,
                 status: 'draft'
             });
             await draft.save();
@@ -309,7 +293,6 @@ const moveToTrash = async (req, res) => {
             return res.status(401).json({ error: "User not authenticated" });
         }
         const { id } = req.params;
-        // Validate MongoDB ID
         if (!mongoose_1.default.Types.ObjectId.isValid(id)) {
             return res.status(400).json({ error: "Invalid message ID" });
         }
@@ -452,28 +435,23 @@ const getMessageStats = async (req, res) => {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
-        // Count unread inbox messages
         const unreadCount = await Message_1.default.countDocuments({
             recipients: req.user._id,
             status: 'inbox',
             read: false
         });
-        // Count total inbox messages
         const inboxCount = await Message_1.default.countDocuments({
             recipients: req.user._id,
             status: 'inbox'
         });
-        // Count sent messages
         const sentCount = await Message_1.default.countDocuments({
             sender: req.user._id,
             status: 'sent'
         });
-        // Count draft messages
         const draftCount = await Message_1.default.countDocuments({
             sender: req.user._id,
             status: 'draft'
         });
-        // Count trash messages
         const trashCount = await Message_1.default.countDocuments({
             $or: [
                 { sender: req.user._id },
@@ -495,14 +473,12 @@ const getMessageStats = async (req, res) => {
     }
 };
 exports.getMessageStats = getMessageStats;
-// Download attachment
 const downloadAttachment = async (req, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
         const { messageId, attachmentId } = req.params;
-        // Validate MongoDB ID
         if (!mongoose_1.default.Types.ObjectId.isValid(messageId)) {
             return res.status(400).json({ error: "Invalid message ID" });
         }
@@ -510,25 +486,20 @@ const downloadAttachment = async (req, res) => {
         if (!message) {
             return res.status(404).json({ error: "Message not found" });
         }
-        // Check if user has access to this message
         const isRecipient = message.recipients.some(recipient => recipient.toString() === req.user._id.toString());
         const isSender = message.sender.toString() === req.user._id.toString();
         if (!isRecipient && !isSender) {
             return res.status(403).json({ error: "Access denied" });
         }
-        // Find the attachment
         const attachment = message.attachments.id(attachmentId);
         if (!attachment) {
             return res.status(404).json({ error: "Attachment not found" });
         }
-        // Check if file exists
         if (!fs_1.default.existsSync(attachment.path)) {
             return res.status(404).json({ error: "Attachment file not found" });
         }
-        // Set headers for file download
         res.setHeader('Content-Disposition', `attachment; filename="${attachment.filename}"`);
         res.setHeader('Content-Type', attachment.contentType);
-        // Stream the file
         const fileStream = fs_1.default.createReadStream(attachment.path);
         fileStream.pipe(res);
     }

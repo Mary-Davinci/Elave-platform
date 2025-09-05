@@ -1,9 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.deleteNotification = exports.getUnreadCount = exports.markAllNotificationsAsRead = exports.markNotificationAsRead = exports.getNotifications = void 0;
-// src/controllers/notificationController.ts - Complete notification controller
 const notificationService_1 = require("../models/notificationService");
-// Get notifications for current user
 const getNotifications = async (req, res) => {
     try {
         if (!req.user) {
@@ -79,7 +77,6 @@ const getUnreadCount = async (req, res) => {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
-        // Only admin and super_admin can receive notifications
         if (!['admin', 'super_admin'].includes(req.user.role)) {
             return res.json({ count: 0 });
         }
@@ -98,7 +95,6 @@ const deleteNotification = async (req, res) => {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
-        // Only admin and super_admin can delete notifications
         if (!['admin', 'super_admin'].includes(req.user.role)) {
             return res.status(403).json({ error: "Access denied" });
         }

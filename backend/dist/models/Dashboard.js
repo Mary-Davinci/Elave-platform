@@ -78,7 +78,6 @@ const DashboardStatsSchema = new mongoose_1.Schema({
         default: Date.now,
     },
 });
-// Index for quick lookup
 DashboardStatsSchema.index({ user: 1 });
 const DashboardStats = mongoose_1.default.model("DashboardStats", DashboardStatsSchema);
 exports.default = DashboardStats;

@@ -35,9 +35,8 @@ const register = async (req, res) => {
         if (existingUser) {
             return res.status(400).json({ error: "Email already in use" });
         }
-        // Validate role if provided
         const validRoles = ["super_admin", "admin", "responsabile_territoriale", "sportello_lavoro", "segnalatori"];
-        const userRole = role && validRoles.includes(role) ? role : "segnalatori"; // Default to lowest permission level
+        const userRole = role && validRoles.includes(role) ? role : "segnalatori";
         const hashedPassword = await bcryptjs_1.default.hash(password, 10);
         const newUser = new User_1.default({
             username,
@@ -74,7 +73,6 @@ const login = async (req, res) => {
             return res.status(400).json({ error: "Invalid password" });
         }
         const token = (0, generateToken_1.generateToken)(user._id.toString());
-        // Include user data with the token response
         const userData = {
             _id: user._id,
             username: user.username,
@@ -82,7 +80,7 @@ const login = async (req, res) => {
             firstName: user.firstName || "",
             lastName: user.lastName || "",
             organization: user.organization || "",
-            role: user.role || "segnalatori" // Updated default role
+            role: user.role || "segnalatori"
         };
         console.log("Login response sending user data:", {
             _id: user._id,

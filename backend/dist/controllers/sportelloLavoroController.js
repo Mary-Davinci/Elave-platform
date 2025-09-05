@@ -119,7 +119,6 @@ const createSportelloLavoro = async (req, res) => {
                 return res.status(400).json({ error: err.message });
             }
             const { businessName, vatNumber, address, city, postalCode, province, agreedCommission, email, pec } = req.body;
-            // Validate required fields
             const errors = [];
             if (!businessName)
                 errors.push("Ragione Sociale is required");
@@ -146,7 +145,6 @@ const createSportelloLavoro = async (req, res) => {
                 const files = req.files;
                 const signedContractFile = files?.signedContractFile?.[0];
                 const legalDocumentFile = files?.legalDocumentFile?.[0];
-                // Determine approval status based on user role
                 const isAutoApproved = ['admin', 'super_admin'].includes(req.user.role);
                 const needsApproval = ['responsabile_territoriale'].includes(req.user.role);
                 const newSportelloLavoro = new sportello_1.default({
@@ -235,11 +233,9 @@ const updateSportelloLavoro = async (req, res) => {
             if (!req.user) {
                 return res.status(401).json({ message: 'Unauthorized' });
             }
-            // Regular users can only update their own sportello lavoro
             if (req.user.role !== 'admin' && !sportelloLavoro.user.equals(req.user._id)) {
                 return res.status(403).json({ error: "Access denied" });
             }
-            // Validation for required fields
             const errors = [];
             if (businessName === '')
                 errors.push("Ragione Sociale cannot be empty");
@@ -257,11 +253,9 @@ const updateSportelloLavoro = async (req, res) => {
                 return res.status(400).json({ errors });
             }
             try {
-                // Handle file uploads with proper typing
                 const files = req.files;
                 const signedContractFile = files?.signedContractFile?.[0];
                 const legalDocumentFile = files?.legalDocumentFile?.[0];
-                // Update fields
                 if (businessName !== undefined)
                     sportelloLavoro.businessName = businessName;
                 if (vatNumber !== undefined)
@@ -280,7 +274,6 @@ const updateSportelloLavoro = async (req, res) => {
                     sportelloLavoro.email = email;
                 if (pec !== undefined)
                     sportelloLavoro.pec = pec;
-                // Update files if provided
                 if (signedContractFile) {
                     sportelloLavoro.signedContractFile = {
                         filename: signedContractFile.filename,
@@ -304,7 +297,6 @@ const updateSportelloLavoro = async (req, res) => {
             }
             catch (updateError) {
                 console.error("Update sportello lavoro error:", updateError);
-                // Handle duplicate VAT number error
                 if (updateError.code === 11000 && updateError.keyPattern && updateError.keyPattern.vatNumber) {
                     return res.status(400).json({ error: "VAT number already exists" });
                 }
@@ -318,7 +310,6 @@ const updateSportelloLavoro = async (req, res) => {
     }
 };
 exports.updateSportelloLavoro = updateSportelloLavoro;
-// Delete a sportello lavoro
 const deleteSportelloLavoro = async (req, res) => {
     try {
         if (!req.user) {
@@ -329,11 +320,9 @@ const deleteSportelloLavoro = async (req, res) => {
         if (!sportelloLavoro) {
             return res.status(404).json({ error: "Sportello Lavoro not found" });
         }
-        // Regular users can only delete their own sportello lavoro
         if (req.user.role !== 'admin' && !sportelloLavoro.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
-        // Delete associated files
         if (sportelloLavoro.signedContractFile?.path && fs_1.default.existsSync(sportelloLavoro.signedContractFile.path)) {
             fs_1.default.unlinkSync(sportelloLavoro.signedContractFile.path);
         }
@@ -341,7 +330,6 @@ const deleteSportelloLavoro = async (req, res) => {
             fs_1.default.unlinkSync(sportelloLavoro.legalDocumentFile.path);
         }
         await sportelloLavoro.deleteOne();
-        // Update dashboard stats
         const DashboardStats = require("../models/Dashboard").default;
         await DashboardStats.findOneAndUpdate({ user: req.user._id }, { $inc: { sportelloLavoro: -1 } }, { new: true });
         return res.json({ message: "Sportello Lavoro deleted successfully" });
@@ -352,13 +340,11 @@ const deleteSportelloLavoro = async (req, res) => {
     }
 };
 exports.deleteSportelloLavoro = deleteSportelloLavoro;
-// Upload sportello lavoro from Excel file
 const uploadSportelloLavoroFromExcel = async (req, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
-        // Handle file upload using multer
         upload(req, res, async (err) => {
             if (err) {
                 console.error("File upload error:", err);
@@ -371,7 +357,6 @@ const uploadSportelloLavoroFromExcel = async (req, res) => {
             }
             try {
                 console.log("File uploaded successfully:", file.path);
-                // Read Excel file
                 const workbook = xlsx_1.default.readFile(file.path);
                 const sheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[sheetName];
@@ -379,20 +364,17 @@ const uploadSportelloLavoroFromExcel = async (req, res) => {
                 console.log("Excel data parsed. Row count:", data.length);
                 console.log("Sample row:", data.length > 0 ? JSON.stringify(data[0]) : "No data");
                 if (!data || data.length === 0) {
-                    // Clean up the uploaded file
                     fs_1.default.unlinkSync(file.path);
                     return res.status(400).json({ error: "Excel file has no data" });
                 }
                 if (!req.user) {
                     return res.status(401).json({ message: 'Unauthorized' });
                 }
-                // Process sportello lavoro
                 const sportelloLavoro = [];
                 const errors = [];
                 for (const [index, row] of data.entries()) {
                     try {
                         console.log(`Processing row ${index + 1}:`, JSON.stringify(row));
-                        // Map Excel columns to sportello lavoro fields
                         const sportelloLavoroData = {
                             businessName: row['Ragione Sociale'] || '',
                             vatNumber: row['Partita IVA'] || '',
@@ -405,7 +387,6 @@ const uploadSportelloLavoroFromExcel = async (req, res) => {
                             pec: row['PEC'] || '',
                             user: req.user._id
                         };
-                        // Validate required fields
                         if (!sportelloLavoroData.businessName) {
                             throw new Error("Ragione Sociale is required");
                         }
@@ -428,7 +409,6 @@ const uploadSportelloLavoroFromExcel = async (req, res) => {
                             throw new Error("Competenze concordate is required and must be greater than 0");
                         }
                         console.log(`Saving sportello lavoro: ${sportelloLavoroData.businessName}`);
-                        // Create and save sportello lavoro
                         const sportelloLavoroRecord = new sportello_1.default(sportelloLavoroData);
                         await sportelloLavoroRecord.save();
                         sportelloLavoro.push(sportelloLavoroRecord);
@@ -439,16 +419,13 @@ const uploadSportelloLavoroFromExcel = async (req, res) => {
                         errors.push(`Row ${index + 2}: ${rowError.message}`);
                     }
                 }
-                // Clean up the uploaded file
                 fs_1.default.unlinkSync(file.path);
                 console.log("Uploaded file cleaned up");
-                // Update dashboard stats if any sportello lavoro was created
                 if (sportelloLavoro.length > 0) {
                     const DashboardStats = require("../models/Dashboard").default;
                     await DashboardStats.findOneAndUpdate({ user: req.user._id }, { $inc: { sportelloLavoro: sportelloLavoro.length } }, { new: true, upsert: true });
                     console.log("Dashboard stats updated");
                 }
-                // Return response
                 console.log(`Import complete: ${sportelloLavoro.length} sportello lavoro created, ${errors.length} errors`);
                 return res.status(201).json({
                     message: `${sportelloLavoro.length} sportello lavoro imported successfully${errors.length > 0 ? ` with ${errors.length} errors` : ''}`,
@@ -457,7 +434,6 @@ const uploadSportelloLavoroFromExcel = async (req, res) => {
                 });
             }
             catch (processError) {
-                // Clean up the uploaded file
                 if (file && fs_1.default.existsSync(file.path)) {
                     fs_1.default.unlinkSync(file.path);
                 }

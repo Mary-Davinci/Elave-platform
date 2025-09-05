@@ -34,7 +34,6 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
-// File schema for uploaded documents
 const FileInfoSchema = new mongoose_1.Schema({
     filename: { type: String, required: true },
     originalName: { type: String, required: true },
@@ -42,7 +41,6 @@ const FileInfoSchema = new mongoose_1.Schema({
     mimetype: { type: String, required: true },
     size: { type: Number, required: true }
 }, { _id: false });
-// Segnalatore schema
 const SegnalatoreSchema = new mongoose_1.Schema({
     firstName: {
         type: String,
@@ -158,14 +156,12 @@ SegnalatoreSchema.index({
     city: 'text',
     taxCode: 'text'
 });
-// Pre-save middleware
 SegnalatoreSchema.pre('save', function (next) {
     if (this.taxCode) {
         this.taxCode = this.taxCode.replace(/\s/g, '').toUpperCase();
     }
     next();
 });
-// Static methods
 SegnalatoreSchema.statics.findByUser = function (userId) {
     return this.find({ user: userId }).sort({ createdAt: -1 });
 };
@@ -176,7 +172,6 @@ SegnalatoreSchema.statics.findByTaxCode = function (taxCode, userId) {
     }
     return this.findOne(query);
 };
-// Instance methods
 SegnalatoreSchema.methods.getFullAddress = function () {
     return `${this.address}, ${this.city} ${this.postalCode} (${this.province})`;
 };

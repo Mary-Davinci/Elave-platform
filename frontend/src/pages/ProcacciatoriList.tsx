@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ProcacciatoreFormData } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
 import { procacciatoreService, ProcacciatoreResponse } from '../services/procacciatoreService';
 import '../styles/Companies.css';

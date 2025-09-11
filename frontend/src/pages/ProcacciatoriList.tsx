@@ -5,13 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { procacciatoreService, ProcacciatoreResponse } from '../services/procacciatoreService';
 import '../styles/Companies.css';
 
-interface Procacciatore extends ProcacciatoreFormData {
-  _id: string;
-  createdAt: string;
-  isActive?: boolean;
-  contractFile?: string;
-  idDocumentFile?: string;
-}
+
 
 const ProcacciatoriList: React.FC = () => {
   const [procacciatori, setProcacciatori] = useState<ProcacciatoreResponse[]>([]);

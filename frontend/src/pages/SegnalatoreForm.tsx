@@ -134,7 +134,7 @@ const SegnalatoreForm: React.FC = () => {
       });
 
       if (response.ok) {
-        const result = await response.json();
+        await response.json();
         setTemplateUploadMessage(`${type === 'contract' ? 'Contratto' : 'Template Documento Identità'} caricato con successo!`);
         
         // Reset the file input

@@ -170,7 +170,7 @@ const SportelloLavoro: React.FC = () => {
       });
 
       if (response.ok) {
-        const result = await response.json();
+        await response.json();
         setTemplateUploadMessage(`${type === 'contract' ? 'Contratto' : 'Documento Legale'} template caricato con successo!`);
         
         // Reset the file input

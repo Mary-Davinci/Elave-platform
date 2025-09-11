@@ -4,7 +4,6 @@ import { Employee } from '../types/interfaces';
 import { 
   getEmployeesByCompany, 
   createEmployee, 
-  updateEmployee, 
   deleteEmployee, 
   uploadEmployeesFromExcel,
   EmployeeFormData 

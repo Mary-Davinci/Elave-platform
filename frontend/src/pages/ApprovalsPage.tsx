@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, RefreshCw, CheckCircle, XCircle, Clock, Building2, Briefcase, Users, MessageSquare, AlertCircle, Search, Filter } from 'lucide-react';
+import { RefreshCw, CheckCircle, XCircle, Clock, Building2, Briefcase, Users, MessageSquare, AlertCircle, Search, Filter } from 'lucide-react';
 import { approvalService } from '../services/api';
 
 // Enhanced interfaces
@@ -970,7 +970,7 @@ const StyledApprovalsPage: React.FC = () => {
           <div className="tabs-container">
             <div className="tabs-wrapper">
               <nav className="tabs-nav">
-                {tabsConfig.map((tab, index) => {
+                {tabsConfig.map((tab) => {
                   const Icon = tab.icon;
                   return (
                     <button

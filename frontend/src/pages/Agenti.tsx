@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import '../styles/NewCompany.css';
 import { AgenteFormData, FormTemplate } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
@@ -69,6 +69,7 @@ const Agenti: React.FC = () => {
       [name]: name === 'agreedCommission' ? parseFloat(value) || 0 : value
     }));
     if (errors.length) setErrors([]);
+    if (successMessage) setSuccessMessage('');
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'contract' | 'doc') => {
@@ -93,6 +94,13 @@ const Agenti: React.FC = () => {
     if (!formData.province.trim()) validationErrors.push('Provincia is required');
     if (!formData.agreedCommission || formData.agreedCommission <= 0) {
       validationErrors.push('Competenze concordate must be greater than 0');
+    }
+    // Very basic email checks if present
+    if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) {
+      validationErrors.push('Please enter a valid email address');
+    }
+    if (formData.pec && !/\S+@\S+\.\S+/.test(formData.pec)) {
+      validationErrors.push('Please enter a valid PEC address');
     }
     return validationErrors;
   };
@@ -127,7 +135,7 @@ const Agenti: React.FC = () => {
       const result = await response.json();
 
       if (response.ok) {
-        setSuccessMessage('Agente created successfully!');
+        setSuccessMessage('Agente creato con successo!');
         setFormData({
           businessName: '',
           vatNumber: '',
@@ -188,7 +196,7 @@ const Agenti: React.FC = () => {
       });
 
       if (response.ok) {
-        await response.json(); // keep, but we don't need the value
+        await response.json(); // parsed to complete the stream
         setTemplateUploadMessage(`${type === 'contract' ? 'Contract' : 'Legal'} template uploaded successfully!`);
         if (type === 'contract') {
           setContractTemplate(null);
@@ -253,10 +261,256 @@ const Agenti: React.FC = () => {
     formTemplates.find(t => t.type === type);
 
   return (
-    /* … JSX unchanged below this point (your original JSX) … */
-    // keep all the render code you posted; only the top logic changed
-    <div className="add-company-container">
-      {/* … the rest of your JSX from the original file … */}
+    <div className="new-company-container">
+      <div className="new-company-header">
+        <h1 className="page-title">Nuovo Agente</h1>
+      </div>
+
+      {/* Template Management Section */}
+      {isAdmin ? (
+        <div className="template-management-section" style={{
+          backgroundColor: '#ffffff',
+          padding: '24px',
+          borderRadius: '12px',
+          marginBottom: '32px',
+          border: '1px solid #e1e5e9',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+        }}>
+          <div style={{display:'flex',alignItems:'center',marginBottom:'20px',paddingBottom:'16px',borderBottom:'2px solid #f8f9fa'}}>
+            <div style={{backgroundColor:'#e3f2fd',padding:'8px',borderRadius:'8px',marginRight:'12px'}}><span style={{fontSize:'20px'}}>⚙️</span></div>
+            <h3 style={{margin:0,color:'#2c3e50',fontSize:'20px',fontWeight:600}}>Gestione Moduli Agente (Admin)</h3>
+          </div>
+
+          {templateUploadMessage && (
+            <div className="alert" style={{
+              backgroundColor: templateUploadMessage.includes('successfully') ? '#d1f2eb' : '#fadbd8',
+              border: `1px solid ${templateUploadMessage.includes('successfully') ? '#a3e4d7' : '#f1948a'}`,
+              color: templateUploadMessage.includes('successfully') ? '#0e6655' : '#922b21',
+              padding:'12px 16px', borderRadius:'8px', marginBottom:'20px', fontSize:'14px', fontWeight:500
+            }}>
+              {templateUploadMessage}
+            </div>
+          )}
+
+          <div style={{ display:'grid', gridTemplateColumns:'31% 31%', gap:'24px' }}>
+            {/* Contract Template Upload */}
+            <div className="template-upload-group" style={{background:'#f8f9fa', padding:'20px', borderRadius:'10px', border:'1px solid #e9ecef'}}>
+              <div style={{display:'flex',alignItems:'center',marginBottom:'12px'}}>
+                <span style={{fontSize:'18px',marginRight:'8px'}}>📄</span>
+                <label style={{margin:0,fontWeight:600,color:'#495057',fontSize:'16px'}}>Carica Template Contratto</label>
+                {getAvailableTemplate('contract') && (
+                  <span style={{color:'#28a745',fontSize:'12px',marginLeft:'12px',background:'#d4edda',padding:'2px 8px',borderRadius:'12px',fontWeight:500}}>✓ Disponibile</span>
+                )}
+              </div>
+              <input
+                type="file"
+                ref={contractTemplateRef}
+                onChange={(e) => handleTemplateFileChange(e, 'contract')}
+                accept=".pdf,.doc,.docx"
+                disabled={isUploadingTemplate}
+                style={{marginBottom:'12px',width:'100%',padding:'8px',border:'1px solid #ced4da',borderRadius:'6px',fontSize:'14px'}}
+              />
+              <button
+                type="button"
+                onClick={() => handleUploadTemplate('contract')}
+                disabled={!contractTemplate || isUploadingTemplate}
+                style={{background: contractTemplate && !isUploadingTemplate ? 'var(--primary-color)' : '#6c757d', color:'#fff', padding:'10px 20px', border:'none', borderRadius:'6px', width:'100%'}}
+              >
+                {isUploadingTemplate ? 'Caricamento...' : 'Carica Contratto'}
+              </button>
+            </div>
+
+            {/* Legal Template Upload */}
+            <div className="template-upload-group" style={{background:'#f8f9fa', padding:'20px', borderRadius:'10px', border:'1px solid #e9ecef'}}>
+              <div style={{display:'flex',alignItems:'center',marginBottom:'12px'}}>
+                <span style={{fontSize:'18px',marginRight:'8px'}}>📋</span>
+                <label style={{margin:0,fontWeight:600,color:'#495057',fontSize:'16px'}}>Carica Documento Legale</label>
+                {getAvailableTemplate('legal') && (
+                  <span style={{color:'#28a745',fontSize:'12px',marginLeft:'12px',background:'#d4edda',padding:'2px 8px',borderRadius:'12px',fontWeight:500}}>✓ Disponibile</span>
+                )}
+              </div>
+              <input
+                type="file"
+                ref={legalTemplateRef}
+                onChange={(e) => handleTemplateFileChange(e, 'legal')}
+                accept=".pdf,.doc,.docx"
+                disabled={isUploadingTemplate}
+                style={{marginBottom:'12px',width:'100%',padding:'8px',border:'1px solid #ced4da',borderRadius:'6px',fontSize:'14px'}}
+              />
+              <button
+                type="button"
+                onClick={() => handleUploadTemplate('legal')}
+                disabled={!legalTemplate || isUploadingTemplate}
+                style={{background: legalTemplate && !isUploadingTemplate ? 'var(--primary-color)' : '#6c757d', color:'#fff', padding:'10px 20px', border:'none', borderRadius:'6px', width:'100%'}}
+              >
+                {isUploadingTemplate ? 'Caricamento...' : 'Carica Documento'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        // Non-admins: Download templates if available
+        <div className="template-download-section" style={{
+          backgroundColor:'#ffffff', padding:'24px', borderRadius:'12px', marginBottom:'32px',
+          border:'1px solid #e1e5e9', boxShadow:'0 2px 8px rgba(0,0,0,0.1)'
+        }}>
+          <div style={{display:'flex',alignItems:'center',marginBottom:'16px',paddingBottom:'16px',borderBottom:'2px solid #f8f9fa'}}>
+            <div style={{background:'#e8f4f8',padding:'8px',borderRadius:'8px',marginRight:'12px'}}><span style={{fontSize:'20px'}}>📥</span></div>
+            <h3 style={{margin:0,color:'#0c5460',fontSize:'20px',fontWeight:600}}>Scarica Moduli Agente</h3>
+          </div>
+
+          <div style={{display:'flex',gap:'16px',flexWrap:'wrap'}}>
+            <button
+              type="button"
+              onClick={() => handleDownloadTemplate('contract')}
+              disabled={!getAvailableTemplate('contract')}
+              style={{background: getAvailableTemplate('contract') ? '#17a2b8' : '#6c757d', color:'#fff', padding:'14px 24px', border:'none', borderRadius:'8px', minWidth:'220px'}}
+            >
+              📄 Scarica Contratto
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDownloadTemplate('legal')}
+              disabled={!getAvailableTemplate('legal')}
+              style={{background: getAvailableTemplate('legal') ? '#28a745' : '#6c757d', color:'#fff', padding:'14px 24px', border:'none', borderRadius:'8px', minWidth:'220px'}}
+            >
+              📋 Scarica Documento Legale
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="new-company-form">
+        {/* Success & Error banners */}
+        {successMessage && (
+          <div className="alert alert-success" style={{background:'#d4edda',border:'1px solid #c3e6cb',color:'#155724',padding:'10px',borderRadius:'4px',marginBottom:'20px'}}>
+            {successMessage}
+          </div>
+        )}
+        {errors.length > 0 && (
+          <div className="alert alert-danger" style={{background:'#f8d7da',border:'1px solid #f5c6cb',color:'#721c24',padding:'10px',borderRadius:'4px',marginBottom:'20px'}}>
+            <ul style={{margin:0,paddingLeft:'20px'}}>{errors.map((e,i)=><li key={i}>{e}</li>)}</ul>
+          </div>
+        )}
+
+        {/* The form */}
+        <form onSubmit={handleSubmit}>
+          <div className="form-section">
+            <h2>Informazioni Azienda</h2>
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="businessName">Ragione Sociale *</label>
+                <input id="businessName" name="businessName" value={formData.businessName} onChange={handleChange} required disabled={isSubmitting} />
+              </div>
+              <div className="form-group">
+                <label htmlFor="vatNumber">Partita IVA *</label>
+                <input id="vatNumber" name="vatNumber" value={formData.vatNumber} onChange={handleChange} required disabled={isSubmitting} />
+              </div>
+              <div className="form-group">
+                <label htmlFor="address">Indirizzo *</label>
+                <input id="address" name="address" value={formData.address} onChange={handleChange} required disabled={isSubmitting} />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="city">Città *</label>
+                <input id="city" name="city" value={formData.city} onChange={handleChange} required disabled={isSubmitting} />
+              </div>
+              <div className="form-group">
+                <label htmlFor="postalCode">CAP *</label>
+                <input id="postalCode" name="postalCode" value={formData.postalCode} onChange={handleChange} required disabled={isSubmitting} />
+              </div>
+              <div className="form-group">
+                <label htmlFor="province">Provincia *</label>
+                <input id="province" name="province" value={formData.province} onChange={handleChange} required disabled={isSubmitting} />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="agreedCommission">Competenze concordate al (%) *</label>
+                <input
+                  id="agreedCommission"
+                  name="agreedCommission"
+                  type="number"
+                  value={formData.agreedCommission || ''}
+                  onChange={handleChange}
+                  required
+                  min={0}
+                  step={0.01}
+                  disabled={isSubmitting}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="email">Email</label>
+                <input id="email" name="email" type="email" value={formData.email} onChange={handleChange} disabled={isSubmitting} />
+              </div>
+              <div className="form-group">
+                <label htmlFor="pec">PEC</label>
+                <input id="pec" name="pec" type="email" value={formData.pec} onChange={handleChange} disabled={isSubmitting} />
+              </div>
+            </div>
+          </div>
+
+          {/* File uploads */}
+          <div className="upload-form-container">
+            <div className="form-group">
+              <label htmlFor="signed-contract-upload">Contratto Firmato</label>
+              <div className="file-input-wrapper">
+                <div className="file-select">
+                  <input
+                    type="file"
+                    id="signed-contract-upload"
+                    ref={signedContractRef}
+                    onChange={(e) => handleFileChange(e, 'contract')}
+                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                    className="file-input"
+                    disabled={isSubmitting}
+                  />
+                  <div className="file-select-button">Choose File</div>
+                  <div className="file-select-name">{signedContract ? signedContract.name : 'No file chosen'}</div>
+                </div>
+              </div>
+              {signedContract && (
+                <button type="button" className="delete-file-button" onClick={() => handleDeleteFile('contract')} disabled={isSubmitting}>
+                  ❌ Remove File
+                </button>
+              )}
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="legal-doc-upload">Documento Legale</label>
+              <div className="file-input-wrapper">
+                <div className="file-select">
+                  <input
+                    type="file"
+                    id="legal-doc-upload"
+                    ref={legalDocRef}
+                    onChange={(e) => handleFileChange(e, 'doc')}
+                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                    className="file-input"
+                    disabled={isSubmitting}
+                  />
+                  <div className="file-select-button">Choose File</div>
+                  <div className="file-select-name">{legalDoc ? legalDoc.name : 'No file chosen'}</div>
+                </div>
+              </div>
+              {legalDoc && (
+                <button type="button" className="delete-file-button" onClick={() => handleDeleteFile('doc')} disabled={isSubmitting}>
+                  ❌ Remove File
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="form-actions">
+            <button type="submit" className="submit-button" disabled={isSubmitting}>
+              {isSubmitting ? 'Creazione in corso...' : 'Crea Agente'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };

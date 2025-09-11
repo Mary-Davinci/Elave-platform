@@ -1,17 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { SegnalatoreFormData } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
-import { segnalatoreService, SegnalatoreResponse } from '../services/segnalatoreService';
+import { procacciatoreService, ProcacciatoreResponse } from '../services/procacciatoreService';
 import '../styles/Companies.css';
 
-interface Segnalatore extends SegnalatoreFormData {
-  _id: string;
-  createdAt: string;
-  isActive?: boolean;
-  contractFile?: string;
-  idDocumentFile?: string;
-}
 
 const SegnalatoriList: React.FC = () => {
   const [segnalatori, setSegnalatori] = useState<SegnalatoreResponse[]>([]);

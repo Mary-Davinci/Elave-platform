@@ -16,14 +16,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  
+
   // Dropdown states
   const [postalDropdownOpen, setPostalDropdownOpen] = useState(false);
   const [sportelloLavoroDropdownOpen, setSportelloLavoroDropdownOpen] = useState(false);
   const [segnalatoriDropdownOpen, setSegnalatoriDropdownOpen] = useState(false);
   const [abilaDropdownOpen, setAbilaDropdownOpen] = useState(false);
   const [companiesDropdownOpen, setCompaniesDropdownOpen] = useState(false);
-  const [analisiDropdownOpen, setAnalisiDropdownOpen] = useState(false);
   const [fornitoriDropdownOpen, setFornitoriDropdownOpen] = useState(false);
 
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -34,14 +33,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const isAdmin = user?.role === 'admin' || isSuperAdmin;
   const isResponsabileTerritoriale = user?.role === 'responsabile_territoriale' || isAdmin;
   const isSportelloLavoro = user?.role === 'sportello_lavoro' || isResponsabileTerritoriale;
-  const isSegnalatori = user?.role === 'segnalatori' || isSportelloLavoro;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
-        sidebarRef.current && 
+        sidebarRef.current &&
         !sidebarRef.current.contains(event.target as Node) &&
-        toggleButtonRef.current && 
+        toggleButtonRef.current &&
         !toggleButtonRef.current.contains(event.target as Node)
       ) {
         setSidebarOpen(false);
@@ -60,21 +58,19 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   const handleNavigation = (path: string) => {
     navigate(path);
-    setSidebarOpen(false); 
+    setSidebarOpen(false);
   };
 
-  const isActive = (path: string) => {
-    return location.pathname === path || location.pathname.startsWith(path + '/');
-  };
+  const isActive = (path: string) =>
+    location.pathname === path || location.pathname.startsWith(path + '/');
 
-  // Helper function to close all dropdowns
+  // Helper to close all dropdowns
   const closeAllDropdowns = () => {
     setPostalDropdownOpen(false);
     setSportelloLavoroDropdownOpen(false);
     setSegnalatoriDropdownOpen(false);
     setAbilaDropdownOpen(false);
     setCompaniesDropdownOpen(false);
-    setAnalisiDropdownOpen(false);
     setFornitoriDropdownOpen(false);
   };
 
@@ -84,42 +80,35 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     closeAllDropdowns();
     setPostalDropdownOpen(newState);
   };
-  
+
   const toggleSportelloLavoroDropdown = (e: React.MouseEvent) => {
     e.stopPropagation();
     const newState = !sportelloLavoroDropdownOpen;
     closeAllDropdowns();
     setSportelloLavoroDropdownOpen(newState);
   };
-  
+
   const toggleSegnalatoriDropdown = (e: React.MouseEvent) => {
     e.stopPropagation();
     const newState = !segnalatoriDropdownOpen;
     closeAllDropdowns();
     setSegnalatoriDropdownOpen(newState);
   };
-  
+
   const toggleAbilaDropdown = (e: React.MouseEvent) => {
     e.stopPropagation();
     const newState = !abilaDropdownOpen;
     closeAllDropdowns();
     setAbilaDropdownOpen(newState);
   };
-  
+
   const toggleCompaniesDropdown = (e: React.MouseEvent) => {
     e.stopPropagation();
     const newState = !companiesDropdownOpen;
     closeAllDropdowns();
     setCompaniesDropdownOpen(newState);
   };
-  
-  const toggleAnalisiDropdown = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const newState = !analisiDropdownOpen;
-    closeAllDropdowns();
-    setAnalisiDropdownOpen(newState);
-  };
-  
+
   const toggleFornitoriDropdown = (e: React.MouseEvent) => {
     e.stopPropagation();
     const newState = !fornitoriDropdownOpen;
@@ -131,20 +120,21 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     <div className="dashboard-container loaded">
       <header className="dashboard-header">
         <div className="logo-container">
-          <button 
+          <button
             ref={toggleButtonRef}
-            className="sidebar-toggle" 
+            className="sidebar-toggle"
             onClick={toggleSidebar}
             aria-label="Toggle navigation menu"
           >
             ☰
           </button>
           <div className="logo-box">
-            <div className='logo'></div>
+            <div className="logo"></div>
           </div>
 
           <div className="header-title">
-            {location.pathname.split('/')[1]?.charAt(0).toUpperCase() + location.pathname.split('/')[1]?.slice(1) || 'Dashboard'}
+            {location.pathname.split('/')[1]?.charAt(0).toUpperCase() +
+              location.pathname.split('/')[1]?.slice(1) || 'Dashboard'}
           </div>
         </div>
         <div className="user-info">
@@ -155,14 +145,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           <UserDropdown />
         </div>
       </header>
-      
+
       <div className="dashboard-content">
-        <div 
-          ref={sidebarRef}
-          className={`sidebar ${sidebarOpen ? 'open' : ''}`}
-        >
-          {/* Dashboard - Available to all users */}
-          <div 
+        <div ref={sidebarRef} className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+          {/* Dashboard */}
+          <div
             className={`menu-item ${isActive('/dashboard') ? 'active' : ''}`}
             onClick={() => handleNavigation('/dashboard')}
           >
@@ -170,8 +157,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <span>Dashboard</span>
           </div>
 
-          {/* Conto - Available to all users */}
-          <div 
+          {/* Conto */}
+          <div
             className={`menu-item ${isActive('/conto') ? 'active' : ''}`}
             onClick={() => handleNavigation('/conto')}
           >
@@ -180,9 +167,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <i className="arrow-icon">▼</i>
           </div>
 
-          {/* Posta - Available to all users */}
+          {/* Posta */}
           <div className="menu-item-container">
-            <div 
+            <div
               className={`menu-item ${isActive('/posta') ? 'active' : ''}`}
               onClick={togglePostalDropdown}
             >
@@ -190,40 +177,35 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <span>Posta</span>
               <i className={`arrow-icon ${postalDropdownOpen ? 'open' : ''}`}>▼</i>
             </div>
-            
+
             {postalDropdownOpen && (
               <div className="dropdown-menu">
-                <div 
-                  className="dropdown-item"
-                  onClick={() => handleNavigation('/posta/in-arrivo')}
-                >
+                <div className="dropdown-item" onClick={() => handleNavigation('/posta/in-arrivo')}>
                   <i className="dropdown-icon">📥</i>
                   <span>In Arrivo</span>
                 </div>
-                <div 
-                  className="dropdown-item"
-                  onClick={() => handleNavigation('/posta/nuovo')}
-                >
+                <div className="dropdown-item" onClick={() => handleNavigation('/posta/nuovo')}>
                   <i className="dropdown-icon">✏️</i>
                   <span>Nuovo messaggio</span>
                 </div>
               </div>
             )}
           </div>
-          {/* Approvals - Admin and Super Admin only */}
-{isAdmin && (
-  <div 
-    className={`menu-item ${isActive('/approvals') ? 'active' : ''}`}
-    onClick={() => handleNavigation('/approvals')}
-  >
-    <i className="menu-icon">✅</i>
-    <span>Approvals</span>
-  </div>
-)}
 
-          {/* Aziende - Available to all users (but segnalatori see only assigned companies) */}
+          {/* Approvals - Admin and Super Admin only */}
+          {isAdmin && (
+            <div
+              className={`menu-item ${isActive('/approvals') ? 'active' : ''}`}
+              onClick={() => handleNavigation('/approvals')}
+            >
+              <i className="menu-icon">✅</i>
+              <span>Approvals</span>
+            </div>
+          )}
+
+          {/* Aziende */}
           <div className="menu-item-container">
-            <div 
+            <div
               className={`menu-item ${isActive('/companies') ? 'active' : ''}`}
               onClick={toggleCompaniesDropdown}
             >
@@ -231,30 +213,20 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <span>Aziende</span>
               <i className={`arrow-icon ${companiesDropdownOpen ? 'open' : ''}`}>▼</i>
             </div>
-            
+
             {companiesDropdownOpen && (
               <div className="dropdown-menu">
-                <div 
-                  className="dropdown-item"
-                  onClick={() => handleNavigation('/companies')}
-                >
+                <div className="dropdown-item" onClick={() => handleNavigation('/companies')}>
                   <i className="dropdown-icon">📋</i>
                   <span>Elenco</span>
                 </div>
-                {/* Only Sportello Lavoro and above can create companies */}
                 {isSportelloLavoro && (
                   <>
-                    <div 
-                      className="dropdown-item"
-                      onClick={() => handleNavigation('/companies/new')}
-                    >
+                    <div className="dropdown-item" onClick={() => handleNavigation('/companies/new')}>
                       <i className="dropdown-icon">➕</i>
                       <span>Crea</span>
                     </div>
-                    <div 
-                      className="dropdown-item"
-                      onClick={() => handleNavigation('/companies/upload')}
-                    >
+                    <div className="dropdown-item" onClick={() => handleNavigation('/companies/upload')}>
                       <i className="dropdown-icon">📤</i>
                       <span>Upload XLSX</span>
                     </div>
@@ -266,7 +238,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
           {/* Users - Admin and Super Admin only */}
           {isAdmin && (
-            <div 
+            <div
               className={`menu-item ${isActive('/users') ? 'active' : ''}`}
               onClick={() => handleNavigation('/users')}
             >
@@ -275,10 +247,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             </div>
           )}
 
-          {/* Responsabile Territoriale - Responsabile Territoriale and above */}
+          {/* Responsabile Territoriale */}
           {isAdmin && (
             <div className="menu-item-container">
-              <div 
+              <div
                 className={`menu-item ${isActive('/agenti') || isActive('/abila') ? 'active' : ''}`}
                 onClick={toggleAbilaDropdown}
               >
@@ -286,20 +258,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 <span>Responsabile Territoriale</span>
                 <i className={`arrow-icon ${abilaDropdownOpen ? 'open' : ''}`}>▼</i>
               </div>
-              
+
               {abilaDropdownOpen && (
                 <div className="dropdown-menu">
-                  <div 
-                    className="dropdown-item"
-                    onClick={() => handleNavigation('/agenti')}
-                  >
+                  <div className="dropdown-item" onClick={() => handleNavigation('/agenti')}>
                     <i className="dropdown-icon">➕</i>
                     <span>Crea</span>
                   </div>
-                  <div 
-                    className="dropdown-item"
-                    onClick={() => handleNavigation('/abila/progetti')}
-                  >
+                  <div className="dropdown-item" onClick={() => handleNavigation('/abila/progetti')}>
                     <i className="dropdown-icon">📋</i>
                     <span>Elenco</span>
                   </div>
@@ -308,10 +274,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             </div>
           )}
 
-          {/* Sportello Lavoro - Responsabile Territoriale and above can manage */}
+          {/* Sportello Lavoro */}
           {isResponsabileTerritoriale && (
             <div className="menu-item-container">
-              <div 
+              <div
                 className={`menu-item ${isActive('/sportello-lavoro') ? 'active' : ''}`}
                 onClick={toggleSportelloLavoroDropdown}
               >
@@ -319,20 +285,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 <span>Sportello Lavoro</span>
                 <i className={`arrow-icon ${sportelloLavoroDropdownOpen ? 'open' : ''}`}>▼</i>
               </div>
-              
+
               {sportelloLavoroDropdownOpen && (
                 <div className="dropdown-menu">
-                  <div 
-                    className="dropdown-item"
-                    onClick={() => handleNavigation('/sportello-lavoro')}
-                  >
+                  <div className="dropdown-item" onClick={() => handleNavigation('/sportello-lavoro')}>
                     <i className="dropdown-icon">📋</i>
                     <span>Elenco</span>
                   </div>
-                  <div 
-                    className="dropdown-item"
-                    onClick={() => handleNavigation('/sportello-lavoro/new')}
-                  >
+                  <div className="dropdown-item" onClick={() => handleNavigation('/sportello-lavoro/new')}>
                     <i className="dropdown-icon">➕</i>
                     <span>Crea</span>
                   </div>
@@ -341,10 +301,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             </div>
           )}
 
-          {/* Segnalatori - Sportello Lavoro and above can manage */}
+          {/* Segnalatori */}
           {isSportelloLavoro && (
             <div className="menu-item-container">
-              <div 
+              <div
                 className={`menu-item ${isActive('/segnalatori') ? 'active' : ''}`}
                 onClick={toggleSegnalatoriDropdown}
               >
@@ -352,20 +312,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 <span>Segnalatori</span>
                 <i className={`arrow-icon ${segnalatoriDropdownOpen ? 'open' : ''}`}>▼</i>
               </div>
-              
+
               {segnalatoriDropdownOpen && (
                 <div className="dropdown-menu">
-                  <div 
-                    className="dropdown-item"
-                    onClick={() => handleNavigation('/segnalatori')}
-                  >
+                  <div className="dropdown-item" onClick={() => handleNavigation('/segnalatori')}>
                     <i className="dropdown-icon">📋</i>
                     <span>Elenco</span>
                   </div>
-                  <div 
-                    className="dropdown-item"
-                    onClick={() => handleNavigation('/segnalatori/new')}
-                  >
+                  <div className="dropdown-item" onClick={() => handleNavigation('/segnalatori/new')}>
                     <i className="dropdown-icon">➕</i>
                     <span>Crea</span>
                   </div>
@@ -374,9 +328,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             </div>
           )}
 
-          {/* Fornitori - Available to all users */}
+          {/* Fornitori */}
           <div className="menu-item-container">
-            <div 
+            <div
               className={`menu-item ${isActive('/fornitori') ? 'active' : ''}`}
               onClick={toggleFornitoriDropdown}
             >
@@ -384,22 +338,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <span>Fornitori</span>
               <i className={`arrow-icon ${fornitoriDropdownOpen ? 'open' : ''}`}>▼</i>
             </div>
-            
+
             {fornitoriDropdownOpen && (
               <div className="dropdown-menu">
-                <div 
-                  className="dropdown-item"
-                  onClick={() => handleNavigation('/fornitori')}
-                >
+                <div className="dropdown-item" onClick={() => handleNavigation('/fornitori')}>
                   <i className="dropdown-icon">📋</i>
                   <span>Elenco</span>
                 </div>
-                {/* Only Sportello Lavoro and above can create suppliers */}
                 {isSportelloLavoro && (
-                  <div 
-                    className="dropdown-item"
-                    onClick={() => handleNavigation('/fornitori/crea')}
-                  >
+                  <div className="dropdown-item" onClick={() => handleNavigation('/fornitori/crea')}>
                     <i className="dropdown-icon">➕</i>
                     <span>Crea</span>
                   </div>
@@ -407,13 +354,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               </div>
             )}
           </div>
-
-          
         </div>
-        
-        <main className="main-content">
-          {children}
-        </main>
+
+        <main className="main-content">{children}</main>
       </div>
     </div>
   );

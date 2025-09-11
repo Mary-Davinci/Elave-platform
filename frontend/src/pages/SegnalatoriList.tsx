@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { procacciatoreService, ProcacciatoreResponse } from '../services/procacciatoreService';
+import { segnalatoreService, SegnalatoreResponse } from '../services/segnalatoreService';
 import '../styles/Companies.css';
-
 
 const SegnalatoriList: React.FC = () => {
   const [segnalatori, setSegnalatori] = useState<SegnalatoreResponse[]>([]);

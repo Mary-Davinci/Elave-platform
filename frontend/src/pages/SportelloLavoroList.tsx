@@ -5,6 +5,11 @@ import { SportelloLavoroFormData } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
 import '../styles/Companies.css';
 
+// ✅ Read the real env key; fallback kept for safety; trim trailing slash.
+const API_BASE_URL =
+  (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000')
+    .replace(/\/+$/, '');
+
 interface SportelloLavoro extends SportelloLavoroFormData {
   _id: string;
   createdAt: string;
@@ -20,7 +25,7 @@ const SportelloLavoroList: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
-  const [dropdownPositions, setDropdownPositions] = useState({});
+  const [dropdownPositions, setDropdownPositions] = useState({} as any);
   
   // Search inputs for each column
   const [searchInputs, setSearchInputs] = useState({
@@ -70,22 +75,19 @@ const SportelloLavoroList: React.FC = () => {
   // Position filter dropdown function
   const positionFilterDropdown = useCallback((field: string) => {
     if (activeFilterDropdown === field) {
+      // NOTE: The title query should match the title you set below.
       const buttonElement = document.querySelector(`button[title="Filtra per ${field}"]`);
       const filterDropdown = document.querySelector('.filter-dropdown') as HTMLElement;
       
       if (buttonElement && filterDropdown) {
-        const rect = buttonElement.getBoundingClientRect();
-        
+        const rect = (buttonElement as HTMLElement).getBoundingClientRect();
         const top = rect.bottom + window.scrollY + 5;
         const left = Math.max(rect.left + window.scrollX - 200 + rect.width, 10);
-        
         const rightEdge = left + 250;
         const windowWidth = window.innerWidth;
         const finalLeft = rightEdge > windowWidth ? windowWidth - 260 : left;
-        
         filterDropdown.style.top = `${top}px`;
         filterDropdown.style.left = `${finalLeft}px`;
-        
         setDropdownPositions({
           ...dropdownPositions,
           [field]: { top, left: finalLeft }
@@ -98,11 +100,8 @@ const SportelloLavoroList: React.FC = () => {
   const toggleFilterDropdown = useCallback((field: string) => {
     const newActiveFilter = activeFilterDropdown === field ? null : field;
     setActiveFilterDropdown(newActiveFilter);
-    
     if (newActiveFilter) {
-      setTimeout(() => {
-        positionFilterDropdown(field);
-      }, 0);
+      setTimeout(() => positionFilterDropdown(field), 0);
     }
   }, [activeFilterDropdown, positionFilterDropdown]);
 
@@ -112,11 +111,8 @@ const SportelloLavoroList: React.FC = () => {
         setActiveFilterDropdown(null);
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   useEffect(() => {
@@ -129,17 +125,15 @@ const SportelloLavoroList: React.FC = () => {
       try {
         setLoading(true);
         const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
-        
-        const response = await fetch(`${apiBaseUrl}/api/sportello-lavoro`, {
+
+        const response = await fetch(`${API_BASE_URL}/api/sportello-lavoro`, {
           headers: {
-            'Authorization': `Bearer ${token}`,
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
+          credentials: 'include',
         });
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch sportello lavoros');
-        }
+        if (!response.ok) throw new Error('Failed to fetch sportello lavoros');
 
         const data = await response.json();
         setSportelloLavoros(data);
@@ -191,49 +185,41 @@ const SportelloLavoroList: React.FC = () => {
         new Date(sportello.createdAt).toLocaleDateString().toLowerCase().includes(searchInputs.date.toLowerCase())
       );
     }
-    
     if (searchInputs.businessName) {
       result = result.filter(sportello => 
         sportello.businessName.toLowerCase().includes(searchInputs.businessName.toLowerCase())
       );
     }
-    
     if (searchInputs.vatNumber) {
       result = result.filter(sportello => 
         sportello.vatNumber.toLowerCase().includes(searchInputs.vatNumber.toLowerCase())
       );
     }
-    
     if (searchInputs.city) {
       result = result.filter(sportello => 
         sportello.city.toLowerCase().includes(searchInputs.city.toLowerCase())
       );
     }
-    
     if (searchInputs.province) {
       result = result.filter(sportello => 
         sportello.province.toLowerCase().includes(searchInputs.province.toLowerCase())
       );
     }
-    
     if (searchInputs.email) {
       result = result.filter(sportello => 
         (sportello.email || '').toLowerCase().includes(searchInputs.email.toLowerCase())
       );
     }
-    
     if (searchInputs.pec) {
       result = result.filter(sportello => 
         (sportello.pec || '').toLowerCase().includes(searchInputs.pec.toLowerCase())
       );
     }
-    
     if (searchInputs.commission) {
       result = result.filter(sportello => 
         sportello.agreedCommission.toString().includes(searchInputs.commission)
       );
     }
-    
     if (searchInputs.status) {
       result = result.filter(sportello => {
         const status = sportello.isActive !== false ? 'Attivo' : 'Inattivo';
@@ -249,37 +235,21 @@ const SportelloLavoroList: React.FC = () => {
             values.includes(new Date(sportello.createdAt).toLocaleDateString())
           );
         } else if (field === 'businessName') {
-          result = result.filter(sportello => 
-            values.includes(sportello.businessName)
-          );
+          result = result.filter(sportello => values.includes(sportello.businessName));
         } else if (field === 'vatNumber') {
-          result = result.filter(sportello => 
-            values.includes(sportello.vatNumber)
-          );
+          result = result.filter(sportello => values.includes(sportello.vatNumber));
         } else if (field === 'city') {
-          result = result.filter(sportello => 
-            values.includes(sportello.city)
-          );
+          result = result.filter(sportello => values.includes(sportello.city));
         } else if (field === 'province') {
-          result = result.filter(sportello => 
-            values.includes(sportello.province)
-          );
+          result = result.filter(sportello => values.includes(sportello.province));
         } else if (field === 'email') {
-          result = result.filter(sportello => 
-            values.includes(sportello.email || '-')
-          );
+          result = result.filter(sportello => values.includes(sportello.email || '-'));
         } else if (field === 'pec') {
-          result = result.filter(sportello => 
-            values.includes(sportello.pec || '-')
-          );
+          result = result.filter(sportello => values.includes(sportello.pec || '-'));
         } else if (field === 'commission') {
-          result = result.filter(sportello => 
-            values.includes(sportello.agreedCommission.toString())
-          );
+          result = result.filter(sportello => values.includes(sportello.agreedCommission.toString()));
         } else if (field === 'status') {
-          result = result.filter(sportello => 
-            values.includes(sportello.isActive !== false ? 'Attivo' : 'Inattivo')
-          );
+          result = result.filter(sportello => values.includes(sportello.isActive !== false ? 'Attivo' : 'Inattivo'));
         }
       }
     });
@@ -290,57 +260,37 @@ const SportelloLavoroList: React.FC = () => {
   // Position updates on resize and scroll
   useEffect(() => {
     const handleResize = () => {
-      if (activeFilterDropdown) {
-        positionFilterDropdown(activeFilterDropdown);
-      }
+      if (activeFilterDropdown) positionFilterDropdown(activeFilterDropdown);
     };
-  
     window.addEventListener('resize', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
+    return () => window.removeEventListener('resize', handleResize);
   }, [activeFilterDropdown, positionFilterDropdown]);
   
   useEffect(() => {
     const handleScroll = () => {
-      if (activeFilterDropdown) {
-        positionFilterDropdown(activeFilterDropdown);
-      }
+      if (activeFilterDropdown) positionFilterDropdown(activeFilterDropdown);
     };
-  
     window.addEventListener('scroll', handleScroll, true);
-    return () => {
-      window.removeEventListener('scroll', handleScroll, true);
-    };
+    return () => window.removeEventListener('scroll', true);
   }, [activeFilterDropdown, positionFilterDropdown]);
 
-  const handleAddSportelloLavoro = () => {
-    navigate('/sportello-lavoro/new');
-  };
-
-  const handleViewSportelloLavoro = (id: string) => {
-    navigate(`/sportello-lavoro/${id}`);
-  };
-
-  const handleEditSportelloLavoro = (id: string) => {
-    navigate(`/sportello-lavoro/edit/${id}`);
-  };
+  const handleAddSportelloLavoro = () => navigate('/sportello-lavoro/new');
+  const handleViewSportelloLavoro = (id: string) => navigate(`/sportello-lavoro/${id}`);
+  const handleEditSportelloLavoro = (id: string) => navigate(`/sportello-lavoro/edit/${id}`);
 
   const handleDeleteSportelloLavoro = async (id: string) => {
     if (window.confirm('Sei sicuro di voler eliminare questo Sportello Lavoro?')) {
       try {
         const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
-        
-        const response = await fetch(`${apiBaseUrl}/api/sportello-lavoro/${id}`, {
+        const response = await fetch(`${API_BASE_URL}/api/sportello-lavoro/${id}`, {
           method: 'DELETE',
           headers: {
-            'Authorization': `Bearer ${token}`,
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
+          credentials: 'include',
         });
-
         if (response.ok) {
-          setSportelloLavoros(sportelloLavoros.filter(sportello => sportello._id !== id));
+          setSportelloLavoros(sportelloLavoros.filter(s => s._id !== id));
         } else {
           throw new Error('Failed to delete sportello lavoro');
         }
@@ -352,48 +302,27 @@ const SportelloLavoroList: React.FC = () => {
   };
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
-    setSearchInputs({
-      ...searchInputs,
-      [field]: e.target.value
-    });
+    setSearchInputs({ ...searchInputs, [field]: e.target.value });
   };
 
   const handleFilterChange = (field: string, value: string, checked: boolean) => {
     setSelectedFilters(prev => {
-      const newValues = [...prev[field]];
-      if (checked) {
-        newValues.push(value);
-      } else {
-        const index = newValues.indexOf(value);
-        if (index > -1) {
-          newValues.splice(index, 1);
-        }
-      }
-      return { ...prev, [field]: newValues };
+      const next = [...prev[field]];
+      if (checked) next.push(value);
+      else next.splice(next.indexOf(value), 1);
+      return { ...prev, [field]: next };
     });
   };
 
   const handleSelectAll = (field: string, checked: boolean) => {
-    if (checked) {
-      setSelectedFilters(prev => ({
-        ...prev,
-        [field]: Array.from(filterOptions[field])
-      }));
-    } else {
-      setSelectedFilters(prev => ({
-        ...prev,
-        [field]: []
-      }));
-    }
+    setSelectedFilters(prev => ({
+      ...prev,
+      [field]: checked ? Array.from(filterOptions[field]) : []
+    }));
   };
 
-  const handleFilterOk = () => {
-    setActiveFilterDropdown(null);
-  };
-
-  const handleFilterCancel = () => {
-    setActiveFilterDropdown(null);
-  };
+  const handleFilterOk = () => setActiveFilterDropdown(null);
+  const handleFilterCancel = () => setActiveFilterDropdown(null);
 
   const renderFilterDropdown = (field: string, displayName: string) => (
     <th key={field}>
@@ -403,7 +332,7 @@ const SportelloLavoroList: React.FC = () => {
           <button
             className="filter-button"
             onClick={() => toggleFilterDropdown(field)}
-            title={`Filtra per ${displayName.toLowerCase()}`}
+            title={`Filtra per ${field}`} {/* keep this matching the query selector */}
           >
             ▼
           </button>

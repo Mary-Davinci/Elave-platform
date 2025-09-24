@@ -3,6 +3,12 @@ import '../styles/NewCompany.css';
 import { SportelloLavoroFormData, FormTemplate } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext'; // Import AuthContext
 
+// ✅ Use the env key you actually have (.env.* shows VITE_API_URL)
+//    Still supports VITE_API_BASE_URL as a fallback for safety.
+const API_BASE_URL =
+  (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000')
+    .replace(/\/+$/, ''); // trim trailing slash
+
 const SportelloLavoro: React.FC = () => {
   const { user } = useAuth(); // Get user from AuthContext
   
@@ -46,13 +52,13 @@ const SportelloLavoro: React.FC = () => {
     const fetchFormTemplates = async () => {
       try {
         const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
         
-        // Fetch templates specifically for SportelloLavoro
-        const response = await fetch(`${apiBaseUrl}/api/form-templates/sportello-lavoro`, {
+        // ✅ Use the corrected base URL
+        const response = await fetch(`${API_BASE_URL}/api/form-templates/sportello-lavoro`, {
           headers: {
-            'Authorization': `Bearer ${token}`,
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           },
+          credentials: 'include',
         });
 
         if (response.ok) {
@@ -159,13 +165,13 @@ const SportelloLavoro: React.FC = () => {
       uploadFormData.append('category', 'sportello-lavoro'); // Add category for SportelloLavoro
 
       const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
-      const response = await fetch(`${apiBaseUrl}/api/form-templates`, {
+      const response = await fetch(`${API_BASE_URL}/api/form-templates`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
+        credentials: 'include',
         body: uploadFormData,
       });
 
@@ -183,10 +189,11 @@ const SportelloLavoro: React.FC = () => {
         }
 
         // Refresh templates list
-        const templatesResponse = await fetch(`${apiBaseUrl}/api/form-templates/sportello-lavoro`, {
+        const templatesResponse = await fetch(`${API_BASE_URL}/api/form-templates/sportello-lavoro`, {
           headers: {
-            'Authorization': `Bearer ${token}`,
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           },
+          credentials: 'include',
         });
         
         if (templatesResponse.ok) {
@@ -208,12 +215,12 @@ const SportelloLavoro: React.FC = () => {
   const handleDownloadTemplate = async (type: 'contract' | 'legal') => {
     try {
       const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
-      const response = await fetch(`${apiBaseUrl}/api/form-templates/download/sportello-lavoro/${type}`, {
+      const response = await fetch(`${API_BASE_URL}/api/form-templates/download/sportello-lavoro/${type}`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -299,14 +306,13 @@ const SportelloLavoro: React.FC = () => {
         formDataToSend.append('legalDocumentFile', legalDoc);
       }
       const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
-      const response = await fetch(`${apiBaseUrl}/api/sportello-lavoro`, {
+      const response = await fetch(`${API_BASE_URL}/api/sportello-lavoro`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
+        credentials: 'include',
         body: formDataToSend,
       });
 

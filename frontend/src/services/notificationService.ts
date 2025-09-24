@@ -239,6 +239,8 @@ export const useNotifications = (pollInterval: number = 30000) => {
     retry,
     refetch: fetchNotifications,
   };
+
+  
 };
 
 export default NotificationService;

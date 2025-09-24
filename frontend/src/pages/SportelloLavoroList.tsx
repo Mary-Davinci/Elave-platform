@@ -271,7 +271,9 @@ const SportelloLavoroList: React.FC = () => {
       if (activeFilterDropdown) positionFilterDropdown(activeFilterDropdown);
     };
     window.addEventListener('scroll', handleScroll, true);
-    return () => window.removeEventListener('scroll', true);
+    return () => {
+      window.removeEventListener('scroll', handleScroll, true);
+    };
   }, [activeFilterDropdown, positionFilterDropdown]);
 
   const handleAddSportelloLavoro = () => navigate('/sportello-lavoro/new');
@@ -309,7 +311,10 @@ const SportelloLavoroList: React.FC = () => {
     setSelectedFilters(prev => {
       const next = [...prev[field]];
       if (checked) next.push(value);
-      else next.splice(next.indexOf(value), 1);
+      else {
+        const idx = next.indexOf(value);
+        if (idx > -1) next.splice(idx, 1);
+      }
       return { ...prev, [field]: next };
     });
   };
@@ -329,10 +334,11 @@ const SportelloLavoroList: React.FC = () => {
       <div className="th-content">
         <div className="th-header">
           <span>{displayName}</span>
+          {/* keep this matching the query selector */}
           <button
             className="filter-button"
             onClick={() => toggleFilterDropdown(field)}
-            title={`Filtra per ${field}`} {/* keep this matching the query selector */}
+            title={`Filtra per ${field}`}
           >
             ▼
           </button>
@@ -354,7 +360,10 @@ const SportelloLavoroList: React.FC = () => {
                 <input
                   type="checkbox"
                   onChange={(e) => handleSelectAll(field, e.target.checked)}
-                  checked={selectedFilters[field].length === filterOptions[field].size && filterOptions[field].size > 0}
+                  checked={
+                    selectedFilters[field].length === filterOptions[field].size &&
+                    filterOptions[field].size > 0
+                  }
                 />
                 Select All
               </label>

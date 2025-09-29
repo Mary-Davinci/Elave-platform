@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.uploadAgentiFromExcel = exports.deleteAgente = exports.updateAgente = exports.createAgente = exports.getAgenteById = exports.getAgenti = void 0;
+exports.uploadAgentiFromExcel = exports.getAgentiMinimal = exports.deleteAgente = exports.updateAgente = exports.createAgente = exports.getAgenteById = exports.getAgenti = void 0;
 const Agenti_1 = __importDefault(require("../models/Agenti"));
 const mongoose_1 = __importDefault(require("mongoose"));
 const multer_1 = __importDefault(require("multer"));
@@ -315,6 +315,35 @@ const deleteAgente = async (req, res) => {
     }
 };
 exports.deleteAgente = deleteAgente;
+const getAgentiMinimal = async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: "User not authenticated" });
+        }
+        // Base filter: only approved & active by default (good for dropdowns)
+        const filter = { isApproved: true, isActive: true };
+        // Scope to the current user unless admin
+        if (req.user.role !== 'admin') {
+            filter.user = req.user._id;
+        }
+        // Optional override via querystring if you ever need it:
+        // /api/agenti/list-minimal?includeInactive=true
+        if (req.query.includeInactive === 'true') {
+            delete filter.isApproved;
+            delete filter.isActive;
+        }
+        const agents = await Agenti_1.default.find(filter)
+            .select('_id businessName isApproved isActive') // minimal fields for dropdown
+            .sort({ businessName: 1 })
+            .lean();
+        return res.json(agents);
+    }
+    catch (err) {
+        console.error("Get minimal agenti error:", err);
+        return res.status(500).json({ error: "Server error" });
+    }
+};
+exports.getAgentiMinimal = getAgentiMinimal;
 const uploadAgentiFromExcel = async (req, res) => {
     try {
         if (!req.user) {

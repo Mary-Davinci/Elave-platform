@@ -1,4 +1,5 @@
 // src/types/interfaces.ts
+
 export interface Account {
   _id: string;
   name: string;
@@ -8,6 +9,7 @@ export interface Account {
   createdAt: string;
   updatedAt: string;
 }
+
 export interface AgenteFormData {
   businessName: string;     // Ragione sociale
   vatNumber: string;        // Partita IVA
@@ -22,12 +24,16 @@ export interface AgenteFormData {
   legalDocumentFile?: File;
 }
 
+/** Minimal agent payload for selects/dropdowns */
+export type MinimalAgent = {
+  _id: string;
+  businessName: string;
+  isApproved?: boolean;
+  isActive?: boolean;
+};
 
-
-// Add this to your src/types/interfaces.ts file
-
+// Full Agente entity (aligned with backend model; optional flags won’t break FE)
 export interface Agente {
-  isActive: any;
   _id: string;
   businessName: string;     // Ragione sociale
   vatNumber: string;        // Partita IVA
@@ -41,10 +47,14 @@ export interface Agente {
   signedContractFileUrl?: string;  // URL del contratto firmato
   legalDocumentFileUrl?: string;   // URL del documento legale
   user: string;             // User ID associato all'agente
+  isApproved?: boolean;
+  approvedBy?: string;
+  approvedAt?: string;
+  pendingApproval?: boolean;
+  isActive?: boolean;
   createdAt: string;
   updatedAt: string;
 }
-
 
 export interface Company {
   _id: string;
@@ -146,12 +156,8 @@ export interface Utility {
 
 export interface DashboardStats {
   accounts: {
-    proselitismo: {
-      balance: number
-    },
-    servizi: {
-      balance: number
-    }
+    proselitismo: { balance: number },
+    servizi: { balance: number }
   },
   statistics: {
     companies: number,
@@ -167,9 +173,7 @@ export interface DashboardStats {
   }
 }
 
-
 export type EmployeeStatus = 'attivo' | 'inattivo';
-
 
 export interface Employee {
   _id: string;
@@ -221,8 +225,11 @@ export interface ProjectFormData {
   companyId?: string;
   status: 'requested' | 'inProgress' | 'completed';
 }
+
+
 export interface SportelloLavoroFormData {
-  businessName: string;
+  agentId?: string;            // NEW: selected agent _id
+  businessName: string;        // display/legacy
   vatNumber: string;
   address: string;
   city: string;
@@ -232,6 +239,7 @@ export interface SportelloLavoroFormData {
   email: string;
   pec: string;
 }
+
 export interface SegnalatoreFormData {
   firstName: string;
   lastName: string;
@@ -246,6 +254,7 @@ export interface SegnalatoreFormData {
   specialization?: string;
   notes?: string;
 }
+
 export interface ProcacciatoreFormData {
   firstName: string;
   lastName: string;
@@ -273,4 +282,5 @@ export interface FormTemplate {
   uploadedBy: string;
   createdAt: string;
   updatedAt: string;
+  category?: string; 
 }

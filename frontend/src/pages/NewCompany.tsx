@@ -11,7 +11,7 @@ const NewCompany: React.FC = () => {
   const { isAuthenticated } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Form state matching your interfaces
   const [formData, setFormData] = useState<CompanyFormData>({
     // Required fields from your merged interface
@@ -21,42 +21,42 @@ const NewCompany: React.FC = () => {
     vatNumber: '',
     employees: 0,
     isActive: true,
-    
+
     // Optional fields
     fiscalCode: '',
     matricola: '',
     inpsCode: '',
-    
+
     // Address fields
     address: {
       street: '',
       city: '',
       postalCode: '',
       province: '',
-      country: 'Italy'
+      country: 'Italy',
     },
-    
-    // Contact info - no contactType as it's not in your interface
+
+    // Contact info
     contactInfo: {
       phoneNumber: '',
       mobile: '',
       email: '',
       pec: '',
-      referent: ''
+      referent: '',
     },
-    
+
     // Contract details
     contractDetails: {
       contractType: '',
       ccnlType: '',
       bilateralEntity: '',
       hasFondoSani: false,
-      useEbapPayment: false
+      useEbapPayment: false,
     },
-    
+
     signaler: '',
     industry: '',
-    actuator: ''
+    actuator: '',
   });
 
   // Redirect if not authenticated
@@ -67,80 +67,43 @@ const NewCompany: React.FC = () => {
   }, [isAuthenticated, navigate]);
 
   // Handle form input changes
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
     const { name, value, type } = e.target;
-    
+
     if (name.includes('.')) {
-      // Handle nested properties
+      // Handle nested properties (e.g., "address.city")
       const [parent, child] = name.split('.');
-      
-      // Use type assertion for nested objects
       const parentObj = { ...(formData[parent as keyof typeof formData] as any) };
-      
+
       setFormData({
         ...formData,
         [parent]: {
           ...parentObj,
-          [child]: type === 'checkbox' 
-            ? (e.target as HTMLInputElement).checked 
-            : value
-        }
+          [child]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
+        },
       });
     } else {
       // Handle top-level properties
       setFormData({
         ...formData,
-        [name]: type === 'checkbox' 
-          ? (e.target as HTMLInputElement).checked 
-          : type === 'number' 
-            ? parseInt(value) || 0 
-            : value
+        [name]:
+          type === 'checkbox'
+            ? (e.target as HTMLInputElement).checked
+            : type === 'number'
+            ? parseInt(value) || 0
+            : value,
       });
     }
   };
 
-  // Toggle checkbox value
-  /*const handleToggle = (name: string) => {
-    if (name.includes('.')) {
-      const [parent, child] = name.split('.');
-      const parentObj = { ...(formData[parent as keyof typeof formData] as any) };
-      
-      // For boolean values
-      if (typeof parentObj[child] === 'boolean') {
-        setFormData({
-          ...formData,
-          [parent]: {
-            ...parentObj,
-            [child]: !parentObj[child]
-          }
-        });
-      } 
-      // For string values that represent booleans (like contractType)
-      else {
-        setFormData({
-          ...formData,
-          [parent]: {
-            ...parentObj,
-            [child]: parentObj[child] ? '' : 'active'
-          }
-        });
-      }
-    } else {
-      setFormData({
-        ...formData,
-        [name]: !formData[name as keyof typeof formData]
-      });
-    }
-  };/*/
-
   // Handle form submission
-  // Handle form submission
-const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-  
-    console.log("Submitting form data:", formData);
+
     try {
       // Prepare data for submission
       const submissionData = {
@@ -151,42 +114,37 @@ const handleSubmit = async (e: React.FormEvent) => {
         businessName: formData.businessName?.trim(),
         vatNumber: formData.vatNumber?.trim(),
         inpsCode: formData.inpsCode?.trim(),
-        
+
         // Sanitize nested objects
         address: {
           street: formData.address?.street?.trim(),
           city: formData.address?.city?.trim(),
           postalCode: formData.address?.postalCode?.trim(),
           province: formData.address?.province?.trim(),
-          country: formData.address?.country?.trim() || 'Italy'
+          country: formData.address?.country?.trim() || 'Italy',
         },
-        
-        // Similarly sanitize other nested objects
+
         contactInfo: {
           phoneNumber: formData.contactInfo?.phoneNumber?.trim(),
           mobile: formData.contactInfo?.mobile?.trim(),
           email: formData.contactInfo?.email?.trim(),
           pec: formData.contactInfo?.pec?.trim(),
-          referent: formData.contactInfo?.referent?.trim()
-        }
+          referent: formData.contactInfo?.referent?.trim(),
+        },
       };
-  
+
       await createCompany(submissionData);
       navigate('/companies');
     } catch (err: any) {
       console.error('Error creating company:', err);
-      
-      // Handle different error formats
-      const errorMessage = 
-        // Check for array of errors
-        (Array.isArray(err.response?.data?.errors) 
-          ? err.response.data.errors.join(', ') 
-          : 
-        // Check for single error message
-        err.response?.data?.error || 
-        err.message || 
-        'Failed to create company');
-      
+
+      const errorMessage =
+        (Array.isArray(err.response?.data?.errors)
+          ? err.response.data.errors.join(', ')
+          : err.response?.data?.error) ||
+        err.message ||
+        'Failed to create company';
+
       setError(errorMessage);
       setLoading(false);
     }
@@ -195,7 +153,7 @@ const handleSubmit = async (e: React.FormEvent) => {
   return (
     <div className="add-company-container">
       <h1 className="page-title">Aggiungi un'azienda</h1>
-      
+
       {error && (
         <div className="error-alert">
           <p>{error}</p>
@@ -217,7 +175,9 @@ const handleSubmit = async (e: React.FormEvent) => {
             </div>
 
             <div className="form-group">
-              <label>Ragione sociale <span className="required">*</span></label>
+              <label>
+                Ragione sociale <span className="required">*</span>
+              </label>
               <input
                 type="text"
                 name="businessName"
@@ -229,7 +189,9 @@ const handleSubmit = async (e: React.FormEvent) => {
             </div>
 
             <div className="form-group">
-              <label>Indirizzo <span className="required">*</span></label>
+              <label>
+                Indirizzo <span className="required">*</span>
+              </label>
               <input
                 type="text"
                 name="address.street"
@@ -243,7 +205,9 @@ const handleSubmit = async (e: React.FormEvent) => {
 
           <div className="form-row">
             <div className="form-group">
-              <label>Città <span className="required">*</span></label>
+              <label>
+                Città <span className="required">*</span>
+              </label>
               <input
                 type="text"
                 name="address.city"
@@ -255,7 +219,9 @@ const handleSubmit = async (e: React.FormEvent) => {
             </div>
 
             <div className="form-group">
-              <label>CAP <span className="required">*</span></label>
+              <label>
+                CAP <span className="required">*</span>
+              </label>
               <input
                 type="text"
                 name="address.postalCode"
@@ -266,29 +232,30 @@ const handleSubmit = async (e: React.FormEvent) => {
               />
             </div>
 
+            {/* Provincia as INPUT (replacing the old SELECT) */}
             <div className="form-group">
-              <label>Provincia <span className="required">*</span></label>
-              <select
+              <label>
+                Provincia <span className="required">*</span>
+              </label>
+              <input
+                type="text"
                 name="address.province"
                 value={formData.address?.province}
                 onChange={handleChange}
                 required
                 className="form-control"
-              >
-                <option value="">Scegli la provincia</option>
-                <option value="Milano">Milano</option>
-                <option value="Roma">Roma</option>
-                <option value="Napoli">Napoli</option>
-                <option value="Torino">Torino</option>
-                <option value="Firenze">Firenze</option>
-                <option value="Bologna">Bologna</option>
-              </select>
+                placeholder="Es. MI, Milano"
+              />
             </div>
           </div>
+        </div>
 
+        <div className="form-section">
           <div className="form-row">
             <div className="form-group">
-              <label>Partita IVA <span className="required">*</span></label>
+              <label>
+                Partita IVA <span className="required">*</span>
+              </label>
               <input
                 type="text"
                 name="vatNumber"
@@ -311,7 +278,9 @@ const handleSubmit = async (e: React.FormEvent) => {
             </div>
 
             <div className="form-group">
-              <label>Codice INPS <span className="required">*</span></label>
+              <label>
+                Codice INPS <span className="required">*</span>
+              </label>
               <input
                 type="text"
                 name="inpsCode"
@@ -322,31 +291,9 @@ const handleSubmit = async (e: React.FormEvent) => {
               />
             </div>
           </div>
-          <div className="form-row">
-            {/* <div className="form-group">
-              <label>Tipo di contatto <span className="required">*</span></label>
-              <select
-                name="contactType"
-                className="form-control"
-                required
-              >
-                <option value="">Scegli il tipo di contatto</option>
-                <option value="direct">Diretto</option>
-                <option value="office">Ufficio</option>
-                <option value="consultant">Consulente</option>
-              </select>
-            </div> */}
 
-            {/* <div className="form-group">
-              <label>Referente</label>
-              <input
-                type="text"
-                name="contactInfo.referent"
-                value={formData.contactInfo?.referent}
-                onChange={handleChange}
-                className="form-control"
-              />
-            </div> */}
+          <div className="form-row">
+            {/* Example contact fields (kept as in your file) */}
             <div className="form-group">
               <label>Cellulare</label>
               <input
@@ -357,19 +304,6 @@ const handleSubmit = async (e: React.FormEvent) => {
                 className="form-control"
               />
             </div>
-        
-          {/* <div className="form-row">
-            <div className="form-group">
-              <label>Telefono</label>
-              <input
-                type="text"
-                name="contactInfo.phoneNumber"
-                value={formData.contactInfo?.phoneNumber}
-                onChange={handleChange}
-                className="form-control"
-              />
-            </div>
-          </div> */}
 
             <div className="form-group">
               <label>Email</label>
@@ -395,15 +329,7 @@ const handleSubmit = async (e: React.FormEvent) => {
           </div>
         </div>
 
-        {/* Contacts Section */}
-        {/* <div className="form-section">
-          <h2 className="section-title">Contatti</h2>          
-        </div> */}
-
-
-
-
-
+        {/* Segnalazione */}
         <div className="form-section">
           <h2 className="section-title">Segnalazione</h2>
           <div className="form-row">
@@ -419,7 +345,7 @@ const handleSubmit = async (e: React.FormEvent) => {
             </div>
 
             <div className="form-group toggle-group">
-              <label>Consulente del Lavoro </label>
+              <label>Consulente del Lavoro</label>
               <input
                 type="text"
                 name="contactInfo.phoneNumber"
@@ -427,28 +353,24 @@ const handleSubmit = async (e: React.FormEvent) => {
                 onChange={handleChange}
                 className="form-control"
               />
-                
-          
             </div>
 
             <div className="form-group toggle-group">
-              <label>Procacciatore  </label>
-               <input
+              <label>Procacciatore</label>
+              <input
                 type="text"
                 name="contactInfo.phoneNumber"
                 value={formData.contactInfo?.phoneNumber}
                 onChange={handleChange}
                 className="form-control"
               />
-                
             </div>
           </div>
         </div>
-        {/* Specifiche Section */}
+
+        {/* Specifiche */}
         <div className="form-section">
           <h2 className="section-title">Specifiche</h2>
-
-        
 
           <div className="form-row">
             <div className="form-group">
@@ -471,43 +393,24 @@ const handleSubmit = async (e: React.FormEvent) => {
                 onChange={handleChange}
                 className="form-control"
               />
-                
-          
             </div>
 
             <div className="form-group toggle-group">
               <label>Adesione salute amica</label>
-               <input
+              <input
                 type="text"
                 name="contactInfo.phoneNumber"
                 value={formData.contactInfo?.phoneNumber}
                 onChange={handleChange}
                 className="form-control"
               />
-                
             </div>
-          </div>
-
-          <div className="form-row">
-            {/* <div className="form-group toggle-group">
-              <label>Attivo</label>
-              <div 
-                className={`toggle-switch ${formData.isActive ? 'active' : ''}`}
-                onClick={() => handleToggle('isActive')}
-              >
-                <div className="toggle-slider"></div>
-              </div>
-            </div> */}
           </div>
         </div>
 
         {/* Submit Button */}
         <div className="form-actions">
-          <button 
-            type="submit" 
-            className="submit-button"
-            disabled={loading}
-          >
+          <button type="submit" className="submit-button" disabled={loading}>
             {loading ? 'Salvataggio...' : 'Aggiungi'}
           </button>
         </div>

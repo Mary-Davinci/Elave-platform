@@ -21,6 +21,8 @@ export interface ICompany extends Document {
     email?: string;
     pec?: string;      
     referent?: string;  
+    laborConsultant?: string; // NEW
+    procurer?: string;        // NEW
   };
   contractDetails: {
     contractType?: string;    
@@ -28,6 +30,8 @@ export interface ICompany extends Document {
     bilateralEntity?: string; 
     hasFondoSani?: boolean;   
     useEbapPayment?: boolean; 
+    elavAdhesion?: boolean;        // NEW
+    saluteAmicaAdhesion?: boolean; // NEW
   };
   industry?: string;
   employees?: number;
@@ -39,6 +43,9 @@ export interface ICompany extends Document {
   approvedBy?: mongoose.Types.ObjectId;
   approvedAt?: Date;
   pendingApproval: boolean;
+
+  
+  territorialManager?: string;     // NEW
   
   user: mongoose.Types.ObjectId;
   createdAt: Date;
@@ -88,6 +95,8 @@ const CompanySchema = new Schema<ICompany>(
       email: { type: String, trim: true },
       pec: { type: String, trim: true },
       referent: { type: String, trim: true },
+      laborConsultant: { type: String, trim: true }, 
+      procurer: { type: String, trim: true },      
     },
     contractDetails: {
       contractType: { type: String, trim: true },
@@ -95,6 +104,9 @@ const CompanySchema = new Schema<ICompany>(
       bilateralEntity: { type: String, trim: true },
       hasFondoSani: { type: Boolean, default: false },
       useEbapPayment: { type: Boolean, default: false },
+      elavAdhesion: { type: Boolean, default: false },        // NEW
+      saluteAmicaAdhesion: { type: Boolean, default: false }, // NEW
+      territorialManager: { type: String, trim: true },
     },
     industry: {
       type: String,

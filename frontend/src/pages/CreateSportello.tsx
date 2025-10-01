@@ -3,22 +3,21 @@ import '../styles/NewCompany.css';
 import { SportelloLavoroFormData, FormTemplate, MinimalAgent } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
 
-// ✅ Use the env key you actually have (.env.* shows VITE_API_URL)
 const API_BASE_URL =
   (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000')
-    .replace(/\/+$/, ''); // trim trailing slash
+    .replace(/\/+$/, '');
 
 const SportelloLavoro: React.FC = () => {
   const { user } = useAuth();
 
-  // --- NEW: agents state for the select
   const [agents, setAgents] = useState<MinimalAgent[]>([]);
   const [isLoadingAgents, setIsLoadingAgents] = useState(false);
   const [agentsError, setAgentsError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<SportelloLavoroFormData>({
-    agentId: '',             // NEW: selected agent id
-    businessName: '',        // kept for display/back-compat
+    agentName: '',
+    agentId: '',
+    businessName: '',
     vatNumber: '',
     address: '',
     city: '',
@@ -48,11 +47,18 @@ const SportelloLavoro: React.FC = () => {
   const contractTemplateRef = useRef<HTMLInputElement>(null);
   const legalTemplateRef = useRef<HTMLInputElement>(null);
 
-  // Role
-  const isAdmin = user?.role === 'admin';
-  const userRole = isAdmin ? 'admin' : 'user';
+  // Role + display name
+  const isAdmin = (user?.role || '').toLowerCase() === 'admin';
+  const isResponsabile = (user?.role || '').toLowerCase() === 'responsabile_territoriale';
 
-  // --- NEW: fetch agents on mount (tries /list-minimal first, falls back to /api/agenti)
+  // account display name: organization → “First Last” → username → email prefix
+  const accountDisplayName =
+    (user?.organization?.trim()) ||
+    [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() ||
+    (user?.username?.trim()) ||
+    (user?.email ? user.email.split('@')[0] : '') || '';
+
+  // Load agents
   useEffect(() => {
     const fetchAgents = async () => {
       setIsLoadingAgents(true);
@@ -61,24 +67,23 @@ const SportelloLavoro: React.FC = () => {
         const token = localStorage.getItem('token') || sessionStorage.getItem('token');
         const headers = { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) };
 
-        // Preferred minimal list
         let res = await fetch(`${API_BASE_URL}/api/agenti/list-minimal`, {
-          headers, credentials: 'include'
+          headers,
+          credentials: 'include'
         });
 
-        // Fallback to full list if route not found
         if (!res.ok && res.status === 404) {
           res = await fetch(`${API_BASE_URL}/api/agenti`, { headers, credentials: 'include' });
         }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
         const data = await res.json();
-        // normalize to MinimalAgent shape
         const normalized: MinimalAgent[] = (data || []).map((a: any) => ({
           _id: a._id,
           businessName: a.businessName ?? a.name ?? '',
           isApproved: a.isApproved,
           isActive: a.isActive,
+          user: a.user, // string or populated {_id}
         }));
         setAgents(normalized);
       } catch (err) {
@@ -91,7 +96,7 @@ const SportelloLavoro: React.FC = () => {
     fetchAgents();
   }, []);
 
-  // Fetch form templates on mount
+  // Load templates
   useEffect(() => {
     const fetchFormTemplates = async () => {
       try {
@@ -113,13 +118,42 @@ const SportelloLavoro: React.FC = () => {
     fetchFormTemplates();
   }, []);
 
-  // Debugs
+  // Auto-preselect for responsabile by account name (or owned agent)
   useEffect(() => {
-    console.log('AuthContext user:', user);
-    console.log('User role from AuthContext:', user?.role);
-    console.log('IsAdmin:', isAdmin);
-    console.log('Final userRole:', userRole);
-  }, [user, isAdmin, userRole]);
+    if (!user || !isResponsabile || isLoadingAgents || agents.length === 0) return;
+
+    const displayLc = accountDisplayName.toLowerCase();
+
+    // 1) exact name match
+    let chosen = agents.find(a => (a.businessName || '').toLowerCase() === displayLc);
+
+    // 2) contains match
+    if (!chosen && displayLc) {
+      chosen = agents.find(a => (a.businessName || '').toLowerCase().includes(displayLc));
+    }
+
+    // 3) fallback by ownership
+    if (!chosen) {
+      chosen = agents.find(a => {
+        const uid = typeof (a as any).user === 'string' ? (a as any).user : (a as any).user?._id;
+        return uid === user._id;
+      });
+    }
+
+    if (chosen) {
+      setFormData(prev => ({
+        ...prev,
+        agentId: chosen._id,
+        businessName: chosen.businessName || prev.businessName,
+        agentName: accountDisplayName || chosen.businessName || prev.agentName || ''
+      }));
+    } else {
+      // no match: still show account name in the text field
+      if (accountDisplayName) {
+        setFormData(prev => ({ ...prev, agentName: accountDisplayName }));
+      }
+    }
+  }, [user, isResponsabile, accountDisplayName, agents, isLoadingAgents]);
 
   const handleDeleteFile = (type: 'contract' | 'legal') => {
     if (type === 'contract') {
@@ -141,14 +175,14 @@ const SportelloLavoro: React.FC = () => {
     if (successMessage) setSuccessMessage('');
   };
 
-  // --- NEW: agent select handler
   const handleAgentSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedId = e.target.value;
     const selected = agents.find(a => a._id === selectedId);
     setFormData(prev => ({
       ...prev,
       agentId: selectedId,
-      businessName: selected?.businessName || '' // keep name in payload for display/back-compat
+      businessName: selected?.businessName || '',
+      agentName: selected?.businessName || prev.agentName
     }));
     if (errors.length) setErrors([]);
     if (successMessage) setSuccessMessage('');
@@ -217,7 +251,6 @@ const SportelloLavoro: React.FC = () => {
           if (legalTemplateRef.current) legalTemplateRef.current.value = '';
         }
 
-        // refresh templates
         const token2 = localStorage.getItem('token') || sessionStorage.getItem('token');
         const templatesResponse = await fetch(`${API_BASE_URL}/api/form-templates/sportello-lavoro`, {
           headers: { ...(token2 ? { 'Authorization': `Bearer ${token2}` } : {}) },
@@ -274,7 +307,6 @@ const SportelloLavoro: React.FC = () => {
   const getAvailableTemplate = (type: 'contract' | 'legal') =>
     formTemplates.find(template => template.type === type);
 
-  // --- UPDATED validation: require agentId (not free-text businessName)
   const validateForm = (): boolean => {
     const newErrors: string[] = [];
 
@@ -310,7 +342,6 @@ const SportelloLavoro: React.FC = () => {
     try {
       const formDataToSend = new FormData();
 
-      // Append form data (includes agentId & businessName)
       Object.entries(formData).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
           formDataToSend.append(key, String(value));
@@ -334,6 +365,7 @@ const SportelloLavoro: React.FC = () => {
       if (response.ok) {
         setSuccessMessage('Sportello Lavoro creato con successo!');
         setFormData({
+          agentName: '',
           agentId: '',
           businessName: '',
           vatNumber: '',
@@ -367,52 +399,64 @@ const SportelloLavoro: React.FC = () => {
         <h1 className="page-title">Nuovo Sportello Lavoro</h1>
       </div>
 
-      {/* Template Management Section (unchanged) */}
+      {/* Template Management Section */}
       {isAdmin ? (
-        <div className="template-management-section" style={{
-          backgroundColor: '#ffffff',
-          padding: '24px',
-          borderRadius: '12px',
-          marginBottom: '32px',
-          border: '1px solid #e1e5e9',
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            marginBottom: '20px',
-            paddingBottom: '16px',
-            borderBottom: '2px solid #f8f9fa'
-          }}>
-            <div style={{
-              backgroundColor: '#e3f2fd',
-              padding: '8px',
-              borderRadius: '8px',
-              marginRight: '12px'
-            }}>
+        <div
+          className="template-management-section"
+          style={{
+            backgroundColor: '#ffffff',
+            padding: '24px',
+            borderRadius: '12px',
+            marginBottom: '32px',
+            border: '1px solid #e1e5e9',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              marginBottom: '20px',
+              paddingBottom: '16px',
+              borderBottom: '2px solid #f8f9fa'
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: '#e3f2fd',
+                padding: '8px',
+                borderRadius: '8px',
+                marginRight: '12px'
+              }}
+            >
               <span style={{ fontSize: '20px' }}>⚙️</span>
             </div>
-            <h3 style={{
-              margin: 0,
-              color: '#2c3e50',
-              fontSize: '20px',
-              fontWeight: '600'
-            }}>
+            <h3
+              style={{
+                margin: 0,
+                color: '#2c3e50',
+                fontSize: '20px',
+                fontWeight: '600'
+              }}
+            >
               Gestione Moduli Sportello Lavoro (Admin)
             </h3>
           </div>
 
           {templateUploadMessage && (
-            <div className="alert" style={{
-              backgroundColor: templateUploadMessage.includes('successo') ? '#d1f2eb' : '#fadbd8',
-              border: `1px solid ${templateUploadMessage.includes('successo') ? '#a3e4d7' : '#f1948a'}`,
-              color: templateUploadMessage.includes('successo') ? '#0e6655' : '#922b21',
-              padding: '12px 16px',
-              borderRadius: '8px',
-              marginBottom: '20px',
-              fontSize: '14px',
-              fontWeight: '500'
-            }}>
+            <div
+              className="alert"
+              style={{
+                backgroundColor: templateUploadMessage.includes('successo') ? '#d1f2eb' : '#fadbd8',
+                border: `1px solid ${templateUploadMessage.includes('successo') ? '#a3e4d7' : '#f1948a'}`,
+                color: templateUploadMessage.includes('successo') ? '#0e6655' : '#922b21',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                marginBottom: '20px',
+                fontSize: '14px',
+                fontWeight: '500'
+              }}
+            >
               <span style={{ marginRight: '8px' }}>
                 {templateUploadMessage.includes('successo') ? '✅' : '❌'}
               </span>
@@ -422,37 +466,40 @@ const SportelloLavoro: React.FC = () => {
 
           <div style={{ display: 'grid', gridTemplateColumns: '31% 31%', gap: '24px' }}>
             {/* Contract Template Upload */}
-            <div className="template-upload-group" style={{
-              backgroundColor: '#f8f9fa',
-              padding: '20px',
-              borderRadius: '10px',
-              border: '1px solid #e9ecef'
-            }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                marginBottom: '12px'
-              }}>
+            <div
+              className="template-upload-group"
+              style={{
+                backgroundColor: '#f8f9fa',
+                padding: '20px',
+                borderRadius: '10px',
+                border: '1px solid #e9ecef',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
                 <span style={{ fontSize: '18px', marginRight: '8px' }}>📄</span>
-                <label style={{
-                  display: 'block',
-                  margin: 0,
-                  fontWeight: '600',
-                  color: '#495057',
-                  fontSize: '16px'
-                }}>
+                <label
+                  style={{
+                    display: 'block',
+                    margin: 0,
+                    fontWeight: '600',
+                    color: '#495057',
+                    fontSize: '16px'
+                  }}
+                >
                   Carica Modulo Contratto Sportello
                 </label>
                 {getAvailableTemplate('contract') && (
-                  <span style={{
-                    color: '#28a745',
-                    fontSize: '12px',
-                    marginLeft: '12px',
-                    backgroundColor: '#d4edda',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    fontWeight: '500'
-                  }}>
+                  <span
+                    style={{
+                      color: '#28a745',
+                      fontSize: '12px',
+                      marginLeft: '12px',
+                      backgroundColor: '#d4edda',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      fontWeight: '500'
+                    }}
+                  >
                     ✓ Disponibile
                   </span>
                 )}
@@ -504,37 +551,40 @@ const SportelloLavoro: React.FC = () => {
             </div>
 
             {/* Legal Template Upload */}
-            <div className="template-upload-group" style={{
-              backgroundColor: '#f8f9fa',
-              padding: '20px',
-              borderRadius: '10px',
-              border: '1px solid #e9ecef'
-            }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                marginBottom: '12px'
-              }}>
+            <div
+              className="template-upload-group"
+              style={{
+                backgroundColor: '#f8f9fa',
+                padding: '20px',
+                borderRadius: '10px',
+                border: '1px solid #e9ecef'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
                 <span style={{ fontSize: '18px', marginRight: '8px' }}>📋</span>
-                <label style={{
-                  display: 'block',
-                  margin: 0,
-                  fontWeight: '600',
-                  color: '#495057',
-                  fontSize: '16px'
-                }}>
+                <label
+                  style={{
+                    display: 'block',
+                    margin: 0,
+                    fontWeight: '600',
+                    color: '#495057',
+                    fontSize: '16px'
+                  }}
+                >
                   Carica Documento Legale Sportello
                 </label>
                 {getAvailableTemplate('legal') && (
-                  <span style={{
-                    color: '#28a745',
-                    fontSize: '12px',
-                    marginLeft: '12px',
-                    backgroundColor: '#d4edda',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    fontWeight: '500'
-                  }}>
+                  <span
+                    style={{
+                      color: '#28a745',
+                      fontSize: '12px',
+                      marginLeft: '12px',
+                      backgroundColor: '#d4edda',
+                      padding: '2px 8px',
+                      borderRadius: '12px',
+                      fontWeight: '500'
+                    }}
+                  >
                     ✓ Disponibile
                   </span>
                 )}
@@ -587,22 +637,27 @@ const SportelloLavoro: React.FC = () => {
           </div>
         </div>
       ) : (
-        // Regular Users: Download templates (unchanged)
-        <div className="template-download-section" style={{
-          backgroundColor: '#ffffff',
-          padding: '24px',
-          borderRadius: '12px',
-          marginBottom: '32px',
-          border: '1px solid #e1e5e9',
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            marginBottom: '16px',
-            paddingBottom: '16px',
-            borderBottom: '2px solid #f8f9fa'
-          }}>
+        // Regular Users: Download templates
+        <div
+          className="template-download-section"
+          style={{
+            backgroundColor: '#ffffff',
+            padding: '24px',
+            borderRadius: '12px',
+            marginBottom: '32px',
+            border: '1px solid #e1e5e9',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              marginBottom: '16px',
+              paddingBottom: '16px',
+              borderBottom: '2px solid #f8f9fa'
+            }}
+          >
             <div style={{ backgroundColor: '#e8f4f8', padding: '8px', borderRadius: '8px', marginRight: '12px' }}>
               <span style={{ fontSize: '20px' }}>📥</span>
             </div>
@@ -684,17 +739,19 @@ const SportelloLavoro: React.FC = () => {
           </div>
 
           {(!getAvailableTemplate('contract') || !getAvailableTemplate('legal')) && (
-            <div style={{
-              backgroundColor: '#fff3cd',
-              border: '1px solid #ffeaa7',
-              color: '#856404',
-              padding: '12px 16px',
-              borderRadius: '8px',
-              marginTop: '16px',
-              fontSize: '13px',
-              display: 'flex',
-              alignItems: 'center'
-            }}>
+            <div
+              style={{
+                backgroundColor: '#fff3cd',
+                border: '1px solid #ffeaa7',
+                color: '#856404',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                marginTop: '16px',
+                fontSize: '13px',
+                display: 'flex',
+                alignItems: 'center'
+              }}
+            >
               <span style={{ marginRight: '8px', fontSize: '16px' }}>⚠️</span>
               Alcuni moduli potrebbero non essere ancora disponibili. Contatta l'amministratore.
             </div>
@@ -705,28 +762,34 @@ const SportelloLavoro: React.FC = () => {
       <div className="new-company-form">
         {/* Success Message */}
         {successMessage && (
-          <div className="alert alert-success" style={{
-            backgroundColor: '#d4edda',
-            border: '1px solid #c3e6cb',
-            color: '#155724',
-            padding: '10px',
-            borderRadius: '4px',
-            marginBottom: '20px'
-          }}>
+          <div
+            className="alert alert-success"
+            style={{
+              backgroundColor: '#d4edda',
+              border: '1px solid #c3e6cb',
+              color: '#155724',
+              padding: '10px',
+              borderRadius: '4px',
+              marginBottom: '20px'
+            }}
+          >
             {successMessage}
           </div>
         )}
 
         {/* Error Messages */}
         {errors.length > 0 && (
-          <div className="alert alert-danger" style={{
-            backgroundColor: '#f8d7da',
-            border: '1px solid #f5c6cb',
-            color: '#721c24',
-            padding: '10px',
-            borderRadius: '4px',
-            marginBottom: '20px'
-          }}>
+          <div
+            className="alert alert-danger"
+            style={{
+              backgroundColor: '#f8d7da',
+              border: '1px solid #f5c6cb',
+              color: '#721c24',
+              padding: '10px',
+              borderRadius: '4px',
+              marginBottom: '20px'
+            }}
+          >
             <ul style={{ margin: 0, paddingLeft: '20px' }}>
               {errors.map((error, index) => (
                 <li key={index}>{error}</li>
@@ -740,7 +803,6 @@ const SportelloLavoro: React.FC = () => {
           <h2>Informazioni Azienda</h2>
 
           <div className="form-row">
-            {/* --- CHANGED: businessName text → agent select --- */}
             <div className="form-group">
               <label htmlFor="agentId">Ragione Sociale *</label>
               <select
@@ -749,7 +811,8 @@ const SportelloLavoro: React.FC = () => {
                 value={formData.agentId || ''}
                 onChange={handleAgentSelect}
                 required
-                disabled={isSubmitting || isLoadingAgents}
+                // lock the select for responsabile; remove "|| isResponsabile" if you want it editable
+                disabled={isSubmitting || isLoadingAgents || isResponsabile}
               >
                 <option value="">{isLoadingAgents ? 'Caricamento agenti…' : 'Seleziona un agente'}</option>
                 {agents.map((a) => (
@@ -763,6 +826,20 @@ const SportelloLavoro: React.FC = () => {
                   {agentsError}
                 </small>
               )}
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="agentName">Nome Agente *</label>
+              <input
+                type="text"
+                id="agentName"
+                name="agentName"
+                value={formData.agentName}
+                onChange={handleChange}
+                required
+                placeholder="Inserisci il nome dell'agente"
+                disabled={isSubmitting}
+              />
             </div>
 
             <div className="form-group">

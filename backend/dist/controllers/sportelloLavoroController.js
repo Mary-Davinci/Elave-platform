@@ -118,7 +118,7 @@ const createSportelloLavoro = async (req, res) => {
                 console.error("File upload error:", err);
                 return res.status(400).json({ error: err.message });
             }
-            const { businessName, vatNumber, address, city, postalCode, province, agreedCommission, email, pec } = req.body;
+            const { agentName, businessName, vatNumber, address, city, postalCode, province, agreedCommission, email, pec } = req.body;
             const errors = [];
             if (!businessName)
                 errors.push("Ragione Sociale is required");
@@ -148,6 +148,7 @@ const createSportelloLavoro = async (req, res) => {
                 const isAutoApproved = ['admin', 'super_admin'].includes(req.user.role);
                 const needsApproval = ['responsabile_territoriale'].includes(req.user.role);
                 const newSportelloLavoro = new sportello_1.default({
+                    agentName,
                     businessName,
                     vatNumber,
                     address,

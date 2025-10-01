@@ -7,6 +7,7 @@ interface FileInfo {
     size: number;
 }
 export interface ISportelloLavoroDocument extends Document {
+    agentName: string;
     businessName: string;
     vatNumber: string;
     address: string;

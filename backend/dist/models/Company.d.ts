@@ -19,6 +19,8 @@ export interface ICompany extends Document {
         email?: string;
         pec?: string;
         referent?: string;
+        laborConsultant?: string;
+        procurer?: string;
     };
     contractDetails: {
         contractType?: string;
@@ -26,6 +28,8 @@ export interface ICompany extends Document {
         bilateralEntity?: string;
         hasFondoSani?: boolean;
         useEbapPayment?: boolean;
+        elavAdhesion?: boolean;
+        saluteAmicaAdhesion?: boolean;
     };
     industry?: string;
     employees?: number;
@@ -36,6 +40,7 @@ export interface ICompany extends Document {
     approvedBy?: mongoose.Types.ObjectId;
     approvedAt?: Date;
     pendingApproval: boolean;
+    territorialManager?: string;
     user: mongoose.Types.ObjectId;
     createdAt: Date;
     updatedAt: Date;

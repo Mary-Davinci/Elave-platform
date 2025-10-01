@@ -13,51 +13,51 @@ const NewCompany: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Form state matching your interfaces
-  const [formData, setFormData] = useState<CompanyFormData>({
-    // Required fields from your merged interface
-    name: '',
-    businessName: '',
-    companyName: '',
-    vatNumber: '',
-    employees: 0,
-    isActive: true,
+const [formData, setFormData] = useState<CompanyFormData>({
+  name: '',
+  businessName: '',
+  companyName: '',
+  vatNumber: '',
+  employees: 0,
+  isActive: true,
 
-    // Optional fields
-    fiscalCode: '',
-    matricola: '',
-    inpsCode: '',
+  fiscalCode: '',
+  matricola: '',
+  inpsCode: '',
 
-    // Address fields
-    address: {
-      street: '',
-      city: '',
-      postalCode: '',
-      province: '',
-      country: 'Italy',
-    },
+  address: {
+    street: '',
+    city: '',
+    postalCode: '',
+    province: '',
+    country: 'Italy',
+  },
 
-    // Contact info
-    contactInfo: {
-      phoneNumber: '',
-      mobile: '',
-      email: '',
-      pec: '',
-      referent: '',
-    },
+  contactInfo: {
+    phoneNumber: '',
+    mobile: '',
+    email: '',
+    pec: '',
+    referent: '',
+    laborConsultant: '', // NEW
+    procurer: '',        // NEW
+  },
 
-    // Contract details
-    contractDetails: {
-      contractType: '',
-      ccnlType: '',
-      bilateralEntity: '',
-      hasFondoSani: false,
-      useEbapPayment: false,
-    },
+  contractDetails: {
+    contractType: '',
+    ccnlType: '',             // use this for "CCNL di riferimento"
+    bilateralEntity: '',
+    hasFondoSani: false,
+    useEbapPayment: false,
+    elavAdhesion: false,        // NEW
+    saluteAmicaAdhesion: false, // NEW
+  },
 
-    signaler: '',
-    industry: '',
-    actuator: '',
-  });
+  signaler: '',
+  industry: '',
+  actuator: '',
+  territorialManager: '', // NEW
+});
 
   // Redirect if not authenticated
   React.useEffect(() => {
@@ -114,6 +114,7 @@ const NewCompany: React.FC = () => {
         businessName: formData.businessName?.trim(),
         vatNumber: formData.vatNumber?.trim(),
         inpsCode: formData.inpsCode?.trim(),
+         territorialManager: formData.territorialManager?.trim(),
 
         // Sanitize nested objects
         address: {
@@ -130,6 +131,10 @@ const NewCompany: React.FC = () => {
           email: formData.contactInfo?.email?.trim(),
           pec: formData.contactInfo?.pec?.trim(),
           referent: formData.contactInfo?.referent?.trim(),
+          laborConsultant: formData.contactInfo?.laborConsultant?.trim(),
+          procurer: formData.contactInfo?.procurer?.trim(),
+          elavAdhesion: !!formData.contractDetails?.elavAdhesion,
+          saluteAmicaAdhesion: !!formData.contractDetails?.saluteAmicaAdhesion,
         },
       };
 
@@ -232,7 +237,6 @@ const NewCompany: React.FC = () => {
               />
             </div>
 
-            {/* Provincia as INPUT (replacing the old SELECT) */}
             <div className="form-group">
               <label>
                 Provincia <span className="required">*</span>
@@ -329,84 +333,88 @@ const NewCompany: React.FC = () => {
           </div>
         </div>
 
-        {/* Segnalazione */}
         <div className="form-section">
-          <h2 className="section-title">Segnalazione</h2>
-          <div className="form-row">
-            <div className="form-group">
-              <label>Responsabile Territoriale</label>
-              <input
-                type="text"
-                name="contractDetails.bilateralEntity"
-                value={formData.contractDetails?.bilateralEntity}
-                onChange={handleChange}
-                className="form-control"
-              />
-            </div>
+  <h2 className="section-title">Segnalazione</h2>
+  <div className="form-row">
+    <div className="form-group">
+      <label>Responsabile Territoriale</label>
+      <input
+        type="text"
+        name="territorialManager"  // was contractDetails.bilateralEntity ❌
+        value={formData.territorialManager}
+        onChange={handleChange}
+        className="form-control"
+      />
+    </div>
 
-            <div className="form-group toggle-group">
-              <label>Consulente del Lavoro</label>
-              <input
-                type="text"
-                name="contactInfo.phoneNumber"
-                value={formData.contactInfo?.phoneNumber}
-                onChange={handleChange}
-                className="form-control"
-              />
-            </div>
+    <div className="form-group">
+      <label>Consulente del Lavoro</label>
+      <input
+        type="text"
+        name="contactInfo.laborConsultant" // UNIQUE
+        value={formData.contactInfo?.laborConsultant}
+        onChange={handleChange}
+        className="form-control"
+      />
+    </div>
 
-            <div className="form-group toggle-group">
-              <label>Procacciatore</label>
-              <input
-                type="text"
-                name="contactInfo.phoneNumber"
-                value={formData.contactInfo?.phoneNumber}
-                onChange={handleChange}
-                className="form-control"
-              />
-            </div>
-          </div>
-        </div>
+    <div className="form-group">
+      <label>Procacciatore</label>
+      <input
+        type="text"
+        name="contactInfo.procurer" // UNIQUE
+        value={formData.contactInfo?.procurer}
+        onChange={handleChange}
+        className="form-control"
+      />
+    </div>
+  </div>
+</div>
 
-        {/* Specifiche */}
-        <div className="form-section">
-          <h2 className="section-title">Specifiche</h2>
 
-          <div className="form-row">
-            <div className="form-group">
-              <label>CCNL di riferimento</label>
-              <input
-                type="text"
-                name="contractDetails.bilateralEntity"
-                value={formData.contractDetails?.bilateralEntity}
-                onChange={handleChange}
-                className="form-control"
-              />
-            </div>
+Specifiche (Specs) section:
 
-            <div className="form-group toggle-group">
-              <label>Adesione ELAV</label>
-              <input
-                type="text"
-                name="contactInfo.phoneNumber"
-                value={formData.contactInfo?.phoneNumber}
-                onChange={handleChange}
-                className="form-control"
-              />
-            </div>
+<div className="form-section">
+  <h2 className="section-title">Specifiche</h2>
 
-            <div className="form-group toggle-group">
-              <label>Adesione salute amica</label>
-              <input
-                type="text"
-                name="contactInfo.phoneNumber"
-                value={formData.contactInfo?.phoneNumber}
-                onChange={handleChange}
-                className="form-control"
-              />
-            </div>
-          </div>
-        </div>
+  <div className="form-row">
+    <div className="form-group">
+      <label>CCNL di riferimento</label>
+      <input
+        type="text"
+        name="contractDetails.ccnlType" // was bilateralEntity ❌
+        value={formData.contractDetails?.ccnlType}
+        onChange={handleChange}
+        className="form-control"
+      />
+    </div>
+
+    <div className="form-group">
+      <label>Ente Bilaterale</label>
+      <input
+        type="text"
+        name="contractDetails.bilateralEntity"
+        value={formData.contractDetails?.bilateralEntity}
+        onChange={handleChange}
+        className="form-control"
+      />
+    </div>
+
+   
+
+    <div className="form-group toggle-group">
+      <label>Adesione Salute Amica</label>
+      <input
+        type="checkbox"
+        name="contractDetails.saluteAmicaAdhesion" // UNIQUE boolean
+        checked={!!formData.contractDetails?.saluteAmicaAdhesion}
+        onChange={handleChange}
+      />
+    </div>
+  </div>
+</div>
+
+           
 
         {/* Submit Button */}
         <div className="form-actions">

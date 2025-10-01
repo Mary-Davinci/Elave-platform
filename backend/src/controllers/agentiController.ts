@@ -101,6 +101,8 @@ export const getAgenti: CustomRequestHandler = async (req, res) => {
   }
 };
 
+
+
 export const getAgenteById: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
@@ -373,34 +375,20 @@ export const deleteAgente: CustomRequestHandler = async (req, res) => {
 };
 export const getAgentiMinimal: CustomRequestHandler = async (req, res) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: "User not authenticated" });
-    }
+    if (!req.user) return res.status(401).json({ error: "User not authenticated" });
 
-    // Base filter: only approved & active by default (good for dropdowns)
-    const filter: any = { isApproved: true, isActive: true };
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'super_admin';
+    const query = isAdmin ? {} : { user: req.user._id };
 
-    // Scope to the current user unless admin
-    if (req.user.role !== 'admin') {
-      filter.user = req.user._id;
-    }
-
-    // Optional override via querystring if you ever need it:
-    // /api/agenti/list-minimal?includeInactive=true
-    if (req.query.includeInactive === 'true') {
-      delete filter.isApproved;
-      delete filter.isActive;
-    }
-
-    const agents = await Agente.find(filter)
-      .select('_id businessName isApproved isActive') // minimal fields for dropdown
-      .sort({ businessName: 1 })
+    // Return minimal fields + user so we can match on the frontend
+    const rows = await Agente.find(query)
+      .select('_id businessName isApproved isActive user')
       .lean();
 
-    return res.json(agents);
-  } catch (err: any) {
-    console.error("Get minimal agenti error:", err);
-    return res.status(500).json({ error: "Server error" });
+    return res.json(rows);
+  } catch (err) {
+    console.error('getAgentiMinimal error:', err);
+    return res.status(500).json({ error: 'Server error' });
   }
 };
 export const uploadAgentiFromExcel: CustomRequestHandler = async (req, res) => {

@@ -76,6 +76,8 @@ const CompanySchema = new mongoose_1.Schema({
         email: { type: String, trim: true },
         pec: { type: String, trim: true },
         referent: { type: String, trim: true },
+        laborConsultant: { type: String, trim: true },
+        procurer: { type: String, trim: true },
     },
     contractDetails: {
         contractType: { type: String, trim: true },
@@ -83,6 +85,9 @@ const CompanySchema = new mongoose_1.Schema({
         bilateralEntity: { type: String, trim: true },
         hasFondoSani: { type: Boolean, default: false },
         useEbapPayment: { type: Boolean, default: false },
+        elavAdhesion: { type: Boolean, default: false }, // NEW
+        saluteAmicaAdhesion: { type: Boolean, default: false }, // NEW
+        territorialManager: { type: String, trim: true },
     },
     industry: {
         type: String,

@@ -8,6 +8,7 @@ interface FileInfo {
 }
 
 export interface ISportelloLavoroDocument extends Document {
+  agentName: string; 
   businessName: string;        
   vatNumber: string;          
   address: string;           
@@ -40,6 +41,12 @@ const FileInfoSchema = new Schema({
 
 
 const SportelloLavoroSchema = new Schema({
+
+  agentName: {
+    type: String,
+    required: [true, 'Nome agente is required'],
+    trim: true
+  },
   businessName: { 
     type: String, 
     required: [true, 'Ragione sociale is required'],

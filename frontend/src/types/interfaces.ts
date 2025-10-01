@@ -25,12 +25,15 @@ export interface AgenteFormData {
 }
 
 /** Minimal agent payload for selects/dropdowns */
-export type MinimalAgent = {
+// src/types/interfaces.ts
+export interface MinimalAgent {
   _id: string;
   businessName: string;
   isApproved?: boolean;
   isActive?: boolean;
-};
+  user?: string | { _id: string }; // <-- add this
+}
+
 
 // Full Agente entity (aligned with backend model; optional flags won’t break FE)
 export interface Agente {
@@ -118,6 +121,8 @@ export interface CompanyFormData {
     email?: string;
     pec?: string;
     referent?: string;
+     laborConsultant?: string;
+  procurer?: string;
   };
   contractDetails?: {
     contractType?: string;
@@ -125,12 +130,15 @@ export interface CompanyFormData {
     bilateralEntity?: string;
     hasFondoSani?: boolean;
     useEbapPayment?: boolean;
+    elavAdhesion?: boolean;
+  saluteAmicaAdhesion?: boolean;
   };
   industry?: string;
   employees: number;
   signaler?: string;
   actuator?: string;
   isActive: boolean;
+  territorialManager?: string;
 }
 
 export interface Project {
@@ -228,6 +236,7 @@ export interface ProjectFormData {
 
 
 export interface SportelloLavoroFormData {
+  agentName: string | number | readonly string[] | undefined;
   agentId?: string;            // NEW: selected agent _id
   businessName: string;        // display/legacy
   vatNumber: string;

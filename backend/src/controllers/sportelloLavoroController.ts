@@ -141,6 +141,7 @@ export const createSportelloLavoro: CustomRequestHandler = async (req, res) => {
       }
 
       const { 
+        agentName,
         businessName, 
         vatNumber,
         address,
@@ -180,6 +181,7 @@ export const createSportelloLavoro: CustomRequestHandler = async (req, res) => {
         const needsApproval = ['responsabile_territoriale'].includes(req.user.role);
 
         const newSportelloLavoro = new SportelloLavoro({
+          agentName,
           businessName, 
           vatNumber,
           address,

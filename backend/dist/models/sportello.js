@@ -42,6 +42,11 @@ const FileInfoSchema = new mongoose_1.Schema({
     size: { type: Number, required: true }
 }, { _id: false });
 const SportelloLavoroSchema = new mongoose_1.Schema({
+    agentName: {
+        type: String,
+        required: [true, 'Nome agente is required'],
+        trim: true
+    },
     businessName: {
         type: String,
         required: [true, 'Ragione sociale is required'],

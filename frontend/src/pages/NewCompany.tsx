@@ -50,7 +50,7 @@ const [formData, setFormData] = useState<CompanyFormData>({
     hasFondoSani: false,
     useEbapPayment: false,
     elavAdhesion: false,        // NEW
-    saluteAmicaAdhesion: false, // NEW
+    saluteAmicaAdhesion:'', // NEW
   },
 
   signaler: '',
@@ -400,23 +400,23 @@ Specifiche (Specs) section:
       />
     </div>
 
-   
-
-    <div className="form-group toggle-group">
-      <label>Adesione Salute Amica</label>
-      <input
-        type="checkbox"
-        name="contractDetails.saluteAmicaAdhesion" // UNIQUE boolean
-        checked={!!formData.contractDetails?.saluteAmicaAdhesion}
-        onChange={handleChange}
-      />
-    </div>
+    <div className="form-group">
+  <label>Adesione Salute Amica</label>
+  <select
+    name="contractDetails.saluteAmicaAdhesion"
+    value={formData.contractDetails?.saluteAmicaAdhesion || ''}
+    onChange={handleChange}
+    className="form-control"
+    required
+  >
+    <option value="">-- Seleziona un piano --</option>
+    <option value="€5.00 Basic">€5.00 Basic</option>
+    <option value="€12.00 Standard">€12.00 Standard</option>
+    <option value="€16.00 Premium">€16.00 Premium</option>
+  </select>
+</div>
   </div>
 </div>
-
-           
-
-        {/* Submit Button */}
         <div className="form-actions">
           <button type="submit" className="submit-button" disabled={loading}>
             {loading ? 'Salvataggio...' : 'Aggiungi'}

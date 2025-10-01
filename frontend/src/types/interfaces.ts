@@ -88,6 +88,8 @@ export interface Company {
     bilateralEntity: string; // Reference bilateral entity
     hasFondoSani: boolean;   // Adhesion to Fondosani
     useEbapPayment: boolean; // EBAP payment method
+    elavAdhesion: false,
+    saluteAmicaAdhesion: '', 
   };
   industry: string;
   employees: number;
@@ -131,7 +133,7 @@ export interface CompanyFormData {
     hasFondoSani?: boolean;
     useEbapPayment?: boolean;
     elavAdhesion?: boolean;
-  saluteAmicaAdhesion?: boolean;
+  saluteAmicaAdhesion?: string; 
   };
   industry?: string;
   employees: number;

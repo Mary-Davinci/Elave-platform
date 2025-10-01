@@ -86,7 +86,11 @@ const CompanySchema = new mongoose_1.Schema({
         hasFondoSani: { type: Boolean, default: false },
         useEbapPayment: { type: Boolean, default: false },
         elavAdhesion: { type: Boolean, default: false }, // NEW
-        saluteAmicaAdhesion: { type: Boolean, default: false }, // NEW
+        saluteAmicaAdhesion: {
+            type: String,
+            enum: ["€5.00 Basic", "€12.00 Standard", "€16.00 Premium"],
+            default: ""
+        },
         territorialManager: { type: String, trim: true },
     },
     industry: {

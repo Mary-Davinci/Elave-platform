@@ -811,7 +811,6 @@ const SportelloLavoro: React.FC = () => {
                 value={formData.agentId || ''}
                 onChange={handleAgentSelect}
                 required
-                // lock the select for responsabile; remove "|| isResponsabile" if you want it editable
                 disabled={isSubmitting || isLoadingAgents || isResponsabile}
               >
                 <option value="">{isLoadingAgents ? 'Caricamento agenti…' : 'Seleziona un agente'}</option>

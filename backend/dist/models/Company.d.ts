@@ -29,7 +29,7 @@ export interface ICompany extends Document {
         hasFondoSani?: boolean;
         useEbapPayment?: boolean;
         elavAdhesion?: boolean;
-        saluteAmicaAdhesion?: boolean;
+        saluteAmicaAdhesion?: string;
     };
     industry?: string;
     employees?: number;

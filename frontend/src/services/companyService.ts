@@ -25,77 +25,77 @@ export const getCompanyById = async (id: string): Promise<Company> => {
 };
 
 // Create a new company
+// src/services/companyService.ts
 export const createCompany = async (companyData: CompanyFormData): Promise<Company> => {
   try {
-    // Prepare the data for submission
     const preparedData = {
       businessName: companyData.businessName?.trim() || '',
-      companyName: companyData.companyName?.trim() || companyData.businessName?.trim() || '',
+      companyName:
+        companyData.companyName?.trim() ||
+        companyData.businessName?.trim() ||
+        '',
       vatNumber: companyData.vatNumber?.trim() || '',
       fiscalCode: companyData.fiscalCode?.trim() || '',
       matricola: companyData.matricola?.trim() || '',
       inpsCode: companyData.inpsCode?.trim() || '',
-      
+
       address: {
         street: companyData.address?.street?.trim() || '',
         city: companyData.address?.city?.trim() || '',
         postalCode: companyData.address?.postalCode?.trim() || '',
         province: companyData.address?.province?.trim() || '',
-        country: companyData.address?.country?.trim() || 'Italy'
+        country: companyData.address?.country?.trim() || 'Italy',
       },
-      
+
       contactInfo: {
         phoneNumber: companyData.contactInfo?.phoneNumber?.trim() || '',
         mobile: companyData.contactInfo?.mobile?.trim() || '',
         email: companyData.contactInfo?.email?.trim() || '',
         pec: companyData.contactInfo?.pec?.trim() || '',
-        referent: companyData.contactInfo?.referent?.trim() || ''
+        referent: companyData.contactInfo?.referent?.trim() || '',
+        // NEW fields (kept if present)
+        laborConsultant: companyData.contactInfo?.laborConsultant?.trim() || '',
+        procurer: companyData.contactInfo?.procurer?.trim() || '',
       },
-      
+
       contractDetails: {
         contractType: companyData.contractDetails?.contractType?.trim() || '',
         ccnlType: companyData.contractDetails?.ccnlType?.trim() || '',
         bilateralEntity: companyData.contractDetails?.bilateralEntity?.trim() || '',
         hasFondoSani: !!companyData.contractDetails?.hasFondoSani,
-        useEbapPayment: !!companyData.contractDetails?.useEbapPayment
+        useEbapPayment: !!companyData.contractDetails?.useEbapPayment,
+        // NEW fields (match types)
+        elavAdhesion: !!companyData.contractDetails?.elavAdhesion,
+        saluteAmicaAdhesion: companyData.contractDetails?.saluteAmicaAdhesion || '',
+        // If your backend expects territorialManager inside contractDetails:
+        territorialManager:
+          (companyData as any)?.territorialManager?.trim?.() ||
+          (companyData as any)?.contractDetails?.territorialManager?.trim?.() ||
+          '',
       },
-      
+
       industry: companyData.industry?.trim() || '',
-      employees: companyData.employees || 0,
+      employees: Number(companyData.employees) || 0,
       signaler: companyData.signaler?.trim() || '',
       actuator: companyData.actuator?.trim() || '',
-      isActive: companyData.isActive !== undefined ? companyData.isActive : true
+      isActive: companyData.isActive !== undefined ? !!companyData.isActive : true,
     };
 
-    // Validate required fields
-    if (!preparedData.businessName) {
-      throw new Error("Business name is required");
-    }
+    // basic client-side required checks (adjust to your backend rules)
+    if (!preparedData.businessName) throw new Error('Business name is required');
+    if (!preparedData.vatNumber) throw new Error('VAT number is required');
+    if (!preparedData.inpsCode) throw new Error('INPS code is required');
 
-    if (!preparedData.vatNumber) {
-      throw new Error("VAT number is required");
-    }
-
-    // Use business name as company name if not provided
-    if (!preparedData.companyName) {
-      preparedData.companyName = preparedData.businessName;
-    }
-
-    const response = await api.post<Company>('/api/companies', preparedData);
-    return response.data;
+    const { data } = await api.post<Company>('/api/companies', preparedData);
+    return data;
   } catch (error: any) {
     console.error('Error creating company:', error);
-    
-    // Extract and throw meaningful error messages
-    if (error.response?.data?.errors) {
-      throw new Error(error.response.data.errors.join(', '));
-    } else if (error.response?.data?.error) {
-      throw new Error(error.response.data.error);
-    }
-    
+    if (error.response?.data?.errors) throw new Error(error.response.data.errors.join(', '));
+    if (error.response?.data?.error) throw new Error(error.response.data.error);
     throw error;
   }
 };
+
 
 // Update company
 export const updateCompany = async (id: string, companyData: Partial<CompanyFormData>): Promise<Company> => {

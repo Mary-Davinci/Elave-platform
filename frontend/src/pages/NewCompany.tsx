@@ -106,37 +106,54 @@ const [formData, setFormData] = useState<CompanyFormData>({
 
     try {
       // Prepare data for submission
-      const submissionData = {
-        ...formData,
-        // Use businessName as companyName if companyName is empty
-        companyName: formData.companyName?.trim() || formData.businessName?.trim(),
-        // Ensure required fields are not empty
-        businessName: formData.businessName?.trim(),
-        vatNumber: formData.vatNumber?.trim(),
-        inpsCode: formData.inpsCode?.trim(),
-         territorialManager: formData.territorialManager?.trim(),
+     const submissionData = {
+  // top-level
+  name: formData.name?.trim(),
+  businessName: formData.businessName?.trim(),
+  companyName: (formData.companyName || formData.businessName || '').trim(),
+  vatNumber: formData.vatNumber?.trim(),
+  employees: Number(formData.employees) || 0,
+  isActive: !!formData.isActive,
+  fiscalCode: formData.fiscalCode?.trim(),
+  matricola: formData.matricola?.trim(),
+  inpsCode: formData.inpsCode?.trim(),
+  signaler: formData.signaler?.trim(),
+  industry: formData.industry?.trim(),
+  actuator: formData.actuator?.trim(),
 
-        // Sanitize nested objects
-        address: {
-          street: formData.address?.street?.trim(),
-          city: formData.address?.city?.trim(),
-          postalCode: formData.address?.postalCode?.trim(),
-          province: formData.address?.province?.trim(),
-          country: formData.address?.country?.trim() || 'Italy',
-        },
+  // nested objects
+  address: {
+    street: formData.address?.street?.trim(),
+    city: formData.address?.city?.trim(),
+    postalCode: formData.address?.postalCode?.trim(),
+    province: formData.address?.province?.trim(),
+    country: (formData.address?.country || 'Italy').trim(),
+  },
 
-        contactInfo: {
-          phoneNumber: formData.contactInfo?.phoneNumber?.trim(),
-          mobile: formData.contactInfo?.mobile?.trim(),
-          email: formData.contactInfo?.email?.trim(),
-          pec: formData.contactInfo?.pec?.trim(),
-          referent: formData.contactInfo?.referent?.trim(),
-          laborConsultant: formData.contactInfo?.laborConsultant?.trim(),
-          procurer: formData.contactInfo?.procurer?.trim(),
-          elavAdhesion: !!formData.contractDetails?.elavAdhesion,
-          saluteAmicaAdhesion: !!formData.contractDetails?.saluteAmicaAdhesion,
-        },
-      };
+  contactInfo: {
+    phoneNumber: formData.contactInfo?.phoneNumber?.trim(),
+    mobile: formData.contactInfo?.mobile?.trim(),
+    email: formData.contactInfo?.email?.trim(),
+    pec: formData.contactInfo?.pec?.trim(),
+    referent: formData.contactInfo?.referent?.trim(),
+    laborConsultant: formData.contactInfo?.laborConsultant?.trim(),
+    procurer: formData.contactInfo?.procurer?.trim(),
+  },
+
+  contractDetails: {
+    contractType: formData.contractDetails?.contractType?.trim(),
+    ccnlType: formData.contractDetails?.ccnlType?.trim(),
+    bilateralEntity: formData.contractDetails?.bilateralEntity?.trim(),
+    hasFondoSani: !!formData.contractDetails?.hasFondoSani,
+    useEbapPayment: !!formData.contractDetails?.useEbapPayment,
+    elavAdhesion: !!formData.contractDetails?.elavAdhesion,
+    // keep this as the SELECTED PLAN string (e.g., "€12.00 Standard")
+    saluteAmicaAdhesion: formData.contractDetails?.saluteAmicaAdhesion || '',
+    // if your API expects it here, not top-level:
+    territorialManager: formData.territorialManager?.trim(),
+  },
+};
+
 
       await createCompany(submissionData);
       navigate('/companies');

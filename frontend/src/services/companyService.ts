@@ -125,6 +125,9 @@ export const updateCompany = async (id: string, companyData: Partial<CompanyForm
         referent: companyData.contactInfo.referent?.trim()
       } : undefined,
       
+
+
+      
       contractDetails: companyData.contractDetails ? {
         contractType: companyData.contractDetails.contractType?.trim(),
         ccnlType: companyData.contractDetails.ccnlType?.trim(),

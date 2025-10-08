@@ -6,7 +6,7 @@ import { Agente, AgenteFormData } from '../types/interfaces';
 
 
 // Get all agents
-export const getAgenti = async (p0: { scopeAll: boolean; }): Promise<Agente[]> => {
+export const getAgenti = async (): Promise<Agente[]> => {
   try {
     const response = await api.get<Agente[]>('/api/agenti');
     return response.data;

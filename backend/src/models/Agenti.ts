@@ -131,7 +131,8 @@ const AgenteSchema = new Schema({
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
-  toObject: { virtuals: true }
+  toObject: { virtuals: true },
+  collection: 'agenti',   
 });
 
 

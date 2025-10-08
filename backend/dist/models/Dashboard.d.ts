@@ -5,6 +5,7 @@ export interface IDashboardStats extends Document {
     actuators: number;
     employees: number;
     suppliers: number;
+    segnalatori: number;
     unreadMessages: number;
     projectsRequested: number;
     projectsInProgress: number;

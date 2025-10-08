@@ -12,7 +12,7 @@ const Agenti: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [dropdownPositions, setDropdownPositions] = useState({});
   
   // Search inputs for each column
@@ -26,6 +26,7 @@ const Agenti: React.FC = () => {
     status: ''
   });
 
+   
   // Track which filter dropdown is currently open
   const [activeFilterDropdown, setActiveFilterDropdown] = useState<string | null>(null);
 
@@ -113,50 +114,53 @@ const Agenti: React.FC = () => {
     };
   }, []);
 
+
+
   useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/login');
-      return;
+  if (!isAuthenticated) {
+    navigate('/login');
+    return;
+  }
+
+  const fetchAgenti = async () => {
+    try {
+      setLoading(true);
+      const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+      const data = await getAgenti({ scopeAll: !!isAdmin }); // single call
+      setAgenti(data);
+      setFilteredAgenti(data);
+
+      const options: Record<string, Set<string>> = {
+        date: new Set(),
+        businessName: new Set(),
+        vatNumber: new Set(),
+        province: new Set(),
+        commission: new Set(),
+        email: new Set(),
+        status: new Set(['Attivo', 'Inattivo']),
+      };
+
+      data.forEach(agente => {
+        options.date.add(new Date(agente.createdAt).toLocaleDateString());
+        options.businessName.add(agente.businessName);
+        options.vatNumber.add(agente.vatNumber);
+        if (agente.province) options.province.add(agente.province);
+        if (agente.agreedCommission) options.commission.add(`${agente.agreedCommission}%`);
+        if (agente.email) options.email.add(agente.email);
+      });
+
+      setFilterOptions(options);
+      setLoading(false);
+    } catch (err) {
+      console.error('Error fetching agenti:', err);
+      setError('Failed to load agenti');
+      setLoading(false);
     }
+  };
 
-    const fetchAgenti = async () => {
-      try {
-        setLoading(true);
-        const data = await getAgenti();
-        setAgenti(data);
-        setFilteredAgenti(data);
-        
-        // Populate filter options based on data
-        const options: Record<string, Set<string>> = {
-          date: new Set(),
-          businessName: new Set(),
-          vatNumber: new Set(),
-          province: new Set(),
-          commission: new Set(),
-          email: new Set(),
-          status: new Set(['Attivo', 'Inattivo']),
-        };
+  fetchAgenti();
+}, [isAuthenticated, navigate, user?.role]);  // include role so it refetches when role is known
 
-        data.forEach(agente => {
-          options.date.add(new Date(agente.createdAt).toLocaleDateString());
-          options.businessName.add(agente.businessName);
-          options.vatNumber.add(agente.vatNumber);
-          if (agente.province) options.province.add(agente.province);
-          if (agente.agreedCommission) options.commission.add(agente.agreedCommission.toString() + '%');
-          if (agente.email) options.email.add(agente.email);
-        });
-
-        setFilterOptions(options);
-        setLoading(false);
-      } catch (err) {
-        console.error('Error fetching agenti:', err);
-        setError('Failed to load agenti');
-        setLoading(false);
-      }
-    };
-
-    fetchAgenti();
-  }, [isAuthenticated, navigate]);
 
   // Apply filters and search when criteria change
   useEffect(() => {
@@ -776,7 +780,7 @@ const Agenti: React.FC = () => {
                       className="edit-button"
                       onClick={() => handleEditAgente(agente._id)}
                       title="Modifica agente"
-                    >\
+                    >
                       ✏️
                     </button>
                     <button 

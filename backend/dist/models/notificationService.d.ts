@@ -6,11 +6,11 @@ declare const Notification: mongoose.Model<{
     type: "company_pending" | "sportello_pending" | "agente_pending" | "segnalatore_pending";
     message: string;
     title: string;
+    recipients: mongoose.Types.ObjectId[];
+    createdBy: mongoose.Types.ObjectId;
     entityId: string;
     entityName: string;
-    createdBy: mongoose.Types.ObjectId;
     createdByName: string;
-    recipients: mongoose.Types.ObjectId[];
     readBy: mongoose.Types.DocumentArray<{
         readAt: NativeDate;
         user?: mongoose.Types.ObjectId | null | undefined;
@@ -28,11 +28,11 @@ declare const Notification: mongoose.Model<{
     type: "company_pending" | "sportello_pending" | "agente_pending" | "segnalatore_pending";
     message: string;
     title: string;
+    recipients: mongoose.Types.ObjectId[];
+    createdBy: mongoose.Types.ObjectId;
     entityId: string;
     entityName: string;
-    createdBy: mongoose.Types.ObjectId;
     createdByName: string;
-    recipients: mongoose.Types.ObjectId[];
     readBy: mongoose.Types.DocumentArray<{
         readAt: NativeDate;
         user?: mongoose.Types.ObjectId | null | undefined;
@@ -50,11 +50,11 @@ declare const Notification: mongoose.Model<{
     type: "company_pending" | "sportello_pending" | "agente_pending" | "segnalatore_pending";
     message: string;
     title: string;
+    recipients: mongoose.Types.ObjectId[];
+    createdBy: mongoose.Types.ObjectId;
     entityId: string;
     entityName: string;
-    createdBy: mongoose.Types.ObjectId;
     createdByName: string;
-    recipients: mongoose.Types.ObjectId[];
     readBy: mongoose.Types.DocumentArray<{
         readAt: NativeDate;
         user?: mongoose.Types.ObjectId | null | undefined;
@@ -78,11 +78,11 @@ declare const Notification: mongoose.Model<{
     type: "company_pending" | "sportello_pending" | "agente_pending" | "segnalatore_pending";
     message: string;
     title: string;
+    recipients: mongoose.Types.ObjectId[];
+    createdBy: mongoose.Types.ObjectId;
     entityId: string;
     entityName: string;
-    createdBy: mongoose.Types.ObjectId;
     createdByName: string;
-    recipients: mongoose.Types.ObjectId[];
     readBy: mongoose.Types.DocumentArray<{
         readAt: NativeDate;
         user?: mongoose.Types.ObjectId | null | undefined;
@@ -100,11 +100,11 @@ declare const Notification: mongoose.Model<{
     type: "company_pending" | "sportello_pending" | "agente_pending" | "segnalatore_pending";
     message: string;
     title: string;
+    recipients: mongoose.Types.ObjectId[];
+    createdBy: mongoose.Types.ObjectId;
     entityId: string;
     entityName: string;
-    createdBy: mongoose.Types.ObjectId;
     createdByName: string;
-    recipients: mongoose.Types.ObjectId[];
     readBy: mongoose.Types.DocumentArray<{
         readAt: NativeDate;
         user?: mongoose.Types.ObjectId | null | undefined;
@@ -122,11 +122,11 @@ declare const Notification: mongoose.Model<{
     type: "company_pending" | "sportello_pending" | "agente_pending" | "segnalatore_pending";
     message: string;
     title: string;
+    recipients: mongoose.Types.ObjectId[];
+    createdBy: mongoose.Types.ObjectId;
     entityId: string;
     entityName: string;
-    createdBy: mongoose.Types.ObjectId;
     createdByName: string;
-    recipients: mongoose.Types.ObjectId[];
     readBy: mongoose.Types.DocumentArray<{
         readAt: NativeDate;
         user?: mongoose.Types.ObjectId | null | undefined;

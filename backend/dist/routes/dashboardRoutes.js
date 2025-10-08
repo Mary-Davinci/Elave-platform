@@ -9,7 +9,7 @@ const authMiddleware_1 = require("../middleware/authMiddleware");
 const profileController_1 = require("../controllers/profileController");
 const router = express_1.default.Router();
 router.get("/stats", authMiddleware_1.authMiddleware, dashboardController_1.getDashboardStats);
-router.post("/initialize", authMiddleware_1.authMiddleware, dashboardController_1.initializeUserDashboard);
+;
 router.get("/profile", authMiddleware_1.authMiddleware, (req, res) => {
     (0, profileController_1.getProfileData)(req, res);
 });

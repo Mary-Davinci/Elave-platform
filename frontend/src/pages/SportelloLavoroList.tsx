@@ -453,7 +453,7 @@ const SportelloLavoroList: React.FC = () => {
                     <td>{sportello.province}</td>
                     <td>{sportello.email || '-'}</td>
                     <td>{sportello.pec || '-'}</td>
-                    <td>€{sportello.agreedCommission}</td>
+                    <td>%{sportello.agreedCommission}</td>
                     <td>
                       <span className={`status-badge ${sportello.isActive !== false ? 'active' : 'inactive'}`}>
                         {sportello.isActive !== false ? 'Attivo' : 'Inattivo'}

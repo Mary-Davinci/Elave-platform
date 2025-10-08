@@ -132,7 +132,8 @@ const AgenteSchema = new mongoose_1.Schema({
 }, {
     timestamps: true,
     toJSON: { virtuals: true },
-    toObject: { virtuals: true }
+    toObject: { virtuals: true },
+    collection: 'agenti',
 });
 AgenteSchema.index({ user: 1, vatNumber: 1 });
 AgenteSchema.index({

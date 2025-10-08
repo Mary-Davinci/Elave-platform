@@ -33,50 +33,20 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+// models/Dashboard.ts
 const mongoose_1 = __importStar(require("mongoose"));
 const DashboardStatsSchema = new mongoose_1.Schema({
-    user: {
-        type: mongoose_1.Schema.Types.ObjectId,
-        ref: "User",
-        required: true,
-        unique: true,
-    },
-    companies: {
-        type: Number,
-        default: 0,
-    },
-    actuators: {
-        type: Number,
-        default: 0,
-    },
-    employees: {
-        type: Number,
-        default: 0,
-    },
-    suppliers: {
-        type: Number,
-        default: 0,
-    },
-    unreadMessages: {
-        type: Number,
-        default: 0,
-    },
-    projectsRequested: {
-        type: Number,
-        default: 0,
-    },
-    projectsInProgress: {
-        type: Number,
-        default: 0,
-    },
-    projectsCompleted: {
-        type: Number,
-        default: 0,
-    },
-    updatedAt: {
-        type: Date,
-        default: Date.now,
-    },
+    user: { type: mongoose_1.Schema.Types.ObjectId, ref: "User", required: true, unique: true },
+    companies: { type: Number, default: 0 },
+    actuators: { type: Number, default: 0 }, // Sportelli Lavoro
+    employees: { type: Number, default: 0 },
+    suppliers: { type: Number, default: 0 }, // Responsabili Territoriali
+    segnalatori: { type: Number, default: 0 }, // NEW
+    unreadMessages: { type: Number, default: 0 },
+    projectsRequested: { type: Number, default: 0 },
+    projectsInProgress: { type: Number, default: 0 },
+    projectsCompleted: { type: Number, default: 0 },
+    updatedAt: { type: Date, default: Date.now },
 });
 DashboardStatsSchema.index({ user: 1 });
 const DashboardStats = mongoose_1.default.model("DashboardStats", DashboardStatsSchema);

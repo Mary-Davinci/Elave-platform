@@ -1,4 +1,3 @@
-// src/layouts/MainLayout.tsx
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -28,11 +27,34 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const sidebarRef = useRef<HTMLDivElement>(null);
   const toggleButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Role checking functions based on business hierarchy
-  const isSuperAdmin = user?.role === 'super_admin';
-  const isAdmin = user?.role === 'admin' || isSuperAdmin;
-  const isResponsabileTerritoriale = user?.role === 'responsabile_territoriale' || isAdmin;
-  const isSportelloLavoro = user?.role === 'sportello_lavoro' || isResponsabileTerritoriale;
+  // ---- Roles (no cascading) ----
+  const role = user?.role ?? '';
+  const isSuperAdmin = role === 'super_admin';
+  const isAdmin = role === 'admin' || isSuperAdmin;
+  const isResponsabileTerritoriale = role === 'responsabile_territoriale';
+  const isSportelloLavoro = role === 'sportello_lavoro';
+
+  // ---- Capabilities (explicit) ----
+  const canSeeApprovals = isAdmin;
+
+  const canSeeAziende = true;
+  const canCreateAzienda = isAdmin || isSuperAdmin || isResponsabileTerritoriale || isSportelloLavoro;
+  const canUploadAziende = canCreateAzienda;
+
+  const canSeeUsers = isAdmin;
+
+  const canSeeResponsabileMenu = isAdmin; // admin/superadmin manage responsabili
+  const canCreateResponsabile = isAdmin;
+  const canListResponsabile = isAdmin;
+
+  const canSeeSportelloMenu = isAdmin || isResponsabileTerritoriale; // NOT for sportello role
+  const canCreateSportello = isAdmin || isResponsabileTerritoriale;
+
+  const canSeeSegnalatoriMenu = isAdmin || isResponsabileTerritoriale || isSportelloLavoro;
+  const canCreateSegnalatore = isAdmin || isResponsabileTerritoriale || isSportelloLavoro;
+
+  const canSeeFornitoriMenu = true;
+  const canCreateFornitore = isAdmin || isResponsabileTerritoriale || isSportelloLavoro;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -52,9 +74,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     };
   }, []);
 
-  const toggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
-  };
+  const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
 
   const handleNavigation = (path: string) => {
     navigate(path);
@@ -139,7 +159,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         </div>
         <div className="user-info">
           <div className="user-role-badge">
-            {user?.role?.toUpperCase().replace('_', ' ')}
+            {role.toUpperCase().replace('_', ' ')}
           </div>
           <NotificationBell />
           <UserDropdown />
@@ -193,7 +213,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           </div>
 
           {/* Approvals - Admin and Super Admin only */}
-          {isAdmin && (
+          {canSeeApprovals && (
             <div
               className={`menu-item ${isActive('/approvals') ? 'active' : ''}`}
               onClick={() => handleNavigation('/approvals')}
@@ -204,40 +224,44 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           )}
 
           {/* Aziende */}
-          <div className="menu-item-container">
-            <div
-              className={`menu-item ${isActive('/companies') ? 'active' : ''}`}
-              onClick={toggleCompaniesDropdown}
-            >
-              <i className="menu-icon">🏢</i>
-              <span>Aziende</span>
-              <i className={`arrow-icon ${companiesDropdownOpen ? 'open' : ''}`}>▼</i>
-            </div>
-
-            {companiesDropdownOpen && (
-              <div className="dropdown-menu">
-                <div className="dropdown-item" onClick={() => handleNavigation('/companies')}>
-                  <i className="dropdown-icon">📋</i>
-                  <span>Elenco</span>
-                </div>
-                {isSportelloLavoro && (
-                  <>
-                    <div className="dropdown-item" onClick={() => handleNavigation('/companies/new')}>
-                      <i className="dropdown-icon">➕</i>
-                      <span>Crea</span>
-                    </div>
-                    <div className="dropdown-item" onClick={() => handleNavigation('/companies/upload')}>
-                      <i className="dropdown-icon">📤</i>
-                      <span>Upload XLSX</span>
-                    </div>
-                  </>
-                )}
+          {canSeeAziende && (
+            <div className="menu-item-container">
+              <div
+                className={`menu-item ${isActive('/companies') ? 'active' : ''}`}
+                onClick={toggleCompaniesDropdown}
+              >
+                <i className="menu-icon">🏢</i>
+                <span>Aziende</span>
+                <i className={`arrow-icon ${companiesDropdownOpen ? 'open' : ''}`}>▼</i>
               </div>
-            )}
-          </div>
+
+              {companiesDropdownOpen && (
+                <div className="dropdown-menu">
+                  <div className="dropdown-item" onClick={() => handleNavigation('/companies')}>
+                    <i className="dropdown-icon">📋</i>
+                    <span>Elenco</span>
+                  </div>
+                  {canCreateAzienda && (
+                    <>
+                      <div className="dropdown-item" onClick={() => handleNavigation('/companies/new')}>
+                        <i className="dropdown-icon">➕</i>
+                        <span>Crea</span>
+                      </div>
+                      {canUploadAziende && (
+                        <div className="dropdown-item" onClick={() => handleNavigation('/companies/upload')}>
+                          <i className="dropdown-icon">📤</i>
+                          <span>Upload XLSX</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Users - Admin and Super Admin only */}
-          {isAdmin && (
+          {canSeeUsers && (
             <div
               className={`menu-item ${isActive('/users') ? 'active' : ''}`}
               onClick={() => handleNavigation('/users')}
@@ -247,8 +271,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             </div>
           )}
 
-          {/* Responsabile Territoriale */}
-          {isAdmin && (
+          {/* Responsabile Territoriale (admin area) */}
+          {canSeeResponsabileMenu && (
             <div className="menu-item-container">
               <div
                 className={`menu-item ${isActive('/agenti') || isActive('/abila') ? 'active' : ''}`}
@@ -261,21 +285,25 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
               {abilaDropdownOpen && (
                 <div className="dropdown-menu">
-                  <div className="dropdown-item" onClick={() => handleNavigation('/agenti')}>
-                    <i className="dropdown-icon">➕</i>
-                    <span>Crea</span>
-                  </div>
-                  <div className="dropdown-item" onClick={() => handleNavigation('/abila/progetti')}>
-                    <i className="dropdown-icon">📋</i>
-                    <span>Elenco</span>
-                  </div>
+                  {canCreateResponsabile && (
+                    <div className="dropdown-item" onClick={() => handleNavigation('/agenti')}>
+                      <i className="dropdown-icon">➕</i>
+                      <span>Crea</span>
+                    </div>
+                  )}
+                  {canListResponsabile && (
+                    <div className="dropdown-item" onClick={() => handleNavigation('/abila/progetti')}>
+                      <i className="dropdown-icon">📋</i>
+                      <span>Elenco</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           )}
 
-          {/* Sportello Lavoro */}
-          {isResponsabileTerritoriale && (
+          {/* Sportello Lavoro (visible to Admin/Responsabile) */}
+          {canSeeSportelloMenu && (
             <div className="menu-item-container">
               <div
                 className={`menu-item ${isActive('/sportello-lavoro') ? 'active' : ''}`}
@@ -292,17 +320,19 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     <i className="dropdown-icon">📋</i>
                     <span>Elenco</span>
                   </div>
-                  <div className="dropdown-item" onClick={() => handleNavigation('/sportello-lavoro/new')}>
-                    <i className="dropdown-icon">➕</i>
-                    <span>Crea</span>
-                  </div>
+                  {canCreateSportello && (
+                    <div className="dropdown-item" onClick={() => handleNavigation('/sportello-lavoro/new')}>
+                      <i className="dropdown-icon">➕</i>
+                      <span>Crea</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           )}
 
-          {/* Segnalatori */}
-          {isSportelloLavoro && (
+          {/* Segnalatori (Admin/Responsabile/Sportello) */}
+          {canSeeSegnalatoriMenu && (
             <div className="menu-item-container">
               <div
                 className={`menu-item ${isActive('/segnalatori') ? 'active' : ''}`}
@@ -319,10 +349,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     <i className="dropdown-icon">📋</i>
                     <span>Elenco</span>
                   </div>
-                  <div className="dropdown-item" onClick={() => handleNavigation('/segnalatori/new')}>
-                    <i className="dropdown-icon">➕</i>
-                    <span>Crea</span>
-                  </div>
+                  {canCreateSegnalatore && (
+                    <div className="dropdown-item" onClick={() => handleNavigation('/segnalatori/new')}>
+                      <i className="dropdown-icon">➕</i>
+                      <span>Crea</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -345,7 +377,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   <i className="dropdown-icon">📋</i>
                   <span>Elenco</span>
                 </div>
-                {isSportelloLavoro && (
+                {canCreateFornitore && (
                   <div className="dropdown-item" onClick={() => handleNavigation('/fornitori/crea')}>
                     <i className="dropdown-icon">➕</i>
                     <span>Crea</span>

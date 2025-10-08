@@ -53,7 +53,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const canSeeSegnalatoriMenu = isAdmin || isResponsabileTerritoriale || isSportelloLavoro;
   const canCreateSegnalatore = isAdmin || isResponsabileTerritoriale || isSportelloLavoro;
 
-  const canSeeFornitoriMenu = true;
+
   const canCreateFornitore = isAdmin || isResponsabileTerritoriale || isSportelloLavoro;
 
   useEffect(() => {

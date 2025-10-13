@@ -33,57 +33,27 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-// src/models/FormTemplate.ts (or FormTemplet.ts)
+// models/FormTemplate.ts  (make sure the filename matches your import)
 const mongoose_1 = __importStar(require("mongoose"));
 const FormTemplateSchema = new mongoose_1.Schema({
-    name: {
-        type: String,
-        required: true,
-        trim: true
-    },
-    type: {
-        type: String,
-        required: true,
-        enum: ['contract', 'legal', 'id']
-    },
+    name: { type: String, required: true, trim: true },
+    type: { type: String, required: true, enum: ['contract', 'legal', 'id'] },
     category: {
         type: String,
         required: true,
-        enum: ['agenti', 'segnalatore'],
-        default: 'agenti' // Default for backward compatibility
+        enum: ['agenti', 'segnalatore', 'sportello', 'sportello-lavoro'],
+        default: 'agenti',
+        index: true,
     },
-    fileName: {
-        type: String,
-        required: true
-    },
-    originalName: {
-        type: String,
-        required: true
-    },
-    filePath: {
-        type: String,
-        required: true
-    },
-    mimetype: {
-        type: String,
-        required: true
-    },
-    size: {
-        type: Number,
-        required: true
-    },
-    uploadedBy: {
-        type: mongoose_1.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true
-    }
-}, {
-    timestamps: true
-});
+    fileName: { type: String, required: true },
+    originalName: { type: String, required: true },
+    filePath: { type: String, required: true },
+    mimetype: { type: String, required: true },
+    size: { type: Number, required: true },
+    uploadedBy: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true },
+}, { timestamps: true });
 FormTemplateSchema.index({ type: 1, category: 1 }, { unique: true });
-FormTemplateSchema.index({ category: 1 });
 FormTemplateSchema.index({ uploadedBy: 1 });
 FormTemplateSchema.index({ createdAt: -1 });
-const FormTemplate = mongoose_1.default.model("FormTemplate", FormTemplateSchema);
-exports.default = FormTemplate;
+exports.default = mongoose_1.default.model('FormTemplate', FormTemplateSchema);
 //# sourceMappingURL=FormTemplet.js.map

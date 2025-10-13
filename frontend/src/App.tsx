@@ -34,6 +34,12 @@ import SegnalatoreList from './pages/SegnalatoriList';
  import ProcacciatoriList from './pages/ProcacciatoriList';
  import ProcacciatoreForm from './pages/ProcacciatoreForm';
  import ApprovalsPage from './pages/ApprovalsPage';
+ import SportelloLavoroDetail from './pages/SportelloLavoroDetail';
+
+import SportelloLavoroEdit from './pages/SportelloLavoroEdit';
+
+
+
 
 const App: React.FC = () => {
   return (
@@ -219,17 +225,6 @@ const App: React.FC = () => {
               </MainLayout>
             </ProtectedRoute>
           } />
-
-          {/* TODO: Add these when you create the components */}
-          {/*
-          <Route path="/sportello-lavoro/edit/:id" element={
-            <ProtectedRoute>
-              <MainLayout>
-                <EditSportelloLavoro />
-              </MainLayout>
-            </ProtectedRoute>
-          } />
-
           <Route path="/sportello-lavoro/:id" element={
             <ProtectedRoute>
               <MainLayout>
@@ -237,6 +232,19 @@ const App: React.FC = () => {
               </MainLayout>
             </ProtectedRoute>
           } />
+           <Route path="/sportello-lavoro/edit/:id" element={
+            <ProtectedRoute>
+              <MainLayout>
+                <SportelloLavoroEdit />
+              </MainLayout>
+            </ProtectedRoute>
+          } />
+
+          {/* TODO: Add these when you create the components */}
+          {/*
+         
+
+          
 
           <Route path="/sportello-lavoro/upload" element={
             <ProtectedRoute>

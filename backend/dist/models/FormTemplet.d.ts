@@ -1,8 +1,10 @@
 import mongoose, { Document } from "mongoose";
+export type TemplateType = 'contract' | 'legal' | 'id';
+export type TemplateCategory = 'agenti' | 'segnalatore' | 'sportello' | 'sportello-lavoro';
 export interface IFormTemplate extends Document {
     name: string;
-    type: 'contract' | 'legal' | 'id';
-    category: 'agenti' | 'segnalatore';
+    type: TemplateType;
+    category: TemplateCategory;
     fileName: string;
     originalName: string;
     filePath: string;
@@ -12,9 +14,9 @@ export interface IFormTemplate extends Document {
     createdAt: Date;
     updatedAt: Date;
 }
-declare const FormTemplate: mongoose.Model<IFormTemplate, {}, {}, {}, mongoose.Document<unknown, {}, IFormTemplate, {}> & IFormTemplate & Required<{
+declare const _default: mongoose.Model<IFormTemplate, {}, {}, {}, mongoose.Document<unknown, {}, IFormTemplate, {}> & IFormTemplate & Required<{
     _id: unknown;
 }> & {
     __v: number;
 }, any>;
-export default FormTemplate;
+export default _default;

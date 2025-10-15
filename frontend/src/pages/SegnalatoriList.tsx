@@ -1,8 +1,14 @@
+// src/pages/SegnalatoriList.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { segnalatoreService, SegnalatoreResponse } from '../services/segnalatoreService';
 import '../styles/Companies.css';
+
+// ✅ Same env handling as your working page; trim trailing slash.
+const API_BASE_URL =
+  (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000')
+    .replace(/\/+$/, '');
 
 const SegnalatoriList: React.FC = () => {
   const [segnalatori, setSegnalatori] = useState<SegnalatoreResponse[]>([]);
@@ -11,8 +17,8 @@ const SegnalatoriList: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
-  const [dropdownPositions, setDropdownPositions] = useState({});
-  
+  const [dropdownPositions, setDropdownPositions] = useState({} as any);
+
   // Search inputs for each column
   const [searchInputs, setSearchInputs] = useState({
     date: '',
@@ -64,22 +70,21 @@ const SegnalatoriList: React.FC = () => {
   // Position filter dropdown function
   const positionFilterDropdown = useCallback((field: string) => {
     if (activeFilterDropdown === field) {
+      // ⚠️ The title must match the button's title below.
       const buttonElement = document.querySelector(`button[title="Filtra per ${field}"]`);
       const filterDropdown = document.querySelector('.filter-dropdown') as HTMLElement;
-      
+
       if (buttonElement && filterDropdown) {
-        const rect = buttonElement.getBoundingClientRect();
-        
+        const rect = (buttonElement as HTMLElement).getBoundingClientRect();
         const top = rect.bottom + window.scrollY + 5;
         const left = Math.max(rect.left + window.scrollX - 200 + rect.width, 10);
-        
         const rightEdge = left + 250;
         const windowWidth = window.innerWidth;
         const finalLeft = rightEdge > windowWidth ? windowWidth - 260 : left;
-        
+
         filterDropdown.style.top = `${top}px`;
         filterDropdown.style.left = `${finalLeft}px`;
-        
+
         setDropdownPositions({
           ...dropdownPositions,
           [field]: { top, left: finalLeft }
@@ -92,11 +97,8 @@ const SegnalatoriList: React.FC = () => {
   const toggleFilterDropdown = useCallback((field: string) => {
     const newActiveFilter = activeFilterDropdown === field ? null : field;
     setActiveFilterDropdown(newActiveFilter);
-    
     if (newActiveFilter) {
-      setTimeout(() => {
-        positionFilterDropdown(field);
-      }, 0);
+      setTimeout(() => positionFilterDropdown(field), 0);
     }
   }, [activeFilterDropdown, positionFilterDropdown]);
 
@@ -106,13 +108,28 @@ const SegnalatoriList: React.FC = () => {
         setActiveFilterDropdown(null);
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Reposition on resize/scroll (parity with your working page)
+  useEffect(() => {
+    const handleResize = () => {
+      if (activeFilterDropdown) positionFilterDropdown(activeFilterDropdown);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [activeFilterDropdown, positionFilterDropdown]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (activeFilterDropdown) positionFilterDropdown(activeFilterDropdown);
+    };
+    window.addEventListener('scroll', handleScroll, true);
+    return () => window.removeEventListener('scroll', handleScroll, true);
+  }, [activeFilterDropdown, positionFilterDropdown]);
+
+  // Fetch segnalatori (mirrors your SportelloLavoro pattern)
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login');
@@ -122,13 +139,35 @@ const SegnalatoriList: React.FC = () => {
     const fetchSegnalatori = async () => {
       try {
         setLoading(true);
-        
-        // Use service instead of direct fetch
-        const data = await segnalatoreService.getAllSegnalatori();
-        
+        setError(null);
+
+        const token =
+          localStorage.getItem('token') ||
+          sessionStorage.getItem('token') ||
+          '';
+
+        const res = await fetch(`${API_BASE_URL}/api/segnalatori`, {
+          method: 'GET',
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          credentials: 'include',
+        });
+
+        if (res.status === 403) {
+          const text = await res.text().catch(() => '');
+          throw new Error(text || 'Access denied. You need admin privileges to view segnalatori.');
+        }
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          throw new Error(text || `HTTP ${res.status}`);
+        }
+
+        const data: SegnalatoreResponse[] = await res.json();
+
         setSegnalatori(data);
         setFilteredSegnalatori(data);
-        
+
         // Populate filter options based on data
         const options: Record<string, Set<string>> = {
           date: new Set(),
@@ -143,7 +182,7 @@ const SegnalatoriList: React.FC = () => {
           status: new Set(['Attivo', 'Inattivo']),
         };
 
-        data.forEach((segnalatore: SegnalatoreResponse) => {
+        data.forEach((segnalatore) => {
           options.date.add(new Date(segnalatore.createdAt).toLocaleDateString());
           options.fullName.add(segnalatoreService.formatFullName(segnalatore.firstName, segnalatore.lastName));
           options.email.add(segnalatore.email);
@@ -159,7 +198,7 @@ const SegnalatoriList: React.FC = () => {
         setLoading(false);
       } catch (err: any) {
         console.error('Error fetching segnalatori:', err);
-        setError(err.message || 'Failed to load segnalatori');
+        setError(err?.message || 'Failed to load segnalatori');
         setLoading(false);
       }
     };
@@ -173,59 +212,62 @@ const SegnalatoriList: React.FC = () => {
 
     // Apply search inputs
     if (searchInputs.date) {
-      result = result.filter(segnalatore => 
+      result = result.filter(segnalatore =>
         new Date(segnalatore.createdAt).toLocaleDateString().toLowerCase().includes(searchInputs.date.toLowerCase())
       );
     }
-    
+
     if (searchInputs.fullName) {
-      result = result.filter(segnalatore => 
-        segnalatoreService.formatFullName(segnalatore.firstName, segnalatore.lastName).toLowerCase().includes(searchInputs.fullName.toLowerCase())
+      result = result.filter(segnalatore =>
+        segnalatoreService
+          .formatFullName(segnalatore.firstName, segnalatore.lastName)
+          .toLowerCase()
+          .includes(searchInputs.fullName.toLowerCase())
       );
     }
-    
+
     if (searchInputs.email) {
-      result = result.filter(segnalatore => 
+      result = result.filter(segnalatore =>
         segnalatore.email.toLowerCase().includes(searchInputs.email.toLowerCase())
       );
     }
-    
+
     if (searchInputs.phone) {
-      result = result.filter(segnalatore => 
+      result = result.filter(segnalatore =>
         (segnalatore.phone || '').toLowerCase().includes(searchInputs.phone.toLowerCase())
       );
     }
-    
+
     if (searchInputs.city) {
-      result = result.filter(segnalatore => 
+      result = result.filter(segnalatore =>
         segnalatore.city.toLowerCase().includes(searchInputs.city.toLowerCase())
       );
     }
-    
+
     if (searchInputs.province) {
-      result = result.filter(segnalatore => 
+      result = result.filter(segnalatore =>
         segnalatore.province.toLowerCase().includes(searchInputs.province.toLowerCase())
       );
     }
-    
+
     if (searchInputs.taxCode) {
-      result = result.filter(segnalatore => 
+      result = result.filter(segnalatore =>
         segnalatore.taxCode.toLowerCase().includes(searchInputs.taxCode.toLowerCase())
       );
     }
-    
+
     if (searchInputs.percentage) {
-      result = result.filter(segnalatore => 
+      result = result.filter(segnalatore =>
         segnalatore.agreementPercentage.toString().includes(searchInputs.percentage)
       );
     }
-    
+
     if (searchInputs.specialization) {
-      result = result.filter(segnalatore => 
+      result = result.filter(segnalatore =>
         (segnalatore.specialization || '').toLowerCase().includes(searchInputs.specialization.toLowerCase())
       );
     }
-    
+
     if (searchInputs.status) {
       result = result.filter(segnalatore => {
         const status = segnalatore.isActive !== false ? 'Attivo' : 'Inattivo';
@@ -237,43 +279,29 @@ const SegnalatoriList: React.FC = () => {
     Object.entries(selectedFilters).forEach(([field, values]) => {
       if (values.length > 0) {
         if (field === 'date') {
-          result = result.filter(segnalatore => 
+          result = result.filter(segnalatore =>
             values.includes(new Date(segnalatore.createdAt).toLocaleDateString())
           );
         } else if (field === 'fullName') {
-          result = result.filter(segnalatore => 
+          result = result.filter(segnalatore =>
             values.includes(segnalatoreService.formatFullName(segnalatore.firstName, segnalatore.lastName))
           );
         } else if (field === 'email') {
-          result = result.filter(segnalatore => 
-            values.includes(segnalatore.email)
-          );
+          result = result.filter(segnalatore => values.includes(segnalatore.email));
         } else if (field === 'phone') {
-          result = result.filter(segnalatore => 
-            values.includes(segnalatore.phone || '-')
-          );
+          result = result.filter(segnalatore => values.includes(segnalatore.phone || '-'));
         } else if (field === 'city') {
-          result = result.filter(segnalatore => 
-            values.includes(segnalatore.city)
-          );
+          result = result.filter(segnalatore => values.includes(segnalatore.city));
         } else if (field === 'province') {
-          result = result.filter(segnalatore => 
-            values.includes(segnalatore.province)
-          );
+          result = result.filter(segnalatore => values.includes(segnalatore.province));
         } else if (field === 'taxCode') {
-          result = result.filter(segnalatore => 
-            values.includes(segnalatore.taxCode)
-          );
+          result = result.filter(segnalatore => values.includes(segnalatore.taxCode));
         } else if (field === 'percentage') {
-          result = result.filter(segnalatore => 
-            values.includes(segnalatore.agreementPercentage.toString())
-          );
+          result = result.filter(segnalatore => values.includes(segnalatore.agreementPercentage.toString()));
         } else if (field === 'specialization') {
-          result = result.filter(segnalatore => 
-            values.includes(segnalatore.specialization || '-')
-          );
+          result = result.filter(segnalatore => values.includes(segnalatore.specialization || '-'));
         } else if (field === 'status') {
-          result = result.filter(segnalatore => 
+          result = result.filter(segnalatore =>
             values.includes(segnalatore.isActive !== false ? 'Attivo' : 'Inattivo')
           );
         }
@@ -283,88 +311,80 @@ const SegnalatoriList: React.FC = () => {
     setFilteredSegnalatori(result);
   }, [searchInputs, selectedFilters, segnalatori]);
 
-  const handleAddSegnalatore = () => {
-    navigate('/segnalatori/new');
-  };
-
-  const handleViewSegnalatore = (id: string) => {
-    navigate(`/segnalatori/${id}`);
-  };
-
-  const handleEditSegnalatore = (id: string) => {
-    navigate(`/segnalatori/edit/${id}`);
-  };
+  const handleAddSegnalatore = () => navigate('/segnalatori/new');
+  const handleViewSegnalatore = (id: string) => navigate(`/segnalatori/${id}`);
+  const handleEditSegnalatore = (id: string) => navigate(`/segnalatori/edit/${id}`);
 
   const handleDeleteSegnalatore = async (id: string) => {
-    if (window.confirm('Sei sicuro di voler eliminare questo Segnalatore?')) {
-      try {
-        // Use service instead of direct fetch
-        await segnalatoreService.deleteSegnalatore(id);
-        setSegnalatori(segnalatori.filter(segnalatore => segnalatore._id !== id));
-      } catch (err: any) {
-        console.error('Error deleting segnalatore:', err);
-        setError(err.message || 'Failed to delete segnalatore');
+    if (!window.confirm('Sei sicuro di voler eliminare questo Segnalatore?')) return;
+    try {
+      const token =
+        localStorage.getItem('token') ||
+        sessionStorage.getItem('token') ||
+        '';
+
+      const res = await fetch(`${API_BASE_URL}/api/segnalatori/${id}`, {
+        method: 'DELETE',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'include',
+      });
+
+      if (res.status === 403) {
+        const text = await res.text().catch(() => '');
+        throw new Error(text || 'Access denied (403).');
       }
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(text || 'Failed to delete segnalatore');
+      }
+
+      setSegnalatori(prev => prev.filter(s => s._id !== id));
+    } catch (err: any) {
+      console.error('Error deleting segnalatore:', err);
+      setError(err?.message || 'Failed to delete segnalatore');
     }
   };
 
-  const handleExportCSV = () => {
-    segnalatoreService.exportToCSV(filteredSegnalatori);
-  };
+  const handleExportCSV = () => segnalatoreService.exportToCSV(filteredSegnalatori);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
-    setSearchInputs({
-      ...searchInputs,
-      [field]: e.target.value
-    });
+    setSearchInputs(prev => ({ ...prev, [field]: e.target.value }));
   };
 
   const handleFilterChange = (field: string, value: string, checked: boolean) => {
     setSelectedFilters(prev => {
-      const newValues = [...prev[field]];
-      if (checked) {
-        newValues.push(value);
-      } else {
-        const index = newValues.indexOf(value);
-        if (index > -1) {
-          newValues.splice(index, 1);
-        }
+      const next = [...prev[field]];
+      if (checked) next.push(value);
+      else {
+        const idx = next.indexOf(value);
+        if (idx > -1) next.splice(idx, 1);
       }
-      return { ...prev, [field]: newValues };
+      return { ...prev, [field]: next };
     });
   };
 
   const handleSelectAll = (field: string, checked: boolean) => {
-    if (checked) {
-      setSelectedFilters(prev => ({
-        ...prev,
-        [field]: Array.from(filterOptions[field])
-      }));
-    } else {
-      setSelectedFilters(prev => ({
-        ...prev,
-        [field]: []
-      }));
-    }
+    setSelectedFilters(prev => ({
+      ...prev,
+      [field]: checked ? Array.from(filterOptions[field]) : []
+    }));
   };
 
-  const handleFilterOk = () => {
-    setActiveFilterDropdown(null);
-  };
-
-  const handleFilterCancel = () => {
-    setActiveFilterDropdown(null);
-  };
+  const handleFilterOk = () => setActiveFilterDropdown(null);
+  const handleFilterCancel = () => setActiveFilterDropdown(null);
 
   const renderFilterDropdown = (field: string, displayName: string) => (
     <th key={field}>
       <div className="th-content">
         <div className="th-header">
           <span>{displayName}</span>
+          {/* ⚠️ Keep this EXACTLY matching the selector in positionFilterDropdown */}
           <button
             className="filter-button"
             onClick={() => toggleFilterDropdown(field)}
-            title={`Filtra per ${displayName.toLowerCase()}`}
+            title={`Filtra per ${field}`}
           >
             ▼
           </button>
@@ -386,7 +406,10 @@ const SegnalatoriList: React.FC = () => {
                 <input
                   type="checkbox"
                   onChange={(e) => handleSelectAll(field, e.target.checked)}
-                  checked={selectedFilters[field].length === filterOptions[field].size && filterOptions[field].size > 0}
+                  checked={
+                    selectedFilters[field].length === filterOptions[field].size &&
+                    filterOptions[field].size > 0
+                  }
                 />
                 Select All
               </label>
@@ -488,21 +511,21 @@ const SegnalatoriList: React.FC = () => {
                       </span>
                     </td>
                     <td className="actions">
-                      <button 
+                      <button
                         className="view-button"
                         onClick={() => handleViewSegnalatore(segnalatore._id)}
                         title="Visualizza dettagli"
                       >
                         👁️
                       </button>
-                      <button 
+                      <button
                         className="edit-button"
                         onClick={() => handleEditSegnalatore(segnalatore._id)}
                         title="Modifica segnalatore"
                       >
                         ✏️
                       </button>
-                      <button 
+                      <button
                         className="delete-button"
                         onClick={() => handleDeleteSegnalatore(segnalatore._id)}
                         title="Elimina segnalatore"

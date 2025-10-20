@@ -27,6 +27,23 @@ export const getAgenteById = async (id: string): Promise<Agente> => {
   }
 };
 
+
+export const downloadAgenteFile = async (id: string, type: 'contract' | 'legal') => {
+  const { data } = await api.get(`/api/agenti/${id}/download`, {
+    params: { type },
+    responseType: 'blob',
+  });
+  const blob = new Blob([data]);
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = type === 'contract' ? 'contratto.pdf' : 'documento_legale.pdf';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+};
+
 // Create a new agent
   export const createAgente = async (agenteData: AgenteFormData): Promise<Agente> => {
   try {

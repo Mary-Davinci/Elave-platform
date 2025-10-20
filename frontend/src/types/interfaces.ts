@@ -60,6 +60,7 @@ export interface Agente {
 }
 
 export interface Company {
+  territorialManager: any;
   _id: string;
   name: string;  // Original name field for backward compatibility
   businessName: string;  // Ragione sociale
@@ -76,6 +77,8 @@ export interface Company {
     country: string;
   };
   contactInfo: {
+    procurer: string;
+    laborConsultant: string;
     phoneNumber: string;
     mobile: string;
     email: string;
@@ -83,6 +86,7 @@ export interface Company {
     referent: string;  // Contact person
   };
   contractDetails: {
+    territorialManager: any;
     contractType: string;    // Type of contract
     ccnlType: string;        // CCNL applied
     bilateralEntity: string; // Reference bilateral entity

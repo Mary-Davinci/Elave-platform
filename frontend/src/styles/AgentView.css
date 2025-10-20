@@ -1,0 +1,119 @@
+/* Container + card */
+.agentv-container {
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 14px;
+}
+.agentv-card {
+  background: #fff;
+  border: 1px solid #e9ecef;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(16,24,40,0.06);
+  padding: 20px 24px;
+}
+
+/* Header layout */
+.agentv-top {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 24px;
+}
+.agentv-title {
+  margin: 0 0 12px 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #1f2937;
+}
+.agentv-row {
+  margin: 8px 0;
+  color: #111827;
+  font-size: 14px;
+}
+.agentv-right .agentv-row { text-align: left; }
+
+.agentv-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 82px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 13px;
+}
+.agentv-pill.ok { background: #d9f7df; color: #267a3f; }
+.agentv-pill.ko { background: #fde2e1; color: #b42318; }
+
+.agentv-sep {
+  margin: 16px 0 18px;
+  border: 0;
+  height: 1px;
+  background: #e5e7eb;
+}
+
+/* Documents */
+.agentv-docs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+.agentv-doc-card {
+  background: #f6f9fc;
+  border: 1px solid #e6edf5;
+  border-radius: 10px;
+  padding: 16px 18px;
+}
+.agentv-doc-card h4 {
+  margin: 0 0 10px 0;
+  font-size: 16px;
+  color: #111827;
+}
+.agentv-file {
+  margin: 6px 0 14px 0;
+  color: #374151;
+  font-size: 14px;
+}
+.agentv-muted { color: #9aa3af; }
+
+/* Buttons */
+.agentv-btn {
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.agentv-btn:hover { filter: brightness(0.95); }
+.agentv-btn:disabled {
+  background: #9fb8ff;
+  cursor: not-allowed;
+}
+.agentv-btn.ghost {
+  background: #eef2ff;
+  color: #4f46e5;
+}
+
+/* footer actions */
+.agentv-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+/* Loading */
+.agentv-loading {
+  padding: 24px;
+  text-align: center;
+  color: #6b7280;
+}
+
+/* Responsive */
+@media (max-width: 860px) {
+  .agentv-top { grid-template-columns: 1fr; }
+  .agentv-docs { grid-template-columns: 1fr; }
+}

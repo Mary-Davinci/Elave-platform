@@ -13,6 +13,7 @@ import Companies from './pages/Companies';
 import NewCompany from './pages/NewCompany';
 import Projects from './pages/Projects';
 import Users from './pages/Users';
+import UserEdit from './pages/UserEdit';
 import NotFound from './pages/NotFound';
 import InArrivo from './pages/InArrivo';
 import NuovoMessaggio from './pages/NuovoMessaggio';
@@ -37,6 +38,12 @@ import SegnalatoreList from './pages/SegnalatoriList';
  import SportelloLavoroDetail from './pages/SportelloLavoroDetail';
 
 import SportelloLavoroEdit from './pages/SportelloLavoroEdit';
+
+
+import SegnalatoreDetail from './pages/SegnalatoreDetail';
+import SegnalatoreEditForm from './pages/SegnalatoreEditForm';
+import AgenteView from './pages/AgenteView';
+import AgenteEdit from './pages/AgenteEdit';
 
 
 
@@ -117,7 +124,23 @@ const App: React.FC = () => {
               </MainLayout>
             </ProtectedRoute>
           } />
-          
+          <Route path="/agenti/:id" element={
+            <ProtectedRoute>
+              <MainLayout>
+                <AgenteView />
+              </MainLayout>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/agenti/edit/:id" element={
+            <ProtectedRoute>
+              <MainLayout>
+                <AgenteEdit />
+              </MainLayout>
+            </ProtectedRoute>
+          } />
+
+
           <Route path="/abila/progetti" element={
             <ProtectedRoute>
               <MainLayout>
@@ -150,7 +173,13 @@ const App: React.FC = () => {
               </MainLayout>
             </ProtectedRoute>
           } />
-          
+          <Route path="/users/edit/:userId"  element={
+            <ProtectedRoute>
+              <MainLayout>
+                <UserEdit />
+              </MainLayout>
+            </ProtectedRoute>
+          } />  
           {/* Email routes */}
           <Route path="/posta/in-arrivo" element={
             <ProtectedRoute>
@@ -159,6 +188,8 @@ const App: React.FC = () => {
               </MainLayout>
             </ProtectedRoute>
           } />
+          
+    
           
           <Route path="/posta/nuovo" element={
             <ProtectedRoute>
@@ -272,23 +303,25 @@ const App: React.FC = () => {
             </ProtectedRoute>
           } />
 
-          {/* TODO: Add these when you create the components */}
-          {/*
-          <Route path="/segnalatori/edit/:id" element={
-            <ProtectedRoute>
-              <MainLayout>
-                <EditSegnalatoreForm />
-              </MainLayout>
-            </ProtectedRoute>
-          } />
-
-          <Route path="/segnalatori/:id" element={
+           <Route path="/segnalatori/:id" element={
             <ProtectedRoute>
               <MainLayout>
                 <SegnalatoreDetail />
               </MainLayout>
             </ProtectedRoute>
           } />
+          <Route path="/segnalatori/edit/:id" element={
+            <ProtectedRoute>
+              <MainLayout>
+                < SegnalatoreEditForm/>
+              </MainLayout>
+            </ProtectedRoute>
+          } />
+          {/* TODO: Add these when you create the components */}
+          {/*
+          
+
+         
 
           <Route path="/segnalatori/upload" element={
             <ProtectedRoute>

@@ -341,31 +341,33 @@ const Users: React.FC = () => {
       </div>
 
       <div className="tabs">
-        <button 
-          className={`tab ${activeTab === 'list' ? 'active' : ''}`}
-          onClick={() => handleTabChange('list')}
-        >
-          <i className="icon">📋</i> Elenco
-        </button>
-        {/* Show create tab for responsabile_territoriale and above */}
-        {isResponsabileTerritoriale && (
-          <button 
-            className={`tab ${activeTab === 'create' ? 'active' : ''}`}
-            onClick={() => handleTabChange('create')}
-          >
-            <i className="icon">➕</i> Crea
-          </button>
-        )}
-        {/* Show pending tab only for admins */}
-        {isAdmin && (
-          <button 
-            className={`tab ${activeTab === 'pending' ? 'active' : ''}`}
-            onClick={() => handleTabChange('pending')}
-          >
-            <i className="icon">⏳</i> In Attesa ({pendingUsers.length})
-          </button>
-        )}
-      </div>
+  <button 
+    className={`tab ${activeTab === 'list' ? 'active' : ''}`}
+    onClick={() => handleTabChange('list')}
+  >
+    <i className="icon">📋</i> Elenco
+  </button>
+
+  {isResponsabileTerritoriale && (
+    <button 
+      className={`tab ${activeTab === 'create' ? 'active' : ''}`}
+      onClick={() => handleTabChange('create')}
+    >
+      <i className="icon">➕</i> Crea
+    </button>
+  )}
+
+  {/**isAdmin && (
+    <button 
+      className={`tab tab--pending ${activeTab === 'pending' ? 'active' : ''}`}
+      onClick={() => handleTabChange('pending')}
+    >
+      <i className="icon">⏳</i> In Attesa
+      <span className="tab-badge">{pendingUsers.length}</span>
+    </button>
+  )**/}
+</div>
+
 
       {activeTab === 'list' ? (
         <div className="users-list">
@@ -386,7 +388,8 @@ const Users: React.FC = () => {
           ) : error ? (
             <div className="error">{error}</div>
           ) : (
-            <table className="users-table">
+            <div className="table-scroll">
+            <table className="users-table users-table--minimal users-table--compact">
               <thead>
                 <tr>
                   <th>Ruolo</th>
@@ -462,6 +465,7 @@ const Users: React.FC = () => {
                 )}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       ) : activeTab === 'pending' ? (

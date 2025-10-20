@@ -59,101 +59,18 @@ const SportelloLavoro: React.FC = () => {
     (user?.email ? user.email.split('@')[0] : '') || '';
 
   // Load agents
-  useEffect(() => {
-    const fetchAgents = async () => {
-      setIsLoadingAgents(true);
-      setAgentsError(null);
-      try {
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-        const headers = { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) };
+// Auto-fill for Responsabile: lock agent to current user
+useEffect(() => {
+  if (!user || !isResponsabile) return;
 
-        let res = await fetch(`${API_BASE_URL}/api/agenti/list-minimal`, {
-          headers,
-          credentials: 'include'
-        });
+  setFormData(prev => ({
+    ...prev,
+    agentId: user._id || prev.agentId,         // backend can still receive agentId
+  
+    
+  }));
+}, [user, isResponsabile, accountDisplayName]);
 
-        if (!res.ok && res.status === 404) {
-          res = await fetch(`${API_BASE_URL}/api/agenti`, { headers, credentials: 'include' });
-        }
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-        const data = await res.json();
-        const normalized: MinimalAgent[] = (data || []).map((a: any) => ({
-          _id: a._id,
-          businessName: a.businessName ?? a.name ?? '',
-          isApproved: a.isApproved,
-          isActive: a.isActive,
-          user: a.user, // string or populated {_id}
-        }));
-        setAgents(normalized);
-      } catch (err) {
-        console.error('Error fetching agents:', err);
-        setAgentsError('Impossibile caricare gli agenti.');
-      } finally {
-        setIsLoadingAgents(false);
-      }
-    };
-    fetchAgents();
-  }, []);
-
-  // Load templates
-  useEffect(() => {
-    const fetchFormTemplates = async () => {
-      try {
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-        const response = await fetch(`${API_BASE_URL}/api/form-templates/sportello-lavoro`, {
-          headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
-          credentials: 'include',
-        });
-        if (response.ok) {
-          const templates = await response.json();
-          setFormTemplates(templates);
-        } else {
-          console.error('Failed to fetch templates:', response.status);
-        }
-      } catch (error) {
-        console.error('Error fetching form templates:', error);
-      }
-    };
-    fetchFormTemplates();
-  }, []);
-
-  // Auto-preselect for responsabile by account name (or owned agent)
-  useEffect(() => {
-    if (!user || !isResponsabile || isLoadingAgents || agents.length === 0) return;
-
-    const displayLc = accountDisplayName.toLowerCase();
-
-    // 1) exact name match
-    let chosen = agents.find(a => (a.businessName || '').toLowerCase() === displayLc);
-
-    // 2) contains match
-    if (!chosen && displayLc) {
-      chosen = agents.find(a => (a.businessName || '').toLowerCase().includes(displayLc));
-    }
-
-    // 3) fallback by ownership
-    if (!chosen) {
-      chosen = agents.find(a => {
-        const uid = typeof (a as any).user === 'string' ? (a as any).user : (a as any).user?._id;
-        return uid === user._id;
-      });
-    }
-
-    if (chosen) {
-      setFormData(prev => ({
-        ...prev,
-        agentId: chosen._id,
-        businessName: chosen.businessName || prev.businessName,
-        agentName: accountDisplayName || chosen.businessName || prev.agentName || ''
-      }));
-    } else {
-      // no match: still show account name in the text field
-      if (accountDisplayName) {
-        setFormData(prev => ({ ...prev, agentName: accountDisplayName }));
-      }
-    }
-  }, [user, isResponsabile, accountDisplayName, agents, isLoadingAgents]);
 
   const handleDeleteFile = (type: 'contract' | 'legal') => {
     if (type === 'contract') {
@@ -307,28 +224,33 @@ const SportelloLavoro: React.FC = () => {
   const getAvailableTemplate = (type: 'contract' | 'legal') =>
     formTemplates.find(template => template.type === type);
 
-  const validateForm = (): boolean => {
-    const newErrors: string[] = [];
+const validateForm = (): boolean => {
+  const newErrors: string[] = [];
 
-    if (!formData.agentId) newErrors.push("Seleziona una Ragione Sociale (Agente)");
-    if (!formData.vatNumber.trim()) newErrors.push("Partita IVA is required");
-    if (!formData.address.trim()) newErrors.push("Indirizzo is required");
-    if (!formData.city.trim()) newErrors.push("Città is required");
-    if (!formData.postalCode.trim()) newErrors.push("CAP is required");
-    if (!formData.province.trim()) newErrors.push("Provincia is required");
-    if (!formData.agreedCommission || formData.agreedCommission <= 0) {
-      newErrors.push("Competenze concordate is required and must be greater than 0");
-    }
-    if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.push("Please enter a valid email address");
-    }
-    if (formData.pec && !/\S+@\S+\.\S+/.test(formData.pec)) {
-      newErrors.push("Please enter a valid PEC address");
-    }
+  // Only admins must choose from the list
+  if (isAdmin && !formData.agentId) {
+    newErrors.push("Seleziona una Ragione Sociale (Agente)");
+  }
 
-    setErrors(newErrors);
-    return newErrors.length === 0;
-  };
+  if (!formData.vatNumber.trim()) newErrors.push("Partita IVA is required");
+  if (!formData.address.trim()) newErrors.push("Indirizzo is required");
+  if (!formData.city.trim()) newErrors.push("Città is required");
+  if (!formData.postalCode.trim()) newErrors.push("CAP is required");
+  if (!formData.province.trim()) newErrors.push("Provincia is required");
+  if (!formData.agreedCommission || formData.agreedCommission <= 0) {
+    newErrors.push("Competenze concordate is required and must be greater than 0");
+  }
+  if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) {
+    newErrors.push("Please enter a valid email address");
+  }
+  if (formData.pec && !/\S+@\S+\.\S+/.test(formData.pec)) {
+    newErrors.push("Please enter a valid PEC address");
+  }
+
+  setErrors(newErrors);
+  return newErrors.length === 0;
+};
+
 
   const handleSubmit = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -804,31 +726,53 @@ const SportelloLavoro: React.FC = () => {
 
           <div className="form-row">
             <div className="form-group">
-              <label htmlFor="agentId">Ragione Sociale *</label>
-              <select
-                id="agentId"
-                name="agentId"
-                value={formData.agentId || ''}
-                onChange={handleAgentSelect}
-                required
-                disabled={isSubmitting || isLoadingAgents || isResponsabile}
-              >
-                <option value="">{isLoadingAgents ? 'Caricamento agenti…' : 'Seleziona un agente'}</option>
-                {agents.map((a) => (
-                  <option key={a._id} value={a._id}>
-                    {a.businessName}
-                  </option>
-                ))}
-              </select>
-              {agentsError && (
-                <small style={{ color: '#b00020', display: 'block', marginTop: 6 }}>
-                  {agentsError}
-                </small>
-              )}
-            </div>
+  <label htmlFor="agentId">
+    {isResponsabile ? 'Responsabile Territoriale *' : 'Ragione Sociale *'}
+  </label>
+
+  {isAdmin ? (
+    // Admin: dropdown list
+    <select
+      id="agentId"
+      name="agentId"
+      value={formData.agentId || ''}
+      onChange={handleAgentSelect}
+      required
+      disabled={isSubmitting || isLoadingAgents}
+    >
+      <option value="">
+        {isLoadingAgents ? 'Caricamento agenti…' : 'Seleziona un agente'}
+      </option>
+      {agents.map((a) => (
+        <option key={a._id} value={a._id}>
+          {a.businessName}
+        </option>
+      ))}
+    </select>
+  ) : (
+    // Responsabile: read-only with their own name
+    <>
+      <input
+        type="text"
+        value={accountDisplayName}
+        readOnly
+        style={{ background: '#f6f7f9', cursor: 'not-allowed' }}
+      />
+      {/* Keep agentId in a hidden input so it’s submitted */}
+      <input type="hidden" name="agentId" value={formData.agentId} />
+    </>
+  )}
+
+  {agentsError && isAdmin && (
+    <small style={{ color: '#b00020', display: 'block', marginTop: 6 }}>
+      {agentsError}
+    </small>
+  )}
+</div>
+
 
             <div className="form-group">
-              <label htmlFor="agentName">Nome Agente *</label>
+              <label htmlFor="agentName">Nome Consulente *</label>
               <input
                 type="text"
                 id="agentName"
@@ -836,7 +780,7 @@ const SportelloLavoro: React.FC = () => {
                 value={formData.agentName}
                 onChange={handleChange}
                 required
-                placeholder="Inserisci il nome dell'agente"
+                placeholder="Inserisci il nome del consulente"
                 disabled={isSubmitting}
               />
             </div>

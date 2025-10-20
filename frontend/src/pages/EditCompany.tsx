@@ -1,270 +1,265 @@
-// src/pages/EditCompany.tsx
-import React, { useState, useEffect } from 'react';
+// src/pages/CompanyEdit.tsx
+import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getCompanyById, updateCompany } from '../services/companyService';
-import { CompanyFormData } from '../types/interfaces';
-import { useAuth } from '../contexts/AuthContext';
 import '../styles/NewCompany.css';
+import { useAuth } from '../contexts/AuthContext';
+import { CompanyFormData, Company } from '../types/interfaces';
+import {
+  getCompanyById,   // <-- make sure these exist in companyService
+  updateCompany,
+} from '../services/companyService';
 
-const EditCompany: React.FC = () => {
+const emptyForm: CompanyFormData = {
+  name: '',
+  businessName: '',
+  companyName: '',
+  vatNumber: '',
+  employees: 0,
+  isActive: true,
+
+  fiscalCode: '',
+  matricola: '',
+  inpsCode: '',
+
+  address: {
+    street: '',
+    city: '',
+    postalCode: '',
+    province: '',
+    country: 'Italy',
+  },
+
+  contactInfo: {
+    phoneNumber: '',
+    mobile: '',
+    email: '',
+    pec: '',
+    referent: '',
+    laborConsultant: '',
+    procurer: '',
+  },
+
+  contractDetails: {
+    contractType: '',
+    ccnlType: '',
+    bilateralEntity: '',
+    hasFondoSani: false,
+    useEbapPayment: false,
+    elavAdhesion: false,
+    saluteAmicaAdhesion: '',
+  },
+
+  signaler: '',
+  industry: '',
+  actuator: '',
+  territorialManager: '',
+};
+
+const CompanyEdit: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
-  const [loading, setLoading] = useState(false);
-  const [fetchLoading, setFetchLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Form state matching your interfaces
-  const [formData, setFormData] = useState<CompanyFormData>({
-    // Initial empty state (will be filled with company data)
-    name: '',
-    businessName: '',
-    companyName: '',
-    vatNumber: '',
-    employees: 0,
-    isActive: true,
-    
-    fiscalCode: '',
-    matricola: '',
-    inpsCode: '',
-    
-    address: {
-      street: '',
-      city: '',
-      postalCode: '',
-      province: '',
-      country: 'Italy'
-    },
-    
-    contactInfo: {
-      phoneNumber: '',
-      mobile: '',
-      email: '',
-      pec: '',
-      referent: ''
-    },
-    
-    contractDetails: {
-      contractType: '',
-      ccnlType: '',
-      bilateralEntity: '',
-      hasFondoSani: false,
-      useEbapPayment: false
-    },
-    
-    signaler: '',
-    industry: '',
-    actuator: ''
-  });
+
+  const [formData, setFormData] = React.useState<CompanyFormData>(emptyForm);
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
   // Redirect if not authenticated
-  useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/login');
-      return;
-    }
+  React.useEffect(() => {
+    if (!isAuthenticated) navigate('/login');
+  }, [isAuthenticated, navigate]);
 
-    // Fetch company data
-    const fetchCompanyData = async () => {
-      if (!id) return;
-      
+  // Load company
+  React.useEffect(() => {
+    let ignore = false;
+    const load = async () => {
       try {
-        setFetchLoading(true);
-        const companyData = await getCompanyById(id);
-        
-        // Transform company data to form data
+        if (!id) throw new Error('ID mancante');
+        setLoading(true);
+        setError(null);
+
+        const company: Company = await getCompanyById(id);
+
+        if (ignore) return;
+        // Map API entity -> form data (defensive)
         setFormData({
-          name: companyData.name || '',
-          businessName: companyData.businessName || '',
-          companyName: companyData.companyName || '',
-          vatNumber: companyData.vatNumber || '',
-          employees: companyData.employees || 0,
-          isActive: companyData.isActive,
-          
-          fiscalCode: companyData.fiscalCode || '',
-          matricola: companyData.matricola || '',
-          inpsCode: companyData.inpsCode || '',
-          
+          name: company.name || '',
+          businessName: company.businessName || '',
+          companyName: company.companyName || company.businessName || '',
+          vatNumber: company.vatNumber || '',
+          employees: Number(company.employees) || 0,
+          isActive: company.isActive !== false,
+
+          fiscalCode: company.fiscalCode || '',
+          matricola: company.matricola || '',
+          inpsCode: company.inpsCode || '',
+
           address: {
-            street: companyData.address?.street || '',
-            city: companyData.address?.city || '',
-            postalCode: companyData.address?.postalCode || '',
-            province: companyData.address?.province || '',
-            country: companyData.address?.country || 'Italy'
+            street: company.address?.street || '',
+            city: company.address?.city || '',
+            postalCode: company.address?.postalCode || '',
+            province: company.address?.province || '',
+            country: company.address?.country || 'Italy',
           },
-          
+
           contactInfo: {
-            phoneNumber: companyData.contactInfo?.phoneNumber || '',
-            mobile: companyData.contactInfo?.mobile || '',
-            email: companyData.contactInfo?.email || '',
-            pec: companyData.contactInfo?.pec || '',
-            referent: companyData.contactInfo?.referent || ''
+            phoneNumber: company.contactInfo?.phoneNumber || '',
+            mobile: company.contactInfo?.mobile || '',
+            email: company.contactInfo?.email || '',
+            pec: company.contactInfo?.pec || '',
+            referent: company.contactInfo?.referent || '',
+            laborConsultant: company.contactInfo?.laborConsultant || '',
+            procurer: company.contactInfo?.procurer || '',
           },
-          
+
           contractDetails: {
-            contractType: companyData.contractDetails?.contractType || '',
-            ccnlType: companyData.contractDetails?.ccnlType || '',
-            bilateralEntity: companyData.contractDetails?.bilateralEntity || '',
-            hasFondoSani: companyData.contractDetails?.hasFondoSani || false,
-            useEbapPayment: companyData.contractDetails?.useEbapPayment || false
+            contractType: company.contractDetails?.contractType || '',
+            ccnlType: company.contractDetails?.ccnlType || '',
+            bilateralEntity: company.contractDetails?.bilateralEntity || '',
+            hasFondoSani: !!company.contractDetails?.hasFondoSani,
+            useEbapPayment: !!company.contractDetails?.useEbapPayment,
+            elavAdhesion: !!company.contractDetails?.elavAdhesion,
+            saluteAmicaAdhesion: company.contractDetails?.saluteAmicaAdhesion || '',
           },
-          
-          signaler: companyData.signaler || '',
-          industry: companyData.industry || '',
-          actuator: companyData.actuator || ''
+
+          signaler: company.signaler || '',
+          industry: company.industry || '',
+          actuator: company.actuator || '',
+          territorialManager:
+            company.territorialManager ||
+            company.contractDetails?.territorialManager || // in case API still returns it nested
+            '',
         });
-        
-        setFetchLoading(false);
-      } catch (err) {
-        console.error('Error fetching company data:', err);
-        setError('Failed to load company data');
-        setFetchLoading(false);
+      } catch (e: any) {
+        setError(
+          e?.response?.data?.error ||
+            e?.message ||
+            'Impossibile caricare i dati dell’azienda'
+        );
+      } finally {
+        if (!ignore) setLoading(false);
       }
     };
+    load();
+    return () => {
+      ignore = true;
+    };
+  }, [id]);
 
-    fetchCompanyData();
-  }, [id, isAuthenticated, navigate]);
-
-  // Handle form input changes
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
     const { name, value, type } = e.target;
-    
+
     if (name.includes('.')) {
-      // Handle nested properties
       const [parent, child] = name.split('.');
-      
-      // Use type assertion for nested objects
       const parentObj = { ...(formData[parent as keyof typeof formData] as any) };
-      
-      setFormData({
-        ...formData,
+
+      setFormData((prev) => ({
+        ...prev,
         [parent]: {
           ...parentObj,
-          [child]: type === 'checkbox' 
-            ? (e.target as HTMLInputElement).checked 
-            : value
-        }
-      });
+          [child]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
+        },
+      }));
     } else {
-      // Handle top-level properties
-      setFormData({
-        ...formData,
-        [name]: type === 'checkbox' 
-          ? (e.target as HTMLInputElement).checked 
-          : type === 'number' 
-            ? parseInt(value) || 0 
-            : value
-      });
+      setFormData((prev) => ({
+        ...prev,
+        [name]:
+          type === 'checkbox'
+            ? (e.target as HTMLInputElement).checked
+            : type === 'number'
+            ? parseInt(value) || 0
+            : value,
+      }));
     }
   };
 
-  // Toggle checkbox value
-  const handleToggle = (name: string) => {
-    if (name.includes('.')) {
-      const [parent, child] = name.split('.');
-      const parentObj = { ...(formData[parent as keyof typeof formData] as any) };
-      
-      // For boolean values
-      if (typeof parentObj[child] === 'boolean') {
-        setFormData({
-          ...formData,
-          [parent]: {
-            ...parentObj,
-            [child]: !parentObj[child]
-          }
-        });
-      } 
-      // For string values that represent booleans (like contractType)
-      else {
-        setFormData({
-          ...formData,
-          [parent]: {
-            ...parentObj,
-            [child]: parentObj[child] ? '' : 'active'
-          }
-        });
-      }
-    } else {
-      setFormData({
-        ...formData,
-        [name]: !formData[name as keyof typeof formData]
-      });
-    }
-  };
+  const buildSubmission = (data: CompanyFormData) => ({
+    // top-level
+    name: data.name?.trim(),
+    businessName: data.businessName?.trim(),
+    companyName: (data.companyName || data.businessName || '').trim(),
+    vatNumber: data.vatNumber?.trim(),
+    employees: Number(data.employees) || 0,
+    isActive: !!data.isActive,
+    fiscalCode: data.fiscalCode?.trim(),
+    matricola: data.matricola?.trim(),
+    inpsCode: data.inpsCode?.trim(),
+    signaler: data.signaler?.trim(),
+    industry: data.industry?.trim(),
+    actuator: data.actuator?.trim(),
 
-  // Handle form submission
+    address: {
+      street: data.address?.street?.trim(),
+      city: data.address?.city?.trim(),
+      postalCode: data.address?.postalCode?.trim(),
+      province: data.address?.province?.trim(),
+      country: (data.address?.country || 'Italy').trim(),
+    },
+
+    contactInfo: {
+      phoneNumber: data.contactInfo?.phoneNumber?.trim(),
+      mobile: data.contactInfo?.mobile?.trim(),
+      email: data.contactInfo?.email?.trim(),
+      pec: data.contactInfo?.pec?.trim(),
+      referent: data.contactInfo?.referent?.trim(),
+      laborConsultant: data.contactInfo?.laborConsultant?.trim(),
+      procurer: data.contactInfo?.procurer?.trim(),
+    },
+
+    contractDetails: {
+      contractType: data.contractDetails?.contractType?.trim(),
+      ccnlType: data.contractDetails?.ccnlType?.trim(),
+      bilateralEntity: data.contractDetails?.bilateralEntity?.trim(),
+      hasFondoSani: !!data.contractDetails?.hasFondoSani,
+      useEbapPayment: !!data.contractDetails?.useEbapPayment,
+      elavAdhesion: !!data.contractDetails?.elavAdhesion,
+      saluteAmicaAdhesion: data.contractDetails?.saluteAmicaAdhesion || '',
+      // If your backend expects this inside contractDetails, keep it here; otherwise you already
+      // have a top-level territorialManager below.
+      // territorialManager: data.territorialManager?.trim(),
+    },
+
+    territorialManager: data.territorialManager?.trim(),
+  });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    if (!id) return;
+
+    setSaving(true);
     setError(null);
-  
-    console.log("Submitting updated form data:", formData);
     try {
-      // Prepare data for submission
-      const submissionData = {
-        ...formData,
-        // Use businessName as companyName if companyName is empty
-        companyName: formData.companyName?.trim() || formData.businessName?.trim(),
-        // Ensure required fields are not empty
-        businessName: formData.businessName?.trim(),
-        vatNumber: formData.vatNumber?.trim(),
-        inpsCode: formData.inpsCode?.trim(),
-        
-        // Sanitize nested objects
-        address: {
-          street: formData.address?.street?.trim(),
-          city: formData.address?.city?.trim(),
-          postalCode: formData.address?.postalCode?.trim(),
-          province: formData.address?.province?.trim(),
-          country: formData.address?.country?.trim() || 'Italy'
-        },
-        
-        // Similarly sanitize other nested objects
-        contactInfo: {
-          phoneNumber: formData.contactInfo?.phoneNumber?.trim(),
-          mobile: formData.contactInfo?.mobile?.trim(),
-          email: formData.contactInfo?.email?.trim(),
-          pec: formData.contactInfo?.pec?.trim(),
-          referent: formData.contactInfo?.referent?.trim()
-        }
-      };
-  
-      if (id) {
-        await updateCompany(id, submissionData);
-        navigate('/companies');
-      }
+      const payload = buildSubmission(formData);
+      await updateCompany(id, payload);
+      navigate('/companies');
     } catch (err: any) {
-      console.error('Error updating company:', err);
-      
-      // Handle different error formats
-      const errorMessage = 
-        // Check for array of errors
-        (Array.isArray(err.response?.data?.errors) 
-          ? err.response.data.errors.join(', ') 
-          : 
-        // Check for single error message
-        err.response?.data?.error || 
-        err.message || 
-        'Failed to update company');
-      
-      setError(errorMessage);
-      setLoading(false);
+      const msg =
+        (Array.isArray(err.response?.data?.errors)
+          ? err.response.data.errors.join(', ')
+          : err.response?.data?.error) ||
+        err.message ||
+        'Aggiornamento azienda non riuscito';
+      setError(msg);
+      setSaving(false);
     }
   };
 
-  if (fetchLoading) {
+  if (loading) {
     return (
-      <div className="loading-container">
-        <div className="loading-spinner"></div>
-        <p>Caricamento dati azienda...</p>
+      <div className="add-company-container">
+        <h1 className="page-title">Modifica azienda</h1>
+        <div className="loading">Caricamento…</div>
       </div>
     );
   }
 
   return (
     <div className="add-company-container">
-      <h1 className="page-title">Modifica Azienda</h1>
-      
+      <h1 className="page-title">Modifica azienda</h1>
+
       {error && (
         <div className="error-alert">
           <p>{error}</p>
@@ -277,21 +272,18 @@ const EditCompany: React.FC = () => {
           <div className="form-row">
             <div className="form-group">
               <label>Segnalatore</label>
-              <select
+              <input
                 name="signaler"
                 value={formData.signaler}
                 onChange={handleChange}
                 className="form-control"
-              >
-                <option value="">Scegli il segnalatore</option>
-                <option value="agent1">Agente 1</option>
-                <option value="agent2">Agente 2</option>
-                <option value="agent3">Agente 3</option>
-              </select>
+              />
             </div>
 
             <div className="form-group">
-              <label>Ragione sociale <span className="required">*</span></label>
+              <label>
+                Ragione sociale <span className="required">*</span>
+              </label>
               <input
                 type="text"
                 name="businessName"
@@ -303,7 +295,9 @@ const EditCompany: React.FC = () => {
             </div>
 
             <div className="form-group">
-              <label>Indirizzo <span className="required">*</span></label>
+              <label>
+                Indirizzo <span className="required">*</span>
+              </label>
               <input
                 type="text"
                 name="address.street"
@@ -317,7 +311,9 @@ const EditCompany: React.FC = () => {
 
           <div className="form-row">
             <div className="form-group">
-              <label>Città <span className="required">*</span></label>
+              <label>
+                Città <span className="required">*</span>
+              </label>
               <input
                 type="text"
                 name="address.city"
@@ -329,7 +325,9 @@ const EditCompany: React.FC = () => {
             </div>
 
             <div className="form-group">
-              <label>CAP <span className="required">*</span></label>
+              <label>
+                CAP <span className="required">*</span>
+              </label>
               <input
                 type="text"
                 name="address.postalCode"
@@ -341,28 +339,28 @@ const EditCompany: React.FC = () => {
             </div>
 
             <div className="form-group">
-              <label>Provincia <span className="required">*</span></label>
-              <select
+              <label>
+                Provincia <span className="required">*</span>
+              </label>
+              <input
+                type="text"
                 name="address.province"
                 value={formData.address?.province}
                 onChange={handleChange}
                 required
                 className="form-control"
-              >
-                <option value="">Scegli la provincia</option>
-                <option value="Milano">Milano</option>
-                <option value="Roma">Roma</option>
-                <option value="Napoli">Napoli</option>
-                <option value="Torino">Torino</option>
-                <option value="Firenze">Firenze</option>
-                <option value="Bologna">Bologna</option>
-              </select>
+                placeholder="Es. MI, Milano"
+              />
             </div>
           </div>
+        </div>
 
+        <div className="form-section">
           <div className="form-row">
             <div className="form-group">
-              <label>Partita IVA <span className="required">*</span></label>
+              <label>
+                Partita IVA <span className="required">*</span>
+              </label>
               <input
                 type="text"
                 name="vatNumber"
@@ -385,7 +383,9 @@ const EditCompany: React.FC = () => {
             </div>
 
             <div className="form-group">
-              <label>Codice INPS <span className="required">*</span></label>
+              <label>
+                Codice INPS <span className="required">*</span>
+              </label>
               <input
                 type="text"
                 name="inpsCode"
@@ -396,57 +396,14 @@ const EditCompany: React.FC = () => {
               />
             </div>
           </div>
-        </div>
-
-        {/* Contacts Section */}
-        <div className="form-section">
-          <h2 className="section-title">Contatti</h2>
 
           <div className="form-row">
-            <div className="form-group">
-              <label>Tipo di contatto <span className="required">*</span></label>
-              <select
-                name="contactType"
-                className="form-control"
-                required
-              >
-                <option value="">Scegli il tipo di contatto</option>
-                <option value="direct">Diretto</option>
-                <option value="office">Ufficio</option>
-                <option value="consultant">Consulente</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>Referente</label>
-              <input
-                type="text"
-                name="contactInfo.referent"
-                value={formData.contactInfo?.referent}
-                onChange={handleChange}
-                className="form-control"
-              />
-            </div>
-
             <div className="form-group">
               <label>Cellulare</label>
               <input
                 type="text"
                 name="contactInfo.mobile"
                 value={formData.contactInfo?.mobile}
-                onChange={handleChange}
-                className="form-control"
-              />
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label>Telefono</label>
-              <input
-                type="text"
-                name="contactInfo.phoneNumber"
-                value={formData.contactInfo?.phoneNumber}
                 onChange={handleChange}
                 className="form-control"
               />
@@ -476,41 +433,61 @@ const EditCompany: React.FC = () => {
           </div>
         </div>
 
-        {/* Specifiche Section */}
+        <div className="form-section">
+          <h2 className="section-title">Segnalazione</h2>
+          <div className="form-row">
+            <div className="form-group">
+              <label>Responsabile Territoriale</label>
+              <input
+                type="text"
+                name="territorialManager"
+                value={formData.territorialManager}
+                onChange={handleChange}
+                className="form-control"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Consulente del Lavoro</label>
+              <input
+                type="text"
+                name="contactInfo.laborConsultant"
+                value={formData.contactInfo?.laborConsultant}
+                onChange={handleChange}
+                className="form-control"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Procacciatore</label>
+              <input
+                type="text"
+                name="contactInfo.procurer"
+                value={formData.contactInfo?.procurer}
+                onChange={handleChange}
+                className="form-control"
+              />
+            </div>
+          </div>
+        </div>
+
         <div className="form-section">
           <h2 className="section-title">Specifiche</h2>
 
           <div className="form-row">
-            <div className="form-group toggle-group">
-              <label>Contratto CCNL Conflavoro - Fesica/Confsal</label>
-              <div 
-                className={`toggle-switch ${formData.contractDetails?.contractType ? 'active' : ''}`}
-                onClick={() => handleToggle('contractDetails.contractType')}
-              >
-                <div className="toggle-slider"></div>
-              </div>
-            </div>
-
             <div className="form-group">
-              <label>CCNL applicato <span className="required">*</span></label>
-              <select
+              <label>CCNL di riferimento</label>
+              <input
+                type="text"
                 name="contractDetails.ccnlType"
                 value={formData.contractDetails?.ccnlType}
                 onChange={handleChange}
-                required
                 className="form-control"
-              >
-                <option value="">Scegli il CCNL</option>
-                <option value="commercio">Commercio</option>
-                <option value="industria">Industria</option>
-                <option value="artigianato">Artigianato</option>
-              </select>
+              />
             </div>
-          </div>
 
-          <div className="form-row">
             <div className="form-group">
-              <label>Ente Bilaterale di riferimento</label>
+              <label>Ente Bilaterale</label>
               <input
                 type="text"
                 name="contractDetails.bilateralEntity"
@@ -520,48 +497,35 @@ const EditCompany: React.FC = () => {
               />
             </div>
 
-            <div className="form-group toggle-group">
-              <label>Adesione Fondosani</label>
-              <div 
-                className={`toggle-switch ${formData.contractDetails?.hasFondoSani ? 'active' : ''}`}
-                onClick={() => handleToggle('contractDetails.hasFondoSani')}
+            <div className="form-group">
+              <label>Adesione Salute Amica</label>
+              <select
+                name="contractDetails.saluteAmicaAdhesion"
+                value={formData.contractDetails?.saluteAmicaAdhesion || ''}
+                onChange={handleChange}
+                className="form-control"
+                required
               >
-                <div className="toggle-slider"></div>
-              </div>
-            </div>
-
-            <div className="form-group toggle-group">
-              <label>Versamento tramite codice EBAP</label>
-              <div 
-                className={`toggle-switch ${formData.contractDetails?.useEbapPayment ? 'active' : ''}`}
-                onClick={() => handleToggle('contractDetails.useEbapPayment')}
-              >
-                <div className="toggle-slider"></div>
-              </div>
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group toggle-group">
-              <label>Attivo</label>
-              <div 
-                className={`toggle-switch ${formData.isActive ? 'active' : ''}`}
-                onClick={() => handleToggle('isActive')}
-              >
-                <div className="toggle-slider"></div>
-              </div>
+                <option value="">-- Seleziona un piano --</option>
+                <option value="€5.00 Basic">€5.00 Basic</option>
+                <option value="€12.00 Standard">€12.00 Standard</option>
+                <option value="€16.00 Premium">€16.00 Premium</option>
+              </select>
             </div>
           </div>
         </div>
 
-        {/* Submit Button */}
         <div className="form-actions">
-          <button 
-            type="submit" 
-            className="submit-button"
-            disabled={loading}
+          <button
+            type="button"
+            className="cancel-button"
+            onClick={() => navigate('/companies')}
+            disabled={saving}
           >
-            {loading ? 'Aggiornamento...' : 'Aggiorna Azienda'}
+            Annulla
+          </button>
+          <button type="submit" className="submit-button" disabled={saving}>
+            {saving ? 'Salvataggio…' : 'Salva modifiche'}
           </button>
         </div>
       </form>
@@ -569,4 +533,4 @@ const EditCompany: React.FC = () => {
   );
 };
 
-export default EditCompany;
+export default CompanyEdit;

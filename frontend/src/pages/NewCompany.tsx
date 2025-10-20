@@ -388,9 +388,6 @@ const [formData, setFormData] = useState<CompanyFormData>({
   </div>
 </div>
 
-
-Specifiche (Specs) section:
-
 <div className="form-section">
   <h2 className="section-title">Specifiche</h2>
 
@@ -445,3 +442,4 @@ Specifiche (Specs) section:
 };
 
 export default NewCompany;
+

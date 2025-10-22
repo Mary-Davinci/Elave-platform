@@ -12,7 +12,6 @@ type SportelloLavoroResponse = SportelloLavoroFormData & {
   _id: string;
   createdAt?: string;
   isActive?: boolean;
-  // if backend returns file names/urls, we’ll show them
   signedContractFile?: string;
   legalDocumentFile?: string;
   signedContractUrl?: string;
@@ -25,12 +24,25 @@ const SportelloLavoroEdit: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
+  // Role helpers
+  const role = (user?.role || '').toLowerCase();
+  const isAdmin = role === 'admin' || role === 'super_admin';
+  const isResponsabile = role === 'responsabile_territoriale';
+
+  // Account display name (same logic as Create page)
+  const accountDisplayName =
+    (user?.organization?.trim()) ||
+    [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() ||
+    (user?.username?.trim()) ||
+    (user?.email ? user.email.split('@')[0] : '') ||
+    '';
+
   // Agents
   const [agents, setAgents] = useState<MinimalAgent[]>([]);
   const [isLoadingAgents, setIsLoadingAgents] = useState(false);
   const [agentsError, setAgentsError] = useState<string | null>(null);
 
-  // Form (same shape as your add page)
+  // Form
   const [formData, setFormData] = useState<SportelloLavoroFormData>({
     agentName: '',
     agentId: '',
@@ -45,15 +57,15 @@ const SportelloLavoroEdit: React.FC = () => {
     pec: ''
   });
 
-  // Existing file links (if API provides)
+  // Existing file links
   const [existingSignedContractUrl, setExistingSignedContractUrl] = useState<string | null>(null);
   const [existingLegalUrl, setExistingLegalUrl] = useState<string | null>(null);
 
-  // New selected files (optional replacement)
+  // New selected files
   const [signedContract, setSignedContract] = useState<File | null>(null);
   const [legalDoc, setLegalDoc] = useState<File | null>(null);
 
-  // Templates (same as add page)
+  // Templates
   const [formTemplates, setFormTemplates] = useState<FormTemplate[]>([]);
   const [contractTemplate, setContractTemplate] = useState<File | null>(null);
   const [legalTemplate, setLegalTemplate] = useState<File | null>(null);
@@ -71,13 +83,7 @@ const SportelloLavoroEdit: React.FC = () => {
   const contractTemplateRef = useRef<HTMLInputElement>(null);
   const legalTemplateRef = useRef<HTMLInputElement>(null);
 
-  // Roles
-  const role = (user?.role || '').toLowerCase();
-  const isAdmin = role === 'admin' || role === 'super_admin';
-  const isResponsabile = role === 'responsabile_territoriale';
-  //const isSportelloLike = role === 'sportello_lavoro' || isResponsabile || isAdmin;
-
-  // ---- Load minimal agents for select ----
+  // ---- Load minimal agents for select (admin) ----
   useEffect(() => {
     const fetchAgents = async () => {
       setIsLoadingAgents(true);
@@ -143,17 +149,17 @@ const SportelloLavoroEdit: React.FC = () => {
 
         const data: SportelloLavoroResponse = await res.json();
 
-        // Normalize agentId/businessName
+        // Normalize agentId/businessName (agent may be id string or populated)
         let agentId = data.agentId || '';
         let businessName = data.businessName || '';
         if (!agentId && data.agent) {
-          // agent might be an id string or populated object
           agentId = typeof data.agent === 'string' ? data.agent : data.agent?._id || '';
           businessName = businessName || (typeof data.agent === 'string' ? '' : (data.agent?.businessName || ''));
         }
 
+        // Keep agentName as returned (DON'T auto-fill)
         setFormData({
-          agentName: data.agentName || businessName || '',
+          agentName: data.agentName || '',
           agentId,
           businessName: businessName,
           vatNumber: data.vatNumber || '',
@@ -180,7 +186,19 @@ const SportelloLavoroEdit: React.FC = () => {
     load();
   }, [id]);
 
-  // ---- Templates fetch (same as add) ----
+  // ---- Responsabile: lock agent to current user and default businessName (read-only UI) ----
+  useEffect(() => {
+    if (!user || !isResponsabile) return;
+    setFormData(prev => ({
+      ...prev,
+      agentId: user._id || prev.agentId,
+      businessName: (prev.businessName && String(prev.businessName).trim())
+        ? prev.businessName
+        : accountDisplayName,
+    }));
+  }, [user, isResponsabile, accountDisplayName]);
+
+  // ---- Templates fetch ----
   useEffect(() => {
     const fetchFormTemplates = async () => {
       try {
@@ -202,7 +220,7 @@ const SportelloLavoroEdit: React.FC = () => {
   const getAvailableTemplate = (type: 'contract' | 'legal') =>
     formTemplates.find((t) => t.type === type);
 
-  // ---- Handlers (same behavior as add page) ----
+  // ---- Handlers ----
   const handleDeleteFile = (type: 'contract' | 'legal') => {
     if (type === 'contract') {
       setSignedContract(null);
@@ -223,14 +241,15 @@ const SportelloLavoroEdit: React.FC = () => {
     if (successMessage) setSuccessMessage('');
   };
 
+  // Admin can change agent; do NOT touch agentName
   const handleAgentSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedId = e.target.value;
     const selected = agents.find((a) => a._id === selectedId);
     setFormData((prev) => ({
       ...prev,
       agentId: selectedId,
-      businessName: selected?.businessName || '',
-      agentName: selected?.businessName || prev.agentName,
+      businessName: selected?.businessName || prev.businessName,
+      // agentName stays as user input / server value
     }));
     if (errors.length) setErrors([]);
     if (successMessage) setSuccessMessage('');
@@ -352,11 +371,11 @@ const SportelloLavoroEdit: React.FC = () => {
     }
   };
 
-  // ---- Validation (same spirit as add page) ----
+  // ---- Validation (align with Create behavior) ----
   const validateForm = (): boolean => {
     const newErrors: string[] = [];
 
-    if (!formData.agentId) newErrors.push('Seleziona una Ragione Sociale (Agente)');
+    if (isAdmin && !formData.agentId) newErrors.push('Seleziona una Ragione Sociale (Agente)');
     if (!formData.vatNumber.trim()) newErrors.push('Partita IVA is required');
     if (!formData.address.trim()) newErrors.push('Indirizzo is required');
     if (!formData.city.trim()) newErrors.push('Città is required');
@@ -749,26 +768,45 @@ const SportelloLavoroEdit: React.FC = () => {
 
           <div className="form-row">
             <div className="form-group">
-              <label htmlFor="agentId">Ragione Sociale *</label>
-              <select
-                id="agentId"
-                name="agentId"
-                value={formData.agentId || ''}
-                onChange={handleAgentSelect}
-                required
-                disabled={isSubmitting || isLoadingAgents || isResponsabile}
-              >
-                <option value="">
-                  {isLoadingAgents ? 'Caricamento agenti…' : 'Seleziona un agente'}
-                </option>
-                {agents.map((a) => (
-                  <option key={a._id} value={a._id}>
-                    {a.businessName}
+              <label htmlFor="agentId">
+                {isResponsabile ? 'Responsabile Territoriale *' : 'Ragione Sociale *'}
+              </label>
+
+              {isAdmin ? (
+                <select
+                  id="agentId"
+                  name="agentId"
+                  value={formData.agentId || ''}
+                  onChange={handleAgentSelect}
+                  required
+                  disabled={isSubmitting || isLoadingAgents}
+                >
+                  <option value="">
+                    {isLoadingAgents ? 'Caricamento agenti…' : 'Seleziona un agente'}
                   </option>
-                ))}
-              </select>
-              {agentsError && (
-                <small style={{ color: '#b00020', display: 'block', marginTop: 6 }}>{agentsError}</small>
+                  {agents.map((a) => (
+                    <option key={a._id} value={a._id}>
+                      {a.businessName}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <>
+                  <input
+                    type="text"
+                    value={accountDisplayName}
+                    readOnly
+                    style={{ background: '#f6f7f9', cursor: 'not-allowed' }}
+                  />
+                  {/* keep agentId for submit */}
+                  <input type="hidden" name="agentId" value={formData.agentId} />
+                </>
+              )}
+
+              {agentsError && isAdmin && (
+                <small style={{ color: '#b00020', display: 'block', marginTop: 6 }}>
+                  {agentsError}
+                </small>
               )}
             </div>
 
@@ -906,7 +944,6 @@ const SportelloLavoroEdit: React.FC = () => {
 
         {/* Files */}
         <div className="upload-form-container">
-          {/* Existing links if available */}
           {(existingSignedContractUrl || existingLegalUrl) && (
             <div className="form-row" style={{ marginBottom: 10 }}>
               {existingSignedContractUrl && (
@@ -932,7 +969,6 @@ const SportelloLavoroEdit: React.FC = () => {
             </div>
           )}
 
-          {/* Replace files if needed */}
           <div className="form-group">
             <label htmlFor="signed-contract-upload">Contratto Firmato (sostituisci)</label>
             <div className="file-input-wrapper">

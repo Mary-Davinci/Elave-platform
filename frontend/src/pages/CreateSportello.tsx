@@ -7,16 +7,28 @@ const API_BASE_URL =
   (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000')
     .replace(/\/+$/, '');
 
-    // put this near the top of the file, above the component
-const toStr = (v: unknown): string =>
-  typeof v === 'string' ? v : v == null ? '' : String(v);
+// small helper
+const toStr = (v: unknown): string => (typeof v === 'string' ? v : v == null ? '' : String(v));
 
 const SportelloLavoro: React.FC = () => {
   const { user } = useAuth();
 
-  const [agents] = useState<MinimalAgent[]>([]);
-  const [isLoadingAgents] = useState(false);
-  const [agentsError] = useState<string | null>(null);
+  // Roles
+  const role = (user?.role || '').toLowerCase();
+  const isAdmin = role === 'admin' || role === 'super_admin';
+  const isResponsabile = role === 'responsabile_territoriale';
+
+  // display name (organization → "First Last" → username → email prefix)
+  const accountDisplayName =
+    (user?.organization?.trim()) ||
+    [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() ||
+    (user?.username?.trim()) ||
+    (user?.email ? user.email.split('@')[0] : '') || '';
+
+  // We’ll reuse MinimalAgent for responsabili options: {_id, businessName}
+  const [agents, setAgents] = useState<MinimalAgent[]>([]);
+  const [isLoadingAgents, setIsLoadingAgents] = useState(false);
+  const [agentsError, setAgentsError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<SportelloLavoroFormData>({
     agentName: '',
@@ -51,29 +63,106 @@ const SportelloLavoro: React.FC = () => {
   const contractTemplateRef = useRef<HTMLInputElement>(null);
   const legalTemplateRef = useRef<HTMLInputElement>(null);
 
-  // Role + display name
-  const isAdmin = (user?.role || '').toLowerCase() === 'admin';
-  const isResponsabile = (user?.role || '').toLowerCase() === 'responsabile_territoriale';
+  // ============= FETCH RESPONSABILI (for Admins) =============
+  // Admins should see all responsabili they have/own. We try a few endpoints, falling back gracefully.
+  useEffect(() => {
+    if (!isAdmin) return;
 
-  // account display name: organization → “First Last” → username → email prefix
-  const accountDisplayName =
-    (user?.organization?.trim()) ||
-    [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() ||
-    (user?.username?.trim()) ||
-    (user?.email ? user.email.split('@')[0] : '') || '';
+    const normalizeToMinimal = (x: any): MinimalAgent => {
+      const display =
+        toStr(x.businessName).trim() ||
+        toStr(x.organization).trim() ||
+        [toStr(x.firstName), toStr(x.lastName)].filter(Boolean).join(' ').trim() ||
+        toStr(x.username).trim() ||
+        (x.email ? String(x.email).split('@')[0] : '') ||
+        '';
+      return { _id: x._id, businessName: display, isActive: x.isActive, isApproved: x.isApproved, user: x.user };
+    };
 
-  // Auto-fill for Responsabile: lock agent to current user + default businessName/agentName
+    const fetchResponsabili = async () => {
+      setIsLoadingAgents(true);
+      setAgentsError(null);
+      try {
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+        const headers: Record<string, string> = { ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+
+        // 1) Try a dedicated responsabili minimal list
+        let res = await fetch(`${API_BASE_URL}/api/responsabili/list-minimal`, {
+          headers, credentials: 'include'
+        });
+
+        // 2) Fallback: users by role
+        if (!res.ok) {
+          res = await fetch(`${API_BASE_URL}/api/users?role=responsabile_territoriale`, {
+            headers, credentials: 'include'
+          });
+        }
+
+        // 3) Last resort: generic agents endpoint (we will still display sensible names)
+        if (!res.ok) {
+          res = await fetch(`${API_BASE_URL}/api/agenti/list-minimal`, {
+            headers, credentials: 'include'
+          });
+        }
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const data = await res.json();
+
+        // Map any shape to {_id, businessName}
+        const items: MinimalAgent[] = (Array.isArray(data) ? data : []).map(normalizeToMinimal);
+
+        // Optional: filter only those "owned" by this admin if backend returns owner/adminId field
+        // If your API already returns filtered list, you can remove this.
+        const maybeFiltered = items.filter((itm: any) => {
+          if (!('adminId' in itm)) return true; // no owner info → keep
+          return String((itm as any).adminId) === String(user?._id);
+        });
+
+        setAgents(maybeFiltered);
+      } catch (err) {
+        console.error('Error fetching responsabili:', err);
+        setAgentsError('Impossibile caricare i Responsabili Territoriali.');
+      } finally {
+        setIsLoadingAgents(false);
+      }
+    };
+
+    fetchResponsabili();
+  }, [isAdmin, user?._id]);
+
+  // fetch existing templates on first render (and whenever user changes)
+useEffect(() => {
+  const fetchTemplates = async () => {
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/api/form-templates/sportello-lavoro`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const templates: FormTemplate[] = await res.json();
+      setFormTemplates(Array.isArray(templates) ? templates : []);
+    } catch (err) {
+      console.error('Error fetching form templates:', err);
+      
+    }
+  };
+  fetchTemplates();
+}, [user?._id]);
+
+  // ============= RESPONSABILE: lock to self & default businessName =============
   useEffect(() => {
     if (!user || !isResponsabile) return;
     setFormData(prev => ({
       ...prev,
       agentId: user._id || prev.agentId,
-     businessName: toStr(prev.businessName).trim() ? toStr(prev.businessName) : accountDisplayName,
-agentName: toStr(prev.agentName).trim() ? toStr(prev.agentName) : accountDisplayName,
-
+      businessName: toStr(prev.businessName).trim() ? toStr(prev.businessName) : accountDisplayName,
+      // agentName stays manual (DO NOT auto-fill)
     }));
   }, [user, isResponsabile, accountDisplayName]);
 
+  // ============= Handlers =============
   const handleDeleteFile = (type: 'contract' | 'legal') => {
     if (type === 'contract') {
       setSignedContract(null);
@@ -94,14 +183,14 @@ agentName: toStr(prev.agentName).trim() ? toStr(prev.agentName) : accountDisplay
     if (successMessage) setSuccessMessage('');
   };
 
+  // Admin selects a Responsabile from dropdown. We DO NOT touch agentName (manual).
   const handleAgentSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedId = e.target.value;
     const selected = agents.find(a => a._id === selectedId);
     setFormData(prev => ({
       ...prev,
       agentId: selectedId,
-      businessName: selected?.businessName || '',
-      agentName: selected?.businessName || prev.agentName
+      businessName: selected?.businessName || prev.businessName
     }));
     if (errors.length) setErrors([]);
     if (successMessage) setSuccessMessage('');
@@ -226,34 +315,35 @@ agentName: toStr(prev.agentName).trim() ? toStr(prev.agentName) : accountDisplay
   const getAvailableTemplate = (type: 'contract' | 'legal') =>
     formTemplates.find(template => template.type === type);
 
+  // ============= Validation =============
   const validateForm = (): boolean => {
     const newErrors: string[] = [];
 
-    // Only admins must choose from the list
     if (isAdmin && !formData.agentId) {
-      newErrors.push("Seleziona una Ragione Sociale (Agente)");
+      newErrors.push('Seleziona un Responsabile Territoriale');
     }
 
-   if (!toStr(formData.vatNumber).trim()) newErrors.push("Partita IVA is required");
-if (!toStr(formData.address).trim()) newErrors.push("Indirizzo is required");
-if (!toStr(formData.city).trim()) newErrors.push("Città is required");
-if (!toStr(formData.postalCode).trim()) newErrors.push("CAP is required");
-if (!toStr(formData.province).trim()) newErrors.push("Provincia is required");
-;
+    if (!toStr(formData.vatNumber).trim()) newErrors.push('Partita IVA is required');
+    if (!toStr(formData.address).trim()) newErrors.push('Indirizzo is required');
+    if (!toStr(formData.city).trim()) newErrors.push('Città is required');
+    if (!toStr(formData.postalCode).trim()) newErrors.push('CAP is required');
+    if (!toStr(formData.province).trim()) newErrors.push('Provincia is required');
+
     if (!formData.agreedCommission || formData.agreedCommission <= 0) {
-      newErrors.push("Competenze concordate is required and must be greater than 0");
+      newErrors.push('Competenze concordate is required and must be greater than 0');
     }
     if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.push("Please enter a valid email address");
+      newErrors.push('Please enter a valid email address');
     }
     if (formData.pec && !/\S+@\S+\.\S+/.test(formData.pec)) {
-      newErrors.push("Please enter a valid PEC address");
+      newErrors.push('Please enter a valid PEC address');
     }
 
     setErrors(newErrors);
     return newErrors.length === 0;
   };
 
+  // ============= Submit =============
   const handleSubmit = async (e: React.MouseEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -263,10 +353,7 @@ if (!toStr(formData.province).trim()) newErrors.push("Provincia is required");
     setSuccessMessage('');
 
     try {
-      // Ensure businessName is set (last safety)
-      const effectiveBusinessName =
-  toStr(formData.businessName).trim() || accountDisplayName || '';
-
+      const effectiveBusinessName = toStr(formData.businessName).trim() || accountDisplayName || '';
 
       const formDataToSend = new FormData();
       Object.entries({ ...formData, businessName: effectiveBusinessName }).forEach(([key, value]) => {
@@ -415,21 +502,21 @@ if (!toStr(formData.province).trim()) newErrors.push("Provincia is required");
                 >
                   Carica Modulo Contratto Sportello
                 </label>
-                {getAvailableTemplate('contract') && (
-                  <span
-                    style={{
-                      color: '#28a745',
-                      fontSize: '12px',
-                      marginLeft: '12px',
-                      backgroundColor: '#d4edda',
-                      padding: '2px 8px',
-                      borderRadius: '12px',
-                      fontWeight: '500'
-                    }}
-                  >
-                    ✓ Disponibile
-                  </span>
-                )}
+                {/* CORRECT */}
+{getAvailableTemplate('contract') && (
+  <span style={{
+    color: '#28a745',
+    fontSize: '12px',
+    marginLeft: '12px',
+    backgroundColor: '#d4edda',
+    padding: '2px 8px',
+    borderRadius: '12px',
+    fontWeight: '500'
+  }}>
+    ✓ Disponibile
+  </span>
+)}
+
               </div>
               <input
                 type="file"
@@ -463,17 +550,7 @@ if (!toStr(formData.province).trim()) newErrors.push("Provincia is required");
                   width: '100%'
                 }}
               >
-                {isUploadingTemplate ? (
-                  <span>
-                    <span style={{ marginRight: '8px' }}>⏳</span>
-                    Caricamento...
-                  </span>
-                ) : (
-                  <span>
-                    <span style={{ marginRight: '8px' }}>📤</span>
-                    Carica Contratto
-                  </span>
-                )}
+                {isUploadingTemplate ? '⏳ Caricamento...' : '📤 Carica Contratto'}
               </button>
             </div>
 
@@ -500,21 +577,20 @@ if (!toStr(formData.province).trim()) newErrors.push("Provincia is required");
                 >
                   Carica Documento Legale Sportello
                 </label>
-                {getAvailableTemplate('legal') && (
-                  <span
-                    style={{
-                      color: '#28a745',
-                      fontSize: '12px',
-                      marginLeft: '12px',
-                      backgroundColor: '#d4edda',
-                      padding: '2px 8px',
-                      borderRadius: '12px',
-                      fontWeight: '500'
-                    }}
-                  >
-                    ✓ Disponibile
-                  </span>
-                )}
+                {getAvailableTemplate('contract') && (
+  <span style={{
+    color: '#28a745',
+    fontSize: '12px',
+    marginLeft: '12px',
+    backgroundColor: '#d4edda',
+    padding: '2px 8px',
+    borderRadius: '12px',
+    fontWeight: '500'
+  }}>
+    ✓ Disponibile
+  </span>
+)}
+
               </div>
               <input
                 type="file"
@@ -548,17 +624,7 @@ if (!toStr(formData.province).trim()) newErrors.push("Provincia is required");
                   width: '100%'
                 }}
               >
-                {isUploadingTemplate ? (
-                  <span>
-                    <span style={{ marginRight: '8px' }}>⏳</span>
-                    Caricamento...
-                  </span>
-                ) : (
-                  <span>
-                    <span style={{ marginRight: '8px' }}>📤</span>
-                    Carica Documento
-                  </span>
-                )}
+                {isUploadingTemplate ? '⏳ Caricamento...' : '📤 Carica Documento'}
               </button>
             </div>
           </div>
@@ -593,96 +659,26 @@ if (!toStr(formData.province).trim()) newErrors.push("Provincia is required");
             </h3>
           </div>
 
-          <p style={{ marginBottom: '20px', color: '#495057', fontSize: '14px', lineHeight: '1.5' }}>
-            Scarica i moduli necessari per completare la procedura di creazione Sportello Lavoro.
-          </p>
-
           <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
             <button
               type="button"
               onClick={() => handleDownloadTemplate('contract')}
               disabled={!getAvailableTemplate('contract')}
-              style={{
-                backgroundColor: getAvailableTemplate('contract') ? '#17a2b8' : '#6c757d',
-                color: 'white',
-                padding: '14px 24px',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: getAvailableTemplate('contract') ? 'pointer' : 'not-allowed',
-                fontSize: '14px',
-                fontWeight: '600',
-                transition: 'all 0.3s ease',
-                boxShadow: getAvailableTemplate('contract') ? '0 2px 4px rgba(23, 162, 184, 0.3)' : 'none',
-                minWidth: '220px'
-              }}
-              onMouseOver={(e) => {
-                if (getAvailableTemplate('contract')) {
-                  e.currentTarget.style.backgroundColor = '#138496';
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                }
-              }}
-              onMouseOut={(e) => {
-                if (getAvailableTemplate('contract')) {
-                  e.currentTarget.style.backgroundColor = '#17a2b8';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                }
-              }}
+              className="submit-button"
+              style={{ minWidth: 220 }}
             >
               📄 Scarica Contratto Sportello
             </button>
-
             <button
               type="button"
               onClick={() => handleDownloadTemplate('legal')}
               disabled={!getAvailableTemplate('legal')}
-              style={{
-                backgroundColor: getAvailableTemplate('legal') ? '#28a745' : '#6c757d',
-                color: 'white',
-                padding: '14px 24px',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: getAvailableTemplate('legal') ? 'pointer' : 'not-allowed',
-                fontSize: '14px',
-                fontWeight: '600',
-                transition: 'all 0.3s ease',
-                boxShadow: getAvailableTemplate('legal') ? '0 2px 4px rgba(40, 167, 69, 0.3)' : 'none',
-                minWidth: '220px'
-              }}
-              onMouseOver={(e) => {
-                if (getAvailableTemplate('legal')) {
-                  e.currentTarget.style.backgroundColor = '#218838';
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                }
-              }}
-              onMouseOut={(e) => {
-                if (getAvailableTemplate('legal')) {
-                  e.currentTarget.style.backgroundColor = '#28a745';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                }
-              }}
+              className="submit-button"
+              style={{ minWidth: 220 }}
             >
               📋 Scarica Documento Legale
             </button>
           </div>
-
-          {(!getAvailableTemplate('contract') || !getAvailableTemplate('legal')) && (
-            <div
-              style={{
-                backgroundColor: '#fff3cd',
-                border: '1px solid #ffeaa7',
-                color: '#856404',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                marginTop: '16px',
-                fontSize: '13px',
-                display: 'flex',
-                alignItems: 'center'
-              }}
-            >
-              <span style={{ marginRight: '8px', fontSize: '16px' }}>⚠️</span>
-              Alcuni moduli potrebbero non essere ancora disponibili. Contatta l'amministratore.
-            </div>
-          )}
         </div>
       )}
 
@@ -731,12 +727,10 @@ if (!toStr(formData.province).trim()) newErrors.push("Provincia is required");
 
           <div className="form-row">
             <div className="form-group">
-              <label htmlFor="agentId">
-                {isResponsabile ? 'Responsabile Territoriale *' : 'Ragione Sociale *'}
-              </label>
+              <label htmlFor="agentId">Responsabile Territoriale *</label>
 
               {isAdmin ? (
-                // Admin: dropdown list
+                // Admin: dropdown list of Responsabili Territoriali
                 <select
                   id="agentId"
                   name="agentId"
@@ -746,7 +740,7 @@ if (!toStr(formData.province).trim()) newErrors.push("Provincia is required");
                   disabled={isSubmitting || isLoadingAgents}
                 >
                   <option value="">
-                    {isLoadingAgents ? 'Caricamento agenti…' : 'Seleziona un agente'}
+                    {isLoadingAgents ? 'Caricamento responsabili…' : 'Seleziona un responsabile'}
                   </option>
                   {agents.map((a) => (
                     <option key={a._id} value={a._id}>
@@ -755,7 +749,7 @@ if (!toStr(formData.province).trim()) newErrors.push("Provincia is required");
                   ))}
                 </select>
               ) : (
-                // Responsabile: read-only with their own name
+                // Responsabile: read-only, bound to current user
                 <>
                   <input
                     type="text"
@@ -763,7 +757,6 @@ if (!toStr(formData.province).trim()) newErrors.push("Provincia is required");
                     readOnly
                     style={{ background: '#f6f7f9', cursor: 'not-allowed' }}
                   />
-                  {/* Keep agentId in a hidden input so it’s submitted */}
                   <input type="hidden" name="agentId" value={formData.agentId} />
                 </>
               )}

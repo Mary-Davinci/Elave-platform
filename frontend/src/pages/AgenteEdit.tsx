@@ -59,9 +59,7 @@ const AgenteEdit: React.FC = () => {
   const contractTemplateRef = useRef<HTMLInputElement>(null);
   const legalTemplateRef = useRef<HTMLInputElement>(null);
 
-  // helpers
-  const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-  const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
+
 
   // Fetch agente + templates
   useEffect(() => {

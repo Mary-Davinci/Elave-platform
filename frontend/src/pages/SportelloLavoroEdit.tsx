@@ -75,7 +75,7 @@ const SportelloLavoroEdit: React.FC = () => {
   const role = (user?.role || '').toLowerCase();
   const isAdmin = role === 'admin' || role === 'super_admin';
   const isResponsabile = role === 'responsabile_territoriale';
-  const isSportelloLike = role === 'sportello_lavoro' || isResponsabile || isAdmin;
+  //const isSportelloLike = role === 'sportello_lavoro' || isResponsabile || isAdmin;
 
   // ---- Load minimal agents for select ----
   useEffect(() => {

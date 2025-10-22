@@ -65,7 +65,7 @@ const UserEdit: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [pwError, setPwError] = useState<string | null>(null);
 
-  const isAdmin = me?.role === 'admin' || me?.role === 'super_admin';
+  //const isAdmin = me?.role === 'admin' || me?.role === 'super_admin';
   const myLevel = roleLevel[(me?.role as Role) ?? 'segnalatori'];
 
   const canEditRole = (target: Role) => {

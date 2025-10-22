@@ -10,9 +10,9 @@ const API_BASE_URL =
 const SportelloLavoro: React.FC = () => {
   const { user } = useAuth();
 
-  const [agents, setAgents] = useState<MinimalAgent[]>([]);
-  const [isLoadingAgents, setIsLoadingAgents] = useState(false);
-  const [agentsError, setAgentsError] = useState<string | null>(null);
+  const [agents] = useState<MinimalAgent[]>([]);
+  const [isLoadingAgents] = useState(false);
+  const [agentsError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<SportelloLavoroFormData>({
     agentName: '',

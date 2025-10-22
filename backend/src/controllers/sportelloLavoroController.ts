@@ -140,9 +140,15 @@ export const createSportelloLavoro: CustomRequestHandler = async (req, res) => {
         return res.status(400).json({ error: err.message });
       }
 
-      const { 
+      // ✅ Narrow user for this callback scope
+      const user = (req as AuthenticatedRequest).user;
+      if (!user) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+
+      const {
         agentName,
-        businessName, 
+        businessName,
         vatNumber,
         address,
         city,
@@ -151,25 +157,41 @@ export const createSportelloLavoro: CustomRequestHandler = async (req, res) => {
         agreedCommission,
         email,
         pec
-      } = req.body;
+      } = req.body as {
+        agentName?: string;
+        businessName?: string;
+        vatNumber?: string;
+        address?: string;
+        city?: string;
+        postalCode?: string;
+        province?: string;
+        agreedCommission?: string;
+        email?: string;
+        pec?: string;
+      };
+
+      const resolvedBusinessName =
+        (businessName && businessName.trim()) ||
+        (user.organization && user.organization.trim()) ||
+        [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
+        user.username ||
+        (user.email ? user.email.split("@")[0] : "") ||
+        "";
+
+      const commissionNum = Number(agreedCommission);
 
       const errors: string[] = [];
-      if (!businessName) errors.push("Ragione Sociale is required");
+      if (!resolvedBusinessName) errors.push("Ragione Sociale is required");
       if (!vatNumber) errors.push("Partita IVA is required");
       if (!address) errors.push("Indirizzo is required");
       if (!city) errors.push("Città is required");
       if (!postalCode) errors.push("CAP is required");
       if (!province) errors.push("Provincia is required");
-      if (!agreedCommission || isNaN(parseFloat(agreedCommission))) {
+      if (!Number.isFinite(commissionNum)) {
         errors.push("Competenze concordate is required and must be a valid number");
       }
-      
       if (errors.length > 0) {
         return res.status(400).json({ errors });
-      }
-
-      if (!req.user) {
-        return res.status(401).json({ message: 'User not authenticated' }); 
       }
 
       try {
@@ -177,78 +199,78 @@ export const createSportelloLavoro: CustomRequestHandler = async (req, res) => {
         const signedContractFile = files?.signedContractFile?.[0];
         const legalDocumentFile = files?.legalDocumentFile?.[0];
 
-        const isAutoApproved = ['admin', 'super_admin'].includes(req.user.role);
-        const needsApproval = ['responsabile_territoriale'].includes(req.user.role);
+        const isAutoApproved = ["admin", "super_admin"].includes(user.role);
+        const needsApproval = ["responsabile_territoriale"].includes(user.role);
 
         const newSportelloLavoro = new SportelloLavoro({
           agentName,
-          businessName, 
+          businessName: resolvedBusinessName,
           vatNumber,
           address,
           city,
           postalCode,
           province,
-          agreedCommission: parseFloat(agreedCommission),
-          email: email || '',
-          pec: pec || '',
-          signedContractFile: signedContractFile ? {
-            filename: signedContractFile.filename,
-            originalName: signedContractFile.originalname,
-            path: signedContractFile.path,
-            mimetype: signedContractFile.mimetype,
-            size: signedContractFile.size
-          } : undefined,
-          legalDocumentFile: legalDocumentFile ? {
-            filename: legalDocumentFile.filename,
-            originalName: legalDocumentFile.originalname,
-            path: legalDocumentFile.path,
-            mimetype: legalDocumentFile.mimetype,
-            size: legalDocumentFile.size
-          } : undefined,
-
-
-          // Approval logic
+          agreedCommission: commissionNum,
+          email: email || "",
+          pec: pec || "",
+          signedContractFile: signedContractFile
+            ? {
+                filename: signedContractFile.filename,
+                originalName: signedContractFile.originalname,
+                path: signedContractFile.path,
+                mimetype: signedContractFile.mimetype,
+                size: signedContractFile.size
+              }
+            : undefined,
+          legalDocumentFile: legalDocumentFile
+            ? {
+                filename: legalDocumentFile.filename,
+                originalName: legalDocumentFile.originalname,
+                path: legalDocumentFile.path,
+                mimetype: legalDocumentFile.mimetype,
+                size: legalDocumentFile.size
+              }
+            : undefined,
           isActive: isAutoApproved,
           isApproved: isAutoApproved,
           pendingApproval: needsApproval,
-          approvedBy: isAutoApproved ? req.user._id : undefined,
+          approvedBy: isAutoApproved ? user._id : undefined,
           approvedAt: isAutoApproved ? new Date() : undefined,
-          user: new mongoose.Types.ObjectId(req.user._id)
+          user: new mongoose.Types.ObjectId(user._id)
         });
 
         await newSportelloLavoro.save();
 
-        // Send notification if needs approval
         if (needsApproval) {
           await NotificationService.notifyAdminsOfPendingApproval({
-            title: 'New Sportello Lavoro Pending Approval',
-            message: `${req.user.firstName || req.user.username} created a new Sportello Lavoro "${businessName}" that needs approval.`,
-            type: 'sportello_pending',
-            entityId: (newSportelloLavoro._id as mongoose.Types.ObjectId).toString(), // Fix: Cast to ObjectId and convert to string
-            entityName: businessName,
-            createdBy: req.user._id.toString(),
-            createdByName: req.user.firstName ? `${req.user.firstName} ${req.user.lastName}` : req.user.username
+            title: "New Sportello Lavoro Pending Approval",
+            message: `${user.firstName || user.username} created a new Sportello Lavoro "${resolvedBusinessName}" that needs approval.`,
+            type: "sportello_pending",
+            entityId: (newSportelloLavoro._id as mongoose.Types.ObjectId).toString(),
+            entityName: resolvedBusinessName,
+            createdBy: user._id.toString(),
+            createdByName: user.firstName ? `${user.firstName} ${user.lastName}` : user.username
           });
         }
 
         const DashboardStats = require("../models/Dashboard").default;
         await DashboardStats.findOneAndUpdate(
-          { user: req.user._id },
+          { user: user._id },
           { $inc: { sportelloLavoro: 1 } },
           { new: true, upsert: true }
         );
 
         return res.status(201).json({
           ...newSportelloLavoro.toObject(),
-          message: needsApproval ? 'Sportello Lavoro created and submitted for approval' : 'Sportello Lavoro created successfully'
+          message: needsApproval
+            ? "Sportello Lavoro created and submitted for approval"
+            : "Sportello Lavoro created successfully"
         });
       } catch (saveError: any) {
         console.error("Create sportello lavoro error:", saveError);
-        
         if (saveError.code === 11000 && saveError.keyPattern && saveError.keyPattern.vatNumber) {
           return res.status(400).json({ error: "VAT number already exists" });
         }
-        
         return res.status(500).json({ error: "Server error" });
       }
     });
@@ -258,21 +280,28 @@ export const createSportelloLavoro: CustomRequestHandler = async (req, res) => {
   }
 };
 
+
 export const updateSportelloLavoro: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: "User not authenticated" });
     }
     const { id } = req.params;
-    
+
     upload(req, res, async (err) => {
       if (err) {
         console.error("File upload error:", err);
         return res.status(400).json({ error: err.message });
       }
 
-      const { 
-        businessName, 
+      // ✅ Narrow user for this callback scope
+      const user = (req as AuthenticatedRequest).user;
+      if (!user) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+
+      const {
+        businessName,
         vatNumber,
         address,
         city,
@@ -281,40 +310,33 @@ export const updateSportelloLavoro: CustomRequestHandler = async (req, res) => {
         agreedCommission,
         email,
         pec
-      } = req.body;
+      } = req.body as any;
 
       const sportelloLavoro = await SportelloLavoro.findById(id);
-      
       if (!sportelloLavoro) {
         return res.status(404).json({ error: "Sportello Lavoro not found" });
       }
-      if (!req.user) {
-        return res.status(401).json({ message: 'Unauthorized' });
-      }
-    
-      if (req.user.role !== 'admin' && !sportelloLavoro.user.equals(req.user._id)) {
+
+      if (user.role !== "admin" && !sportelloLavoro.user.equals(user._id)) {
         return res.status(403).json({ error: "Access denied" });
       }
 
       const errors: string[] = [];
-      if (businessName === '') errors.push("Ragione Sociale cannot be empty");
-      if (vatNumber === '') errors.push("Partita IVA cannot be empty");
-      if (address === '') errors.push("Indirizzo cannot be empty");
-      if (city === '') errors.push("Città cannot be empty");
-      if (postalCode === '') errors.push("CAP cannot be empty");
-      if (province === '') errors.push("Provincia cannot be empty");
-
+      if (businessName === "") errors.push("Ragione Sociale cannot be empty");
+      if (vatNumber === "") errors.push("Partita IVA cannot be empty");
+      if (address === "") errors.push("Indirizzo cannot be empty");
+      if (city === "") errors.push("Città cannot be empty");
+      if (postalCode === "") errors.push("CAP cannot be empty");
+      if (province === "") errors.push("Provincia cannot be empty");
       if (errors.length > 0) {
         return res.status(400).json({ errors });
       }
 
       try {
-
         const files = req.files as MulterFiles | undefined;
         const signedContractFile = files?.signedContractFile?.[0];
         const legalDocumentFile = files?.legalDocumentFile?.[0];
 
-        
         if (businessName !== undefined) sportelloLavoro.businessName = businessName;
         if (vatNumber !== undefined) sportelloLavoro.vatNumber = vatNumber;
         if (address !== undefined) sportelloLavoro.address = address;
@@ -325,7 +347,6 @@ export const updateSportelloLavoro: CustomRequestHandler = async (req, res) => {
         if (email !== undefined) sportelloLavoro.email = email;
         if (pec !== undefined) sportelloLavoro.pec = pec;
 
-        
         if (signedContractFile) {
           sportelloLavoro.signedContractFile = {
             filename: signedContractFile.filename,
@@ -335,7 +356,6 @@ export const updateSportelloLavoro: CustomRequestHandler = async (req, res) => {
             size: signedContractFile.size
           };
         }
-
         if (legalDocumentFile) {
           sportelloLavoro.legalDocumentFile = {
             filename: legalDocumentFile.filename,
@@ -347,16 +367,12 @@ export const updateSportelloLavoro: CustomRequestHandler = async (req, res) => {
         }
 
         await sportelloLavoro.save();
-
         return res.json(sportelloLavoro);
       } catch (updateError: any) {
         console.error("Update sportello lavoro error:", updateError);
-        
-        
         if (updateError.code === 11000 && updateError.keyPattern && updateError.keyPattern.vatNumber) {
           return res.status(400).json({ error: "VAT number already exists" });
         }
-        
         return res.status(500).json({ error: "Server error" });
       }
     });
@@ -365,6 +381,7 @@ export const updateSportelloLavoro: CustomRequestHandler = async (req, res) => {
     return res.status(500).json({ error: "Server error" });
   }
 };
+
 
 
 export const deleteSportelloLavoro: CustomRequestHandler = async (req, res) => {
@@ -421,6 +438,12 @@ export const uploadSportelloLavoroFromExcel: CustomRequestHandler = async (req, 
         return res.status(400).json({ error: err.message });
       }
 
+      // ✅ Narrow user for this callback scope
+      const user = (req as AuthenticatedRequest).user;
+      if (!user) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+
       const files = req.files as MulterFiles | undefined;
       const file = files?.file?.[0];
 
@@ -429,100 +452,69 @@ export const uploadSportelloLavoroFromExcel: CustomRequestHandler = async (req, 
       }
 
       try {
-        console.log("File uploaded successfully:", file.path);
-       
         const workbook = xlsx.readFile(file.path);
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const data = xlsx.utils.sheet_to_json(worksheet);
 
-        console.log("Excel data parsed. Row count:", data.length);
-        console.log("Sample row:", data.length > 0 ? JSON.stringify(data[0]) : "No data");
-
         if (!data || data.length === 0) {
           fs.unlinkSync(file.path);
           return res.status(400).json({ error: "Excel file has no data" });
         }
-        if (!req.user) {
-          return res.status(401).json({ message: 'Unauthorized' });
-        }
 
-        const sportelloLavoro: any[] = [];
+        const created: any[] = [];
         const errors: string[] = [];
 
         for (const [index, row] of (data as any[]).entries()) {
           try {
-            console.log(`Processing row ${index + 1}:`, JSON.stringify(row));
-            
             const sportelloLavoroData = {
               businessName: row['Ragione Sociale'] || '',
               vatNumber: row['Partita IVA'] || '',
               address: row['Indirizzo'] || '',
-              city: row['Città'] || row['Citta\''] || '',
+              city: row['Città'] || row["Citta'"] || '',
               postalCode: row['CAP'] || '',
               province: row['Provincia'] || '',
               agreedCommission: parseFloat(String(row['Competenze concordate al %'] || '0')) || 0,
               email: row['Email'] || '',
               pec: row['PEC'] || '',
-              user: req.user._id
+              user: user._id
             };
 
-            if (!sportelloLavoroData.businessName) {
-              throw new Error("Ragione Sociale is required");
-            }
-            if (!sportelloLavoroData.vatNumber) {
-              throw new Error("Partita IVA is required");
-            }
-            if (!sportelloLavoroData.address) {
-              throw new Error("Indirizzo is required");
-            }
-            if (!sportelloLavoroData.city) {
-              throw new Error("Città is required");
-            }
-            if (!sportelloLavoroData.postalCode) {
-              throw new Error("CAP is required");
-            }
-            if (!sportelloLavoroData.province) {
-              throw new Error("Provincia is required");
-            }
+            if (!sportelloLavoroData.businessName) throw new Error("Ragione Sociale is required");
+            if (!sportelloLavoroData.vatNumber) throw new Error("Partita IVA is required");
+            if (!sportelloLavoroData.address) throw new Error("Indirizzo is required");
+            if (!sportelloLavoroData.city) throw new Error("Città is required");
+            if (!sportelloLavoroData.postalCode) throw new Error("CAP is required");
+            if (!sportelloLavoroData.province) throw new Error("Provincia is required");
             if (!sportelloLavoroData.agreedCommission || sportelloLavoroData.agreedCommission <= 0) {
               throw new Error("Competenze concordate is required and must be greater than 0");
             }
 
-            console.log(`Saving sportello lavoro: ${sportelloLavoroData.businessName}`);
-            
-            const sportelloLavoroRecord = new SportelloLavoro(sportelloLavoroData);
-            await sportelloLavoroRecord.save();
-            sportelloLavoro.push(sportelloLavoroRecord);
-            console.log(`Sportello Lavoro saved successfully: ${sportelloLavoroRecord._id}`);
+            const rec = new SportelloLavoro(sportelloLavoroData);
+            await rec.save();
+            created.push(rec);
           } catch (rowError: any) {
-            console.error(`Error processing row ${index + 2}:`, rowError);
             errors.push(`Row ${index + 2}: ${rowError.message}`);
           }
         }
 
         fs.unlinkSync(file.path);
-        console.log("Uploaded file cleaned up");
 
-        if (sportelloLavoro.length > 0) {
+        if (created.length > 0) {
           const DashboardStats = require("../models/Dashboard").default;
           await DashboardStats.findOneAndUpdate(
-            { user: req.user._id },
-            { $inc: { sportelloLavoro: sportelloLavoro.length } },
+            { user: user._id },
+            { $inc: { sportelloLavoro: created.length } },
             { new: true, upsert: true }
           );
-          console.log("Dashboard stats updated");
         }
 
-
-        console.log(`Import complete: ${sportelloLavoro.length} sportello lavoro created, ${errors.length} errors`);
         return res.status(201).json({
-          message: `${sportelloLavoro.length} sportello lavoro imported successfully${errors.length > 0 ? ` with ${errors.length} errors` : ''}`,
-          sportelloLavoro,
+          message: `${created.length} sportello lavoro imported successfully${errors.length > 0 ? ` with ${errors.length} errors` : ''}`,
+          sportelloLavoro: created,
           errors: errors.length > 0 ? errors : undefined
         });
       } catch (processError: any) {
-
         if (file && fs.existsSync(file.path)) {
           fs.unlinkSync(file.path);
         }

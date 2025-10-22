@@ -7,6 +7,10 @@ const API_BASE_URL =
   (import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000')
     .replace(/\/+$/, '');
 
+    // put this near the top of the file, above the component
+const toStr = (v: unknown): string =>
+  typeof v === 'string' ? v : v == null ? '' : String(v);
+
 const SportelloLavoro: React.FC = () => {
   const { user } = useAuth();
 
@@ -58,19 +62,17 @@ const SportelloLavoro: React.FC = () => {
     (user?.username?.trim()) ||
     (user?.email ? user.email.split('@')[0] : '') || '';
 
-  // Load agents
-// Auto-fill for Responsabile: lock agent to current user
-useEffect(() => {
-  if (!user || !isResponsabile) return;
+  // Auto-fill for Responsabile: lock agent to current user + default businessName/agentName
+  useEffect(() => {
+    if (!user || !isResponsabile) return;
+    setFormData(prev => ({
+      ...prev,
+      agentId: user._id || prev.agentId,
+     businessName: toStr(prev.businessName).trim() ? toStr(prev.businessName) : accountDisplayName,
+agentName: toStr(prev.agentName).trim() ? toStr(prev.agentName) : accountDisplayName,
 
-  setFormData(prev => ({
-    ...prev,
-    agentId: user._id || prev.agentId,         // backend can still receive agentId
-  
-    
-  }));
-}, [user, isResponsabile, accountDisplayName]);
-
+    }));
+  }, [user, isResponsabile, accountDisplayName]);
 
   const handleDeleteFile = (type: 'contract' | 'legal') => {
     if (type === 'contract') {
@@ -224,37 +226,36 @@ useEffect(() => {
   const getAvailableTemplate = (type: 'contract' | 'legal') =>
     formTemplates.find(template => template.type === type);
 
-const validateForm = (): boolean => {
-  const newErrors: string[] = [];
+  const validateForm = (): boolean => {
+    const newErrors: string[] = [];
 
-  // Only admins must choose from the list
-  if (isAdmin && !formData.agentId) {
-    newErrors.push("Seleziona una Ragione Sociale (Agente)");
-  }
+    // Only admins must choose from the list
+    if (isAdmin && !formData.agentId) {
+      newErrors.push("Seleziona una Ragione Sociale (Agente)");
+    }
 
-  if (!formData.vatNumber.trim()) newErrors.push("Partita IVA is required");
-  if (!formData.address.trim()) newErrors.push("Indirizzo is required");
-  if (!formData.city.trim()) newErrors.push("Città is required");
-  if (!formData.postalCode.trim()) newErrors.push("CAP is required");
-  if (!formData.province.trim()) newErrors.push("Provincia is required");
-  if (!formData.agreedCommission || formData.agreedCommission <= 0) {
-    newErrors.push("Competenze concordate is required and must be greater than 0");
-  }
-  if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) {
-    newErrors.push("Please enter a valid email address");
-  }
-  if (formData.pec && !/\S+@\S+\.\S+/.test(formData.pec)) {
-    newErrors.push("Please enter a valid PEC address");
-  }
+   if (!toStr(formData.vatNumber).trim()) newErrors.push("Partita IVA is required");
+if (!toStr(formData.address).trim()) newErrors.push("Indirizzo is required");
+if (!toStr(formData.city).trim()) newErrors.push("Città is required");
+if (!toStr(formData.postalCode).trim()) newErrors.push("CAP is required");
+if (!toStr(formData.province).trim()) newErrors.push("Provincia is required");
+;
+    if (!formData.agreedCommission || formData.agreedCommission <= 0) {
+      newErrors.push("Competenze concordate is required and must be greater than 0");
+    }
+    if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.push("Please enter a valid email address");
+    }
+    if (formData.pec && !/\S+@\S+\.\S+/.test(formData.pec)) {
+      newErrors.push("Please enter a valid PEC address");
+    }
 
-  setErrors(newErrors);
-  return newErrors.length === 0;
-};
-
+    setErrors(newErrors);
+    return newErrors.length === 0;
+  };
 
   const handleSubmit = async (e: React.MouseEvent) => {
     e.preventDefault();
-
     if (!validateForm()) return;
 
     setIsSubmitting(true);
@@ -262,9 +263,13 @@ const validateForm = (): boolean => {
     setSuccessMessage('');
 
     try {
-      const formDataToSend = new FormData();
+      // Ensure businessName is set (last safety)
+      const effectiveBusinessName =
+  toStr(formData.businessName).trim() || accountDisplayName || '';
 
-      Object.entries(formData).forEach(([key, value]) => {
+
+      const formDataToSend = new FormData();
+      Object.entries({ ...formData, businessName: effectiveBusinessName }).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
           formDataToSend.append(key, String(value));
         }
@@ -726,50 +731,49 @@ const validateForm = (): boolean => {
 
           <div className="form-row">
             <div className="form-group">
-  <label htmlFor="agentId">
-    {isResponsabile ? 'Responsabile Territoriale *' : 'Ragione Sociale *'}
-  </label>
+              <label htmlFor="agentId">
+                {isResponsabile ? 'Responsabile Territoriale *' : 'Ragione Sociale *'}
+              </label>
 
-  {isAdmin ? (
-    // Admin: dropdown list
-    <select
-      id="agentId"
-      name="agentId"
-      value={formData.agentId || ''}
-      onChange={handleAgentSelect}
-      required
-      disabled={isSubmitting || isLoadingAgents}
-    >
-      <option value="">
-        {isLoadingAgents ? 'Caricamento agenti…' : 'Seleziona un agente'}
-      </option>
-      {agents.map((a) => (
-        <option key={a._id} value={a._id}>
-          {a.businessName}
-        </option>
-      ))}
-    </select>
-  ) : (
-    // Responsabile: read-only with their own name
-    <>
-      <input
-        type="text"
-        value={accountDisplayName}
-        readOnly
-        style={{ background: '#f6f7f9', cursor: 'not-allowed' }}
-      />
-      {/* Keep agentId in a hidden input so it’s submitted */}
-      <input type="hidden" name="agentId" value={formData.agentId} />
-    </>
-  )}
+              {isAdmin ? (
+                // Admin: dropdown list
+                <select
+                  id="agentId"
+                  name="agentId"
+                  value={formData.agentId || ''}
+                  onChange={handleAgentSelect}
+                  required
+                  disabled={isSubmitting || isLoadingAgents}
+                >
+                  <option value="">
+                    {isLoadingAgents ? 'Caricamento agenti…' : 'Seleziona un agente'}
+                  </option>
+                  {agents.map((a) => (
+                    <option key={a._id} value={a._id}>
+                      {a.businessName}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                // Responsabile: read-only with their own name
+                <>
+                  <input
+                    type="text"
+                    value={accountDisplayName}
+                    readOnly
+                    style={{ background: '#f6f7f9', cursor: 'not-allowed' }}
+                  />
+                  {/* Keep agentId in a hidden input so it’s submitted */}
+                  <input type="hidden" name="agentId" value={formData.agentId} />
+                </>
+              )}
 
-  {agentsError && isAdmin && (
-    <small style={{ color: '#b00020', display: 'block', marginTop: 6 }}>
-      {agentsError}
-    </small>
-  )}
-</div>
-
+              {agentsError && isAdmin && (
+                <small style={{ color: '#b00020', display: 'block', marginTop: 6 }}>
+                  {agentsError}
+                </small>
+              )}
+            </div>
 
             <div className="form-group">
               <label htmlFor="agentName">Nome Consulente *</label>

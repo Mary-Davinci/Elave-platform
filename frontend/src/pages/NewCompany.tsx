@@ -2,7 +2,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createCompany } from '../services/companyService';
-import api from '../services/api';
 import { CompanyFormData } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
 import '../styles/NewCompany.css';
@@ -12,9 +11,6 @@ const NewCompany: React.FC = () => {
   const { isAuthenticated , user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [managedSportelli, setManagedSportelli] = useState<any[]>([]);
-  const [managedLoading, setManagedLoading] = useState(false);
-  const [managedError, setManagedError] = useState<string | null>(null);
 
   // Form state matching your interfaces
 const [formData, setFormData] = useState<CompanyFormData>({

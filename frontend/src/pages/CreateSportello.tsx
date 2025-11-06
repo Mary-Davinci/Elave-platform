@@ -353,7 +353,13 @@ useEffect(() => {
     setSuccessMessage('');
 
     try {
-      const effectiveBusinessName = toStr(formData.businessName).trim() || accountDisplayName || '';
+      // Prefer explicit businessName; if missing use agentName (nome consulente) as ragione sociale;
+      // only fallback to the responsabile's display name as last resort.
+      const effectiveBusinessName =
+        toStr(formData.businessName).trim() ||
+        toStr(formData.agentName).trim() ||
+        accountDisplayName ||
+        '';
 
       const formDataToSend = new FormData();
       Object.entries({ ...formData, businessName: effectiveBusinessName }).forEach(([key, value]) => {

@@ -447,7 +447,7 @@ const SportelloLavoroList: React.FC = () => {
                 {filteredSportelloLavoros.map((sportello) => (
                   <tr key={sportello._id}>
                     <td>{new Date(sportello.createdAt).toLocaleDateString()}</td>
-                    <td>{sportello.businessName}</td>
+                    <td>{sportello.agentName || sportello.businessName}</td>
                     <td>{sportello.vatNumber}</td>
                     <td>{sportello.city}</td>
                     <td>{sportello.province}</td>

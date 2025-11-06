@@ -128,6 +128,7 @@ export interface CompanyFormData {
     pec?: string;
     referent?: string;
      laborConsultant?: string;
+    laborConsultantId?: string;
   procurer?: string;
   };
   contractDetails?: {

@@ -161,9 +161,21 @@ export const getManagedUsers: CustomRequestHandler = async (req, res) => {
       return res.json(users);
     }
 
+    // First try to return users explicitly managed by this territorial manager
     const users = await User.find({ managedBy: req.user._id })
       .select('-password')
       .sort({ createdAt: -1 });
+
+    // If there are no managed users and the caller is a territorial manager,
+    // fallback to returning active sportello_lavoro users so the UI can show
+    // at least the currently active sportelli in the dropdown.
+    if ((!users || users.length === 0) && req.user.role === 'responsabile_territoriale') {
+      const fallback = await User.find({ role: 'sportello_lavoro', isActive: true })
+        .select('-password')
+        .sort({ createdAt: -1 });
+
+      return res.json(fallback);
+    }
 
     return res.json(users);
   } catch (error) {

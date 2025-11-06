@@ -2,15 +2,19 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createCompany } from '../services/companyService';
+import api from '../services/api';
 import { CompanyFormData } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
 import '../styles/NewCompany.css';
 
 const NewCompany: React.FC = () => {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated , user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [managedSportelli, setManagedSportelli] = useState<any[]>([]);
+  const [managedLoading, setManagedLoading] = useState(false);
+  const [managedError, setManagedError] = useState<string | null>(null);
 
   // Form state matching your interfaces
 const [formData, setFormData] = useState<CompanyFormData>({
@@ -59,12 +63,26 @@ const [formData, setFormData] = useState<CompanyFormData>({
   territorialManager: '', // NEW
 });
 
+
   // Redirect if not authenticated
   React.useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login');
     }
   }, [isAuthenticated, navigate]);
+
+  // Inserisce in automatico il nome del responsabile territoriale.
+  React.useEffect(() => {
+    if (user && user.role === 'responsabile_territoriale') {
+      const name = (user.firstName || user.username || '').trim() + (user.lastName ? ` ${user.lastName}` : '');
+      setFormData(prev => ({
+        ...prev,
+        territorialManager: name.trim()
+      }));
+    }
+  }, [user]);
+
+ 
 
   // Handle form input changes
   const handleChange = (
@@ -137,6 +155,7 @@ const [formData, setFormData] = useState<CompanyFormData>({
     pec: formData.contactInfo?.pec?.trim(),
     referent: formData.contactInfo?.referent?.trim(),
     laborConsultant: formData.contactInfo?.laborConsultant?.trim(),
+    laborConsultantId: formData.contactInfo?.laborConsultantId || '',
     procurer: formData.contactInfo?.procurer?.trim(),
   },
 
@@ -368,9 +387,10 @@ const [formData, setFormData] = useState<CompanyFormData>({
       <label>Consulente del Lavoro</label>
       <input
         type="text"
-        name="contactInfo.laborConsultant" // UNIQUE
+        name="contactInfo.laborConsultant"
         value={formData.contactInfo?.laborConsultant}
         onChange={handleChange}
+        placeholder="Inserisci sportello lavoro"
         className="form-control"
       />
     </div>

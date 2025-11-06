@@ -55,6 +55,7 @@ export const createCompany = async (companyData: CompanyFormData): Promise<Compa
         referent: companyData.contactInfo?.referent?.trim() || '',
         // NEW fields (kept if present)
         laborConsultant: companyData.contactInfo?.laborConsultant?.trim() || '',
+        laborConsultantId: companyData.contactInfo?.laborConsultantId || '',
         procurer: companyData.contactInfo?.procurer?.trim() || '',
       },
 
@@ -123,6 +124,9 @@ export const updateCompany = async (id: string, companyData: Partial<CompanyForm
         email: companyData.contactInfo.email?.trim(),
         pec: companyData.contactInfo.pec?.trim(),
         referent: companyData.contactInfo.referent?.trim()
+      ,
+        laborConsultant: companyData.contactInfo.laborConsultant?.trim(),
+        laborConsultantId: companyData.contactInfo.laborConsultantId
       } : undefined,
       
 

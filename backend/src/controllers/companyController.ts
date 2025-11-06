@@ -140,6 +140,11 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
     const needsApproval = ['responsabile_territoriale', 'sportello_lavoro'].includes(req.user.role);
 
 
+    // sanitize contactInfo: remove empty laborConsultantId to avoid ObjectId cast errors
+    if (contactInfo && contactInfo.laborConsultantId === '') {
+      delete contactInfo.laborConsultantId;
+    }
+
     const newCompany = new Company({
       businessName, 
       companyName: companyName || businessName,
@@ -263,6 +268,11 @@ export const updateCompany: CustomRequestHandler = async (req, res) => {
     }
 
     if (contactInfo) {
+      // sanitize incoming contactInfo: remove empty laborConsultantId
+      if (contactInfo.laborConsultantId === '') {
+        delete contactInfo.laborConsultantId;
+      }
+
       company.contactInfo = { 
         ...company.contactInfo, 
         ...contactInfo 

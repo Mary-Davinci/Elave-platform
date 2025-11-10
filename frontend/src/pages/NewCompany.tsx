@@ -1,16 +1,20 @@
 // src/pages/NewCompany.tsx
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createCompany } from '../services/companyService';
 import { CompanyFormData } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
 import '../styles/NewCompany.css';
+import sportelloLavoroService, { SportelloLavoroResponse } from '../services/sportelloServices';
 
 const NewCompany: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated , user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [consultants, setConsultants] = useState<SportelloLavoroResponse[]>([]);
+  const [consultantsLoading, setConsultantsLoading] = useState(false);
+  const [consultantsError, setConsultantsError] = useState<string | null>(null);
 
   // Form state matching your interfaces
 const [formData, setFormData] = useState<CompanyFormData>({
@@ -40,6 +44,7 @@ const [formData, setFormData] = useState<CompanyFormData>({
     pec: '',
     referent: '',
     laborConsultant: '', // NEW
+    laborConsultantId: '', // NEW
     procurer: '',        // NEW
   },
 
@@ -77,6 +82,24 @@ const [formData, setFormData] = useState<CompanyFormData>({
       }));
     }
   }, [user]);
+
+  // carica i consulenti del lavoro , solo quelli attivi!!
+  useEffect(() => {
+    const loadConsultants = async () => {
+      try {
+        setConsultantsLoading(true);
+        setConsultantsError(null);
+        const list = await sportelloLavoroService.getAllSportelloLavoro();
+        const active = (list || []).filter((c) => c.isActive);
+        setConsultants(active);
+      } catch (e: any) {
+        setConsultantsError(e?.message || 'Impossibile caricare i consulenti del lavoro');
+      } finally {
+        setConsultantsLoading(false);
+      }
+    };
+    loadConsultants();
+  }, []);
 
  
 
@@ -381,14 +404,39 @@ const [formData, setFormData] = useState<CompanyFormData>({
 
     <div className="form-group">
       <label>Consulente del Lavoro</label>
-      <input
-        type="text"
-        name="contactInfo.laborConsultant"
-        value={formData.contactInfo?.laborConsultant}
-        onChange={handleChange}
-        placeholder="Inserisci sportello lavoro"
+      <select
+        name="contactInfo.laborConsultantId"
+        value={formData.contactInfo?.laborConsultantId || ''}
+        onChange={(e) => {
+          const selectedId = e.target.value;
+          const selected = consultants.find(c => c._id === selectedId);
+          const label = selected ? (selected.businessName || selected.agentName || '') : '';
+          setFormData(prev => ({
+            ...prev,
+            contactInfo: {
+              ...prev.contactInfo,
+              laborConsultantId: selectedId,
+              laborConsultant: label,
+            }
+          }));
+        }}
         className="form-control"
-      />
+      >
+        <option value="">-- Seleziona consulente --</option>
+        {consultantsLoading && <option value="" disabled>Caricamento in corso...</option>}
+        {!consultantsLoading && consultants.length === 0 && (
+          <option value="" disabled>Nessun consulente attivo trovato</option>
+        )}
+        {!consultantsLoading && consultants.map((c) => {
+          const label = c.businessName || c.agentName || 'Senza nome';
+          return (
+            <option key={c._id} value={c._id}>{label}</option>
+          );
+        })}
+      </select>
+      {consultantsError && (
+        <small style={{ color: 'red' }}>{consultantsError}</small>
+      )}
     </div>
 
     <div className="form-group">

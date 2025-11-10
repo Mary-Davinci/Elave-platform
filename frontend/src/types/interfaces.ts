@@ -84,6 +84,7 @@ export interface Company {
     email: string;
     pec: string;       // Certified email (PEC)
     referent: string;  // Contact person
+    laborConsultantId?: string;
   };
   contractDetails: {
     territorialManager: any;

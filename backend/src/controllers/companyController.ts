@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import Company from "../models/Company";
+import SportelloLavoro from "../models/sportello";
 import { CustomRequestHandler } from "../types/express";
 import mongoose from "mongoose";
 import multer from 'multer';
@@ -125,6 +126,25 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
       actuator,
       isActive 
     } = req.body;
+
+    // valida sportello lavoro se cè
+    if (contactInfo?.laborConsultantId) {
+      try {
+        const consultant = await SportelloLavoro.findById(contactInfo.laborConsultantId);
+        if (!consultant) {
+          return res.status(400).json({ error: 'Invalid laborConsultantId: consultant not found' });
+        }
+        // Solo il proprietario o admin possono selezionare il consulente
+        if (req.user.role !== 'admin' && req.user.role !== 'super_admin' && !consultant.user.equals(req.user._id)) {
+          return res.status(403).json({ error: 'You do not own the selected consultant' });
+        }
+        if (!consultant.isActive) {
+          return res.status(400).json({ error: 'Selected consultant is not active' });
+        }
+      } catch (e) {
+        return res.status(400).json({ error: 'Invalid laborConsultantId' });
+      }
+    }
 
 
     const errors: string[] = [];
@@ -268,7 +288,24 @@ export const updateCompany: CustomRequestHandler = async (req, res) => {
     }
 
     if (contactInfo) {
-      // sanitize incoming contactInfo: remove empty laborConsultantId
+      // Valida sportello lavoro
+      if (contactInfo.laborConsultantId) {
+        try {
+          const consultant = await SportelloLavoro.findById(contactInfo.laborConsultantId);
+          if (!consultant) {
+            return res.status(400).json({ error: 'Invalid laborConsultantId: consultant not found' });
+          }
+          if (req.user.role !== 'admin' && req.user.role !== 'super_admin' && !consultant.user.equals(req.user._id)) {
+            return res.status(403).json({ error: 'You do not own the selected consultant' });
+          }
+          if (!consultant.isActive) {
+            return res.status(400).json({ error: 'Selected consultant is not active' });
+          }
+        } catch (e) {
+          return res.status(400).json({ error: 'Invalid laborConsultantId' });
+        }
+      }
+      // pulisce contactInfo
       if (contactInfo.laborConsultantId === '') {
         delete contactInfo.laborConsultantId;
       }

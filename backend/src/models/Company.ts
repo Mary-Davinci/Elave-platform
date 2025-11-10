@@ -22,6 +22,7 @@ export interface ICompany extends Document {
     pec?: string;      
     referent?: string;  
     laborConsultant?: string; // NEW
+    laborConsultantId?: mongoose.Types.ObjectId; // NEW
     procurer?: string;        // NEW
   };
   contractDetails: {
@@ -96,6 +97,7 @@ const CompanySchema = new Schema<ICompany>(
       pec: { type: String, trim: true },
       referent: { type: String, trim: true },
       laborConsultant: { type: String, trim: true }, 
+      laborConsultantId: { type: Schema.Types.ObjectId, ref: 'SportelloLavoro' },
       procurer: { type: String, trim: true },      
     },
     contractDetails: {
@@ -168,6 +170,7 @@ CompanySchema.index({ province: 1 });
 CompanySchema.index({ isActive: 1 });
 CompanySchema.index({ isApproved: 1 });
 CompanySchema.index({ pendingApproval: 1 });
+CompanySchema.index({ 'contactInfo.laborConsultantId': 1 });
 
 const Company = mongoose.model<ICompany>("Company", CompanySchema);
 export default Company;

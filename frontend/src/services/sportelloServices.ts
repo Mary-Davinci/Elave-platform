@@ -1,8 +1,10 @@
 // src/services/sportelloLavoroService.ts
 import { SportelloLavoroFormData } from '../types/interfaces';
+import api from './api';
 
 export interface SportelloLavoroResponse {
   _id: string;
+  agentName?: string;
   businessName: string;
   vatNumber: string;
   address: string;
@@ -12,6 +14,8 @@ export interface SportelloLavoroResponse {
   agreedCommission: number;
   email?: string;
   pec?: string;
+  isActive?: boolean;
+  isApproved?: boolean;
   signedContractFile?: {
     filename: string;
     originalName: string;
@@ -55,26 +59,14 @@ export interface ApiError {
 class SportelloLavoroService {
   private baseUrl = '/api/sportello-lavoro';
 
-  
   async getAllSportelloLavoro(): Promise<SportelloLavoroResponse[]> {
     try {
-      const response = await fetch(this.baseUrl, {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch sportello lavoro');
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching sportello lavoro:', error);
-      throw error;
+      const response = await api.get(this.baseUrl);
+      return response.data;
+    } catch (error: any) {
+      const msg = error?.response?.data?.error || 'Failed to fetch sportello lavoro';
+      console.error('Error fetching sportello lavoro:', msg);
+      throw new Error(msg);
     }
   }
 

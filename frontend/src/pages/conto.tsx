@@ -1,164 +1,207 @@
-import { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import '../styles/Dashboard.css';
-import {
-  LayoutGrid,
-  CreditCard,
-  Building2,
-  Users,
-  Settings,
-  HelpCircle,
-  LogOut,
-  MoreHorizontal,
-} from 'lucide-react';
+import '../styles/Conto.css';
 
-const Dashboard = () => {
-  const [user] = useState({
-    name: 'Nome Cognome',
-    role: 'Responsabile territoriale',
-    company: 'RGM s.r.l.',
-  });
+type AccountType = 'proselitismo' | 'servizi';
+type TransactionType = 'entrata' | 'uscita';
+type TransactionStatus = 'completata' | 'in_attesa' | 'annullata';
 
-  const [activeMenuItem, setActiveMenuItem] = useState('Dashboard');
+interface Transaction {
+  id: string;
+  account: AccountType;
+  date: string; // ISO yyyy-mm-dd
+  description: string;
+  amount: number; // positive for entrata, negative for uscita
+  type: TransactionType;
+  status: TransactionStatus;
+  category: string;
+}
 
-  const menuItems = [
-    { name: 'Dashboard', icon: LayoutGrid },
-    { name: 'Pagamenti', icon: CreditCard },
-    { name: 'Aziende', icon: Building2, submenu: ['Anagrafiche', '+ Aggiungi'] },
-    { name: 'Consulenti', icon: Users, submenu: ['Anagrafiche', '+ Aggiungi'] },
-    { name: 'Servizi', icon: Settings },
-    { name: 'Ticket', icon: HelpCircle },
-    { name: 'Log Out', icon: LogOut },
+interface Filters {
+  from?: string;
+  to?: string;
+  type?: '' | TransactionType;
+  status?: '' | TransactionStatus;
+  q?: string;
+}
+
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(value);
+
+const Conto: React.FC = () => {
+  const params = useParams<{ tab?: string }>();
+  const navigate = useNavigate();
+  const initialTab = (params.tab === 'servizi' || params.tab === 'proselitismo') ? (params.tab as AccountType) : 'proselitismo';
+  const [activeAccount, setActiveAccount] = useState<AccountType>(initialTab);
+  const [filters, setFilters] = useState<Filters>({ type: '', status: '', q: '' });
+
+  const allTx: Transaction[] = [
+    { id: '1', account: 'proselitismo', date: '2025-01-10', description: 'Provvigioni mese', amount: 2200, type: 'entrata', status: 'completata', category: 'Provvigioni' },
+    { id: '2', account: 'proselitismo', date: '2025-01-12', description: 'Rimborso spese', amount: 120, type: 'entrata', status: 'completata', category: 'Rimborsi' },
+    { id: '3', account: 'proselitismo', date: '2025-01-15', description: 'Acquisto materiale', amount: -180, type: 'uscita', status: 'completata', category: 'Costi' },
+    { id: '4', account: 'servizi', date: '2025-02-02', description: 'Compenso progetto A', amount: 1450, type: 'entrata', status: 'in_attesa', category: 'Servizi' },
+    { id: '5', account: 'servizi', date: '2025-02-06', description: 'Pagamento fornitore', amount: -350, type: 'uscita', status: 'completata', category: 'Fornitori' },
+    { id: '6', account: 'servizi', date: '2025-02-10', description: 'Compenso progetto B', amount: 980, type: 'entrata', status: 'completata', category: 'Servizi' },
   ];
 
+  const filteredTx = useMemo(() => {
+    return allTx
+      .filter((t) => t.account === activeAccount)
+      .filter((t) => (filters.type ? t.type === filters.type : true))
+      .filter((t) => (filters.status ? t.status === filters.status : true))
+      .filter((t) => (filters.from ? t.date >= filters.from : true))
+      .filter((t) => (filters.to ? t.date <= filters.to : true))
+      .filter((t) => (filters.q ? t.description.toLowerCase().includes((filters.q as string).toLowerCase()) : true));
+  }, [allTx, activeAccount, filters]);
+
+  const summary = useMemo(() => {
+    const incoming = filteredTx.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+    const outgoing = filteredTx.filter((t) => t.amount < 0).reduce((s, t) => s + t.amount, 0);
+    return {
+      balance: incoming + outgoing,
+      incoming,
+      outgoing: Math.abs(outgoing),
+      updatedAt: new Date().toISOString(),
+    };
+  }, [filteredTx]);
+
+  const onFilterChange = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
+
+  useEffect(() => {
+    if (params.tab && (params.tab === 'servizi' || params.tab === 'proselitismo')) {
+      setActiveAccount(params.tab as AccountType);
+    }
+  }, [params.tab]);
+
+  const goTab = (tab: AccountType) => {
+    setActiveAccount(tab);
+    navigate(`/conto/${tab}`);
+  };
+
   return (
-    <div className="dashboard-wrapper">
-      {/* Sidebar */}
-      <aside className="sidebar">
-        <div className="logo">F.I.A.COM</div>
-        <nav className="menu">
-          {menuItems.map((item, index) => (
-            <div key={index}>
-              <div
-                className={`menu-item ${activeMenuItem === item.name ? 'active' : ''}`}
-                onClick={() => setActiveMenuItem(item.name)}
-              >
-                <item.icon size={18} className="menu-icon" />
-                {item.name}
-              </div>
-              {item.submenu && (
-                <div className="submenu">
-                  {item.submenu.map((subItem, subIndex) => (
-                    <div key={subIndex} className="submenu-item">
-                      {subItem}
-                    </div>
-                  ))}
-                </div>
+    <div className="dashboard-page">
+      <h2 className="welcome-header">Conto</h2>
+
+      <div className="dashboard-tabs">
+        <div
+          className={`tab ${activeAccount === 'proselitismo' ? 'active' : ''}`}
+          onClick={() => goTab('proselitismo')}
+        >
+          Conto proselitismo
+        </div>
+        <div
+          className={`tab ${activeAccount === 'servizi' ? 'active' : ''}`}
+          onClick={() => goTab('servizi')}
+        >
+          Conto servizi
+        </div>
+      </div>
+
+      <div className="projects-section" style={{ marginBottom: 20 }}>
+        <div className="project-card-dash">
+          <div className="project-number">{formatCurrency(summary.balance)}</div>
+          <div className="project-title">Saldo</div>
+        </div>
+        <div className="project-card-dash">
+          <div className="project-number">{formatCurrency(summary.incoming)}</div>
+          <div className="project-title">Entrate</div>
+        </div>
+        <div className="project-card-dash">
+          <div className="project-number">{formatCurrency(summary.outgoing)}</div>
+          <div className="project-title">Uscite</div>
+        </div>
+      </div>
+
+      <div className="utility-section" style={{ marginBottom: 20 }}>
+        <div className="section-header">Filtri</div>
+        <div className="conto-filters-grid">
+          <div className="filter-field">
+            <label className="filter-label">Da</label>
+            <input
+              className="filter-input"
+              type="date"
+              value={filters.from || ''}
+              onChange={(e) => onFilterChange({ from: e.target.value })}
+            />
+          </div>
+          <div className="filter-field">
+            <label className="filter-label">A</label>
+            <input
+              className="filter-input"
+              type="date"
+              value={filters.to || ''}
+              onChange={(e) => onFilterChange({ to: e.target.value })}
+            />
+          </div>
+          <div className="filter-field">
+            <label className="filter-label">Tipo</label>
+            <select className="filter-select" value={filters.type} onChange={(e) => onFilterChange({ type: e.target.value as TransactionType | '' })}>
+              <option value="">Tutti</option>
+              <option value="entrata">Entrata</option>
+              <option value="uscita">Uscita</option>
+            </select>
+          </div>
+          <div className="filter-field">
+            <label className="filter-label">Stato</label>
+            <select className="filter-select" value={filters.status} onChange={(e) => onFilterChange({ status: e.target.value as TransactionStatus | '' })}>
+              <option value="">Tutti</option>
+              <option value="completata">Completata</option>
+              <option value="in_attesa">In attesa</option>
+              <option value="annullata">Annullata</option>
+            </select>
+          </div>
+          <div className="filter-field">
+            <label className="filter-label">Ricerca</label>
+            <input
+              className="filter-input"
+              type="text"
+              placeholder="Descrizione..."
+              value={filters.q || ''}
+              onChange={(e) => onFilterChange({ q: e.target.value })}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="utility-section">
+        <div className="section-header">Movimenti</div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ textAlign: 'left' }}>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Data</th>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Descrizione</th>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Importo</th>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Tipo</th>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Stato</th>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Categoria</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredTx.map((t) => (
+                <tr key={t.id} style={{ borderBottom: '1px solid #f1f1f1' }}>
+                  <td style={{ padding: '8px' }}>{new Date(t.date).toLocaleDateString('it-IT')}</td>
+                  <td style={{ padding: '8px' }}>{t.description}</td>
+                  <td style={{ padding: '8px', color: t.amount < 0 ? '#e74c3c' : '#253676', fontWeight: 600 }}>
+                    {formatCurrency(t.amount)}
+                  </td>
+                  <td style={{ padding: '8px', textTransform: 'capitalize' }}>{t.type}</td>
+                  <td style={{ padding: '8px', textTransform: 'capitalize' }}>{t.status.replace('_', ' ')}</td>
+                  <td style={{ padding: '8px' }}>{t.category}</td>
+                </tr>
+              ))}
+              {filteredTx.length === 0 && (
+                <tr>
+                  <td colSpan={6} style={{ padding: 16, color: '#666' }}>Nessun movimento trovato.</td>
+                </tr>
               )}
-            </div>
-          ))}
-        </nav>
-      </aside>
-
-      {/* Main Content */}
-      <main className="main-content">
-        <header className="header">
-          <div>
-            <h1 className="welcome-title">Bentornato, {user.name}</h1>
-            <p className="welcome-subtitle">
-              Dai un'occhiata alla tua situazione provviggionale di oggi
-            </p>
-          </div>
-          <div className="user-info">
-            <div className="user-header">
-              <span className="user-company">{user.company}</span>
-              <div className="user-icon">
-                <Users size={20} />
-              </div>
-            </div>
-            <span className="user-role">{user.role}</span>
-          </div>
-        </header>
-
-        {/* Dashboard Cards */}
-        <section className="cards-grid">
-          {[
-            {
-              title: 'Aziende acquisite',
-              amount: '€ 2407,02',
-              cedolini: '770',
-              countLabel: 'n° Aziende',
-              count: '35',
-              items: ['Azienda 1', 'Azienda 2', 'Azienda 3'],
-              buttonLabel: 'Anagrafiche aziende',
-              icon: <Building2 size={16} />,
-            },
-            {
-              title: 'Sportello lavoro',
-              amount: '€ 5.626,80',
-              cedolini: '3600',
-              countLabel: 'n° consulenti',
-              count: '60',
-              extraCountLabel: 'n° Aziende',
-              extraCount: '103',
-              items: ['Consulente 1', 'Consulente 2', 'Consulente 3'],
-              buttonLabel: 'Anagrafiche consulenti',
-              icon: <Users size={16} />,
-            },
-            {
-              title: 'Competenze totali',
-              amount: '€ 8033,82',
-              cedolini: '4370',
-              countLabel: 'Totale aziende',
-              count: '138',
-              items: ['Consulente 1', 'Consulente 2', 'Consulente 3'],
-              buttonLabel: 'Estratto conto',
-              icon: <CreditCard size={16} />,
-            },
-          ].map((card, idx) => (
-            <div className="card" key={idx}>
-              <div className="card-header">
-                <h3 className="card-title">{card.title}</h3>
-                <MoreHorizontal size={20} color="#6c757d" />
-              </div>
-              <div className="card-highlight">
-                <div className="highlight-section">
-                  <div className="highlight-label">Competenze maturate</div>
-                  <div className="highlight-value">{card.amount}</div>
-                </div>
-                <div className="highlight-section">
-                  <div className="highlight-label">Numero cedolini</div>
-                  <div className="highlight-value">{card.cedolini}</div>
-                </div>
-              </div>
-              <div className="card-body">
-                <div className="card-row">
-                  <span className="card-label">{card.countLabel}</span>
-                  <span className="card-count">{card.count}</span>
-                </div>
-                {card.extraCountLabel && (
-                  <div className="card-row">
-                    <span className="card-label">{card.extraCountLabel}</span>
-                    <span className="card-count">{card.extraCount}</span>
-                  </div>
-                )}
-                <div className="card-items">
-                  {card.items.map((item, i) => (
-                    <div key={i} className="card-item-link">
-                      {item}
-                    </div>
-                  ))}
-                </div>
-                <button className="card-button">
-                  {card.icon}
-                  {card.buttonLabel}
-                </button>
-              </div>
-            </div>
-          ))}
-        </section>
-      </main>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 };
 
-export default Dashboard;
+export default Conto;

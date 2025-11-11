@@ -36,6 +36,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   // ---- Capabilities (explicit) ----
   const canSeeApprovals = isAdmin;
+  const canSeeConto = role === 'admin';
 
   const canSeeAziende = true;
   const canCreateAzienda = isAdmin || isSuperAdmin || isResponsabileTerritoriale || isSportelloLavoro;
@@ -177,7 +178,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <span>Dashboard</span>
           </div>
 
-          {/* Conto */}
+          {/* Conto - Admin only */}
+          {canSeeConto && (
           <div
             className={`menu-item ${isActive('/conto') ? 'active' : ''}`}
             onClick={() => handleNavigation('/conto')}
@@ -186,6 +188,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <span>Conto</span>
             <i className="arrow-icon">▼</i>
           </div>
+
+          )}
 
           {/* Posta */}
           <div className="menu-item-container">

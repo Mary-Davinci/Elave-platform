@@ -44,6 +44,8 @@ import SegnalatoreDetail from './pages/SegnalatoreDetail';
 import SegnalatoreEditForm from './pages/SegnalatoreEditForm';
 import AgenteView from './pages/AgenteView';
 import AgenteEdit from './pages/AgenteEdit';
+import Conto from './pages/conto';
+import RoleGuard from './components/RoleGuard';
 
 
 
@@ -62,6 +64,26 @@ const App: React.FC = () => {
             <ProtectedRoute>
               <MainLayout>
                 <Dashboard />
+              </MainLayout>
+            </ProtectedRoute>
+          } />
+          
+          {/* Conto (Admin only) */}
+          <Route path="/conto" element={
+            <ProtectedRoute>
+              <MainLayout>
+                <RoleGuard roles={["admin"]}>
+                  <Conto />
+                </RoleGuard>
+              </MainLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/conto/:tab" element={
+            <ProtectedRoute>
+              <MainLayout>
+                <RoleGuard roles={["admin"]}>
+                  <Conto />
+                </RoleGuard>
               </MainLayout>
             </ProtectedRoute>
           } />

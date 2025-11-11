@@ -2,29 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import '../styles/Dashboard.css';
 import '../styles/Conto.css';
-
-type AccountType = 'proselitismo' | 'servizi';
-type TransactionType = 'entrata' | 'uscita';
-type TransactionStatus = 'completata' | 'in_attesa' | 'annullata';
-
-interface Transaction {
-  id: string;
-  account: AccountType;
-  date: string; // ISO yyyy-mm-dd
-  description: string;
-  amount: number; // positive for entrata, negative for uscita
-  type: TransactionType;
-  status: TransactionStatus;
-  category: string;
-}
-
-interface Filters {
-  from?: string;
-  to?: string;
-  type?: '' | TransactionType;
-  status?: '' | TransactionStatus;
-  q?: string;
-}
+import { contoService, type AccountType, type Transaction, type ContoFilters, type TransactionType, type TransactionStatus } from '../services/contoService';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(value);
@@ -34,9 +12,13 @@ const Conto: React.FC = () => {
   const navigate = useNavigate();
   const initialTab = (params.tab === 'servizi' || params.tab === 'proselitismo') ? (params.tab as AccountType) : 'proselitismo';
   const [activeAccount, setActiveAccount] = useState<AccountType>(initialTab);
-  const [filters, setFilters] = useState<Filters>({ type: '', status: '', q: '' });
+  const [filters, setFilters] = useState<ContoFilters>({ type: '', status: '', q: '' });
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const allTx: Transaction[] = [
+  // Local mock fallback
+  const mockTx: Transaction[] = [
     { id: '1', account: 'proselitismo', date: '2025-01-10', description: 'Provvigioni mese', amount: 2200, type: 'entrata', status: 'completata', category: 'Provvigioni' },
     { id: '2', account: 'proselitismo', date: '2025-01-12', description: 'Rimborso spese', amount: 120, type: 'entrata', status: 'completata', category: 'Rimborsi' },
     { id: '3', account: 'proselitismo', date: '2025-01-15', description: 'Acquisto materiale', amount: -180, type: 'uscita', status: 'completata', category: 'Costi' },
@@ -46,14 +28,14 @@ const Conto: React.FC = () => {
   ];
 
   const filteredTx = useMemo(() => {
-    return allTx
+    return transactions
       .filter((t) => t.account === activeAccount)
       .filter((t) => (filters.type ? t.type === filters.type : true))
       .filter((t) => (filters.status ? t.status === filters.status : true))
       .filter((t) => (filters.from ? t.date >= filters.from : true))
       .filter((t) => (filters.to ? t.date <= filters.to : true))
       .filter((t) => (filters.q ? t.description.toLowerCase().includes((filters.q as string).toLowerCase()) : true));
-  }, [allTx, activeAccount, filters]);
+  }, [transactions, activeAccount, filters]);
 
   const summary = useMemo(() => {
     const incoming = filteredTx.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0);
@@ -66,7 +48,29 @@ const Conto: React.FC = () => {
     };
   }, [filteredTx]);
 
-  const onFilterChange = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
+  const onFilterChange = (patch: Partial<ContoFilters>) => setFilters((f) => ({ ...f, ...patch }));
+
+  // Fetch data with fallback
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const tx = await contoService.getTransactions(activeAccount, filters);
+        if (!cancelled) setTransactions(tx);
+      } catch (e: any) {
+        console.warn('getTransactions failed, using mock fallback', e?.message || e);
+        const tx = mockTx; // fallback
+        if (!cancelled) setTransactions(tx);
+        setError('Dati non disponibili, mostrati valori di esempio.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [activeAccount, filters.from, filters.to, filters.type, filters.status, filters.q]);
 
   useEffect(() => {
     if (params.tab && (params.tab === 'servizi' || params.tab === 'proselitismo')) {
@@ -82,6 +86,8 @@ const Conto: React.FC = () => {
   return (
     <div className="dashboard-page">
       <h2 className="welcome-header">Conto</h2>
+      {loading && <div className="notification-banner">Carico i dati...</div>}
+      {error && <div className="notification-banner secondary">{error}</div>}
 
       <div className="dashboard-tabs">
         <div

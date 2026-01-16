@@ -43,6 +43,7 @@ const allowedOrigins = [
   'http://localhost:5173',
   'https://elave-platform-ovee-mary-s-projects-357233a1.vercel.app',
   'https://elave-platform-cm04fcsd1-mary-s-projects-357233a1.vercel.app',
+  'https://elave-platform.vercel.app',
   'https://your-frontend-app.up.railway.app', // Optional
   
 ];

@@ -338,7 +338,7 @@ const [formData, setFormData] = useState<CompanyFormData>({
 
             <div className="form-group">
               <label>
-                Codice INPS <span className="required">*</span>
+                Matricola INPS <span className="required">*</span>
               </label>
               <input
                 type="text"

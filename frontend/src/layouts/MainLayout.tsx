@@ -85,6 +85,19 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const isActive = (path: string) =>
     location.pathname === path || location.pathname.startsWith(path + '/');
 
+  const headerTitle = (() => {
+    if (location.pathname.startsWith('/companies/new')) {
+      return 'Nuova Azienda';
+    }
+    if (location.pathname === '/companies') {
+      return 'Elenco Aziende';
+    }
+    return (
+      location.pathname.split('/')[1]?.charAt(0).toUpperCase() +
+        location.pathname.split('/')[1]?.slice(1) || 'Dashboard'
+    );
+  })();
+
   // Helper to close all dropdowns
   const closeAllDropdowns = () => {
     setPostalDropdownOpen(false);
@@ -153,10 +166,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <div className="logo"></div>
           </div>
 
-          <div className="header-title">
-            {location.pathname.split('/')[1]?.charAt(0).toUpperCase() +
-              location.pathname.split('/')[1]?.slice(1) || 'Dashboard'}
-          </div>
+          <div className="header-title">{headerTitle}</div>
         </div>
         <div className="user-info">
           <div className="user-role-badge">

@@ -51,7 +51,7 @@ router.put("/:id", adminRoleMiddleware, updateUser);
 // Change password
 router.put("/:id/password", changePassword);
 
-// Delete user - Super Admin only
-router.delete("/:id", superAdminRoleMiddleware, deleteUser);
+// Delete user - Admin or Super Admin (controller enforces role rules)
+router.delete("/:id", adminRoleMiddleware, deleteUser);
 
 export default router;

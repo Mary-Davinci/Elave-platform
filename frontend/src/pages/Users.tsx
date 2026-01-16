@@ -446,13 +446,15 @@ const Users: React.FC = () => {
                         >
                           ✏️
                         </button>
-                        <button 
-                          onClick={() => handleDeleteUser(userItem._id)}
-                          className="delete-button"
-                          title="Elimina"
-                        >
-                          🗑️
-                        </button>
+                        {isAdmin && (
+                          <button 
+                            onClick={() => handleDeleteUser(userItem._id)}
+                            className="delete-button"
+                            title="Elimina"
+                          >
+                            🗑️
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))

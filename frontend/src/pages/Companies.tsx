@@ -21,8 +21,8 @@ const Companies: React.FC = () => {
     matricola: '',
     businessName: '',
     vatNumber: '',
-    province: '',
-    actuator: '',
+    territorialManager: '',
+    sportelloLavoro: '',
     status: ''
   });
 
@@ -35,8 +35,8 @@ const Companies: React.FC = () => {
     matricola: new Set(),
     businessName: new Set(),
     vatNumber: new Set(),
-    province: new Set(),
-    actuator: new Set(),
+    territorialManager: new Set(),
+    sportelloLavoro: new Set(),
     status: new Set(),
   });
 
@@ -46,13 +46,24 @@ const Companies: React.FC = () => {
     matricola: [],
     businessName: [],
     vatNumber: [],
-    province: [],
-    actuator: [],
+    territorialManager: [],
+    sportelloLavoro: [],
     status: [],
   });
 
   
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const getTerritorialManager = (company: Company) =>
+    company.territorialManager ||
+    company.contractDetails?.territorialManager ||
+    '-';
+
+  const getSportelloLavoro = (company: Company) =>
+    company.contactInfo?.laborConsultant || '-';
+
+  const getMatricolaInps = (company: Company) =>
+    company.inpsCode || company.matricola || '-';
 
   
   const positionFilterDropdown = useCallback((field: string) => {
@@ -132,18 +143,19 @@ const Companies: React.FC = () => {
           matricola: new Set(),
           businessName: new Set(),
           vatNumber: new Set(),
-          province: new Set(),
-          actuator: new Set(),
+          territorialManager: new Set(),
+          sportelloLavoro: new Set(),
           status: new Set(['Attivo', 'Inattivo']),
         };
 
         data.forEach(company => {
           options.date.add(new Date(company.createdAt).toLocaleDateString());
-          if (company.matricola) options.matricola.add(company.matricola);
+          const matricolaInps = getMatricolaInps(company);
+          if (matricolaInps !== '-') options.matricola.add(matricolaInps);
           options.businessName.add(company.businessName);
           options.vatNumber.add(company.vatNumber);
-          if (company.address?.province) options.province.add(company.address.province);
-          options.actuator.add(company.actuator || company.companyName || '-');
+          options.territorialManager.add(getTerritorialManager(company));
+          options.sportelloLavoro.add(getSportelloLavoro(company));
         });
 
         setFilterOptions(options);
@@ -171,7 +183,7 @@ const Companies: React.FC = () => {
     
     if (searchInputs.matricola) {
       result = result.filter(company => 
-        (company.matricola || '').toLowerCase().includes(searchInputs.matricola.toLowerCase())
+        getMatricolaInps(company).toLowerCase().includes(searchInputs.matricola.toLowerCase())
       );
     }
     
@@ -187,15 +199,15 @@ const Companies: React.FC = () => {
       );
     }
     
-    if (searchInputs.province) {
-      result = result.filter(company => 
-        (company.address?.province || '').toLowerCase().includes(searchInputs.province.toLowerCase())
+    if (searchInputs.territorialManager) {
+      result = result.filter(company =>
+        getTerritorialManager(company).toLowerCase().includes(searchInputs.territorialManager.toLowerCase())
       );
     }
     
-    if (searchInputs.actuator) {
-      result = result.filter(company => 
-        (company.actuator || company.companyName || '').toLowerCase().includes(searchInputs.actuator.toLowerCase())
+    if (searchInputs.sportelloLavoro) {
+      result = result.filter(company =>
+        getSportelloLavoro(company).toLowerCase().includes(searchInputs.sportelloLavoro.toLowerCase())
       );
     }
     
@@ -215,7 +227,7 @@ const Companies: React.FC = () => {
           );
         } else if (field === 'matricola') {
           result = result.filter(company => 
-            values.includes(company.matricola || '-')
+            values.includes(getMatricolaInps(company))
           );
         } else if (field === 'businessName') {
           result = result.filter(company => 
@@ -225,13 +237,13 @@ const Companies: React.FC = () => {
           result = result.filter(company => 
             values.includes(company.vatNumber)
           );
-        } else if (field === 'province') {
-          result = result.filter(company => 
-            values.includes(company.address?.province || '-')
+        } else if (field === 'territorialManager') {
+          result = result.filter(company =>
+            values.includes(getTerritorialManager(company))
           );
-        } else if (field === 'actuator') {
-          result = result.filter(company => 
-            values.includes(company.actuator || company.companyName || '-')
+        } else if (field === 'sportelloLavoro') {
+          result = result.filter(company =>
+            values.includes(getSportelloLavoro(company))
           );
         } else if (field === 'status') {
           result = result.filter(company => 
@@ -437,11 +449,11 @@ const Companies: React.FC = () => {
                 <th>
                   <div className="th-content">
                     <div className="th-header">
-                      <span>Matricola</span>
+                      <span>Matricola INPS</span>
                       <button
                         className="filter-button"
                         onClick={() => toggleFilterDropdown('matricola')}
-                        title="Filtra per matricola"
+                        title="Filtra per matricola INPS"
                       >
                         ▼
                       </button>
@@ -593,11 +605,11 @@ const Companies: React.FC = () => {
                 <th>
                   <div className="th-content">
                     <div className="th-header">
-                      <span>Provincia</span>
+                      <span>Responsabile Territoriale</span>
                       <button
                         className="filter-button"
-                        onClick={() => toggleFilterDropdown('province')}
-                        title="Filtra per provincia"
+                        onClick={() => toggleFilterDropdown('territorialManager')}
+                        title="Filtra per responsabile territoriale"
                       >
                         ▼
                       </button>
@@ -606,29 +618,29 @@ const Companies: React.FC = () => {
                       <input
                         type="text"
                         placeholder="Cerca..."
-                        value={searchInputs.province}
-                        onChange={(e) => handleSearchChange(e, 'province')}
+                        value={searchInputs.territorialManager}
+                        onChange={(e) => handleSearchChange(e, 'territorialManager')}
                         className="search-input-com"
                       />
                       <span className="search-icon-comp">🔍</span>
                     </div>
-                    {activeFilterDropdown === 'province' && (
+                    {activeFilterDropdown === 'territorialManager' && (
                       <div className="filter-dropdown">
                         <div className="filter-options">
                           <label className="filter-option">
                             <input
                               type="checkbox"
-                              onChange={(e) => handleSelectAll('province', e.target.checked)}
-                              checked={selectedFilters.province.length === filterOptions.province.size && filterOptions.province.size > 0}
+                              onChange={(e) => handleSelectAll('territorialManager', e.target.checked)}
+                              checked={selectedFilters.territorialManager.length === filterOptions.territorialManager.size && filterOptions.territorialManager.size > 0}
                             />
                             Select All
                           </label>
-                          {Array.from(filterOptions.province).map((value) => (
+                          {Array.from(filterOptions.territorialManager).map((value) => (
                             <label key={value} className="filter-option">
                               <input
                                 type="checkbox"
-                                checked={selectedFilters.province.includes(value)}
-                                onChange={(e) => handleFilterChange('province', value, e.target.checked)}
+                                checked={selectedFilters.territorialManager.includes(value)}
+                                onChange={(e) => handleFilterChange('territorialManager', value, e.target.checked)}
                               />
                               {value}
                             </label>
@@ -645,11 +657,11 @@ const Companies: React.FC = () => {
                 <th>
                   <div className="th-content">
                     <div className="th-header">
-                      <span>Attuatore</span>
+                      <span>Sportello Lavoro</span>
                       <button
                         className="filter-button"
-                        onClick={() => toggleFilterDropdown('actuator')}
-                        title="Filtra per attuatore"
+                        onClick={() => toggleFilterDropdown('sportelloLavoro')}
+                        title="Filtra per sportello lavoro"
                       >
                         ▼
                       </button>
@@ -658,29 +670,29 @@ const Companies: React.FC = () => {
                       <input
                         type="text"
                         placeholder="Cerca..."
-                        value={searchInputs.actuator}
-                        onChange={(e) => handleSearchChange(e, 'actuator')}
+                        value={searchInputs.sportelloLavoro}
+                        onChange={(e) => handleSearchChange(e, 'sportelloLavoro')}
                         className="search-input-com"
                       />
                       <span className="search-icon-comp">🔍</span>
                     </div>
-                    {activeFilterDropdown === 'actuator' && (
+                    {activeFilterDropdown === 'sportelloLavoro' && (
                       <div className="filter-dropdown">
                         <div className="filter-options">
                           <label className="filter-option">
                             <input
                               type="checkbox"
-                              onChange={(e) => handleSelectAll('actuator', e.target.checked)}
-                              checked={selectedFilters.actuator.length === filterOptions.actuator.size && filterOptions.actuator.size > 0}
+                              onChange={(e) => handleSelectAll('sportelloLavoro', e.target.checked)}
+                              checked={selectedFilters.sportelloLavoro.length === filterOptions.sportelloLavoro.size && filterOptions.sportelloLavoro.size > 0}
                             />
                             Select All
                           </label>
-                          {Array.from(filterOptions.actuator).map((value) => (
+                          {Array.from(filterOptions.sportelloLavoro).map((value) => (
                             <label key={value} className="filter-option">
                               <input
                                 type="checkbox"
-                                checked={selectedFilters.actuator.includes(value)}
-                                onChange={(e) => handleFilterChange('actuator', value, e.target.checked)}
+                                checked={selectedFilters.sportelloLavoro.includes(value)}
+                                onChange={(e) => handleFilterChange('sportelloLavoro', value, e.target.checked)}
                               />
                               {value}
                             </label>
@@ -711,7 +723,7 @@ const Companies: React.FC = () => {
                       <input
                         type="text"
                         placeholder="Cerca..."
-                        value={searchInputs.date}
+                        value={searchInputs.status}
                         onChange={(e) => handleSearchChange(e, 'status')}
                         className="search-input-com"
                       />
@@ -755,11 +767,11 @@ const Companies: React.FC = () => {
               {filteredCompanies.map((company) => (
                 <tr key={company._id}>
                   <td>{new Date(company.createdAt).toLocaleDateString()}</td>
-                  <td>{company.matricola || '-'}</td>
+                  <td>{getMatricolaInps(company)}</td>
                   <td>{company.businessName}</td>
                   <td>{company.vatNumber}</td>
-                  <td>{company.address?.province || '-'}</td>
-                  <td>{company.actuator || company.companyName || '-'}</td>
+                  <td>{getTerritorialManager(company)}</td>
+                  <td>{getSportelloLavoro(company)}</td>
                   <td>
                     <span className={`status-badge ${company.isActive ? 'active' : 'inactive'}`}>
                       {company.isActive ? 'Attivo' : 'Inattivo'}

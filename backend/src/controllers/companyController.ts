@@ -70,9 +70,24 @@ export const getCompanies: CustomRequestHandler = async (req, res) => {
       query = { user: req.user._id };
     }
 
-    const companies = await Company.find(query).sort({ createdAt: -1 });
+    const companies = await Company.find(query)
+      .sort({ createdAt: -1 })
+      .populate('contactInfo.laborConsultantId', 'businessName agentName')
+      .lean();
 
-    return res.json(companies);
+    const normalized = companies.map((company: any) => {
+      const consultant = company?.contactInfo?.laborConsultantId;
+      const consultantName = consultant?.businessName || consultant?.agentName;
+      if (consultantName) {
+        company.contactInfo = company.contactInfo || {};
+        if (!company.contactInfo.laborConsultant) {
+          company.contactInfo.laborConsultant = consultantName;
+        }
+      }
+      return company;
+    });
+
+    return res.json(normalized);
   } catch (err: any) {
     console.error("Get companies error:", err);
     return res.status(500).json({ error: "Server error" });
@@ -87,14 +102,24 @@ export const getCompanyById: CustomRequestHandler = async (req, res) => {
 
     const { id } = req.params;
     
-    const company = await Company.findById(id);
+    const company = await Company.findById(id)
+      .populate('contactInfo.laborConsultantId', 'businessName agentName')
+      .lean();
     
     if (!company) {
       return res.status(404).json({ error: "Company not found" });
     }
 
-    if (req.user.role !== 'admin' && !company.user.equals(req.user._id)) {
+    if (req.user.role !== 'admin' && company?.user?.toString() !== req.user._id.toString()) {
       return res.status(403).json({ error: "Access denied" });
+    }
+    const consultant = company?.contactInfo?.laborConsultantId as any;
+    const consultantName = consultant?.businessName || consultant?.agentName;
+    if (consultantName) {
+      company.contactInfo = company.contactInfo || {};
+      if (!company.contactInfo.laborConsultant) {
+        company.contactInfo.laborConsultant = consultantName;
+      }
     }
 
     return res.json(company);

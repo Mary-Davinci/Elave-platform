@@ -423,7 +423,9 @@ export const deleteUser: CustomRequestHandler = async (req, res) => {
     }
 
     if (req.user.role !== "super_admin") {
-      return res.status(403).json({ error: "Only super administrators can delete users" });
+      if (user.role === "admin" || user.role === "super_admin") {
+        return res.status(403).json({ error: "Only super administrators can delete admin users" });
+      }
     }
 
     if (user._id.toString() === req.user._id.toString()) {

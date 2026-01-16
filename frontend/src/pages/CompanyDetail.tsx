@@ -125,7 +125,7 @@ const CompanyDetail: React.FC = () => {
               </li>
               <li>
                 <span className="icon">🔢</span>
-                <span className="label">Codice INPS: {company.inpsCode}</span>
+                <span className="label">Matricola INPS: {company.inpsCode}</span>
               </li>
             </ul>
           </div>

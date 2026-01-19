@@ -26,15 +26,14 @@ export const getCurrentUser: CustomRequestHandler = async (req, res) => {
 
 export const register: CustomRequestHandler = async (req, res) => {
   try {
-    const { username, email, password, role } = req.body;
+    const { username, email, password } = req.body;
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ error: "Email already in use" });
     }
 
-    const validRoles = ["super_admin", "admin", "responsabile_territoriale", "sportello_lavoro", "segnalatori"];
-    const userRole = role && validRoles.includes(role) ? role : "segnalatori"; 
+    const userRole = "segnalatori";
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = new User({ 
       username, 

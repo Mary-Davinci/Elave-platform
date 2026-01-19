@@ -9,6 +9,8 @@ import xlsx from 'xlsx';
 import { IUser } from "../models/User";
 import { NotificationService } from "../models/notificationService";
 
+const isPrivileged = (role: string) => role === 'admin' || role === 'super_admin';
+
 interface MulterFiles {
   [fieldname: string]: Express.Multer.File[];
 }
@@ -90,7 +92,7 @@ export const getSportelloLavoro: CustomRequestHandler = async (req, res) => {
 
     let query = {};
     
-    if (req.user.role !== 'admin') {
+    if (!isPrivileged(req.user.role)) {
       query = { user: req.user._id };
     }
 
@@ -117,7 +119,7 @@ export const getSportelloLavoroById: CustomRequestHandler = async (req, res) => 
       return res.status(404).json({ error: "Sportello Lavoro not found" });
     }
 
-    if (req.user.role !== 'admin' && !sportelloLavoro.user.equals(req.user._id)) {
+    if (!isPrivileged(req.user.role) && !sportelloLavoro.user.equals(req.user._id)) {
       return res.status(403).json({ error: "Access denied" });
     }
 
@@ -317,7 +319,7 @@ export const updateSportelloLavoro: CustomRequestHandler = async (req, res) => {
         return res.status(404).json({ error: "Sportello Lavoro not found" });
       }
 
-      if (user.role !== "admin" && !sportelloLavoro.user.equals(user._id)) {
+      if (!isPrivileged(user.role) && !sportelloLavoro.user.equals(user._id)) {
         return res.status(403).json({ error: "Access denied" });
       }
 
@@ -399,7 +401,7 @@ export const deleteSportelloLavoro: CustomRequestHandler = async (req, res) => {
     }
 
  
-    if (req.user.role !== 'admin' && !sportelloLavoro.user.equals(req.user._id)) {
+    if (!isPrivileged(req.user.role) && !sportelloLavoro.user.equals(req.user._id)) {
       return res.status(403).json({ error: "Access denied" });
     }
 

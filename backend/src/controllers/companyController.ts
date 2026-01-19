@@ -9,6 +9,8 @@ import fs from 'fs';
 import xlsx from 'xlsx';
 import { NotificationService } from "../models/notificationService";
 
+const isPrivileged = (role: string) => role === 'admin' || role === 'super_admin';
+
 const storage = multer.diskStorage({
   destination: (req: Request, file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => {
     const uploadDir = path.join(__dirname, '../uploads');
@@ -66,7 +68,7 @@ export const getCompanies: CustomRequestHandler = async (req, res) => {
 
     let query = {};
     
-    if (req.user.role !== 'admin') {
+    if (!isPrivileged(req.user.role)) {
       query = { user: req.user._id };
     }
 
@@ -110,7 +112,7 @@ export const getCompanyById: CustomRequestHandler = async (req, res) => {
       return res.status(404).json({ error: "Company not found" });
     }
 
-    if (req.user.role !== 'admin' && company?.user?.toString() !== req.user._id.toString()) {
+    if (!isPrivileged(req.user.role) && company?.user?.toString() !== req.user._id.toString()) {
       return res.status(403).json({ error: "Access denied" });
     }
     const consultant = company?.contactInfo?.laborConsultantId as any;
@@ -160,7 +162,7 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
           return res.status(400).json({ error: 'Invalid laborConsultantId: consultant not found' });
         }
         // Solo il proprietario o admin possono selezionare il consulente
-        if (req.user.role !== 'admin' && req.user.role !== 'super_admin' && !consultant.user.equals(req.user._id)) {
+        if (!isPrivileged(req.user.role) && !consultant.user.equals(req.user._id)) {
           return res.status(403).json({ error: 'You do not own the selected consultant' });
         }
         if (!consultant.isActive) {
@@ -283,7 +285,7 @@ export const updateCompany: CustomRequestHandler = async (req, res) => {
     }
 
    
-    if (req.user.role !== 'admin' && !company.user.equals(req.user._id)) {
+    if (!isPrivileged(req.user.role) && !company.user.equals(req.user._id)) {
       return res.status(403).json({ error: "Access denied" });
     }
 
@@ -320,7 +322,7 @@ export const updateCompany: CustomRequestHandler = async (req, res) => {
           if (!consultant) {
             return res.status(400).json({ error: 'Invalid laborConsultantId: consultant not found' });
           }
-          if (req.user.role !== 'admin' && req.user.role !== 'super_admin' && !consultant.user.equals(req.user._id)) {
+          if (!isPrivileged(req.user.role) && !consultant.user.equals(req.user._id)) {
             return res.status(403).json({ error: 'You do not own the selected consultant' });
           }
           if (!consultant.isActive) {
@@ -384,7 +386,7 @@ export const deleteCompany: CustomRequestHandler = async (req, res) => {
     }
 
   
-    if (req.user.role !== 'admin' && !company.user.equals(req.user._id)) {
+    if (!isPrivileged(req.user.role) && !company.user.equals(req.user._id)) {
       return res.status(403).json({ error: "Access denied" });
     }
 

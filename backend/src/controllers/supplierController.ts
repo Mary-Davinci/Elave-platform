@@ -3,6 +3,8 @@ import Supplier from "../models/Supplier";
 import { CustomRequestHandler } from "../types/express";
 import mongoose from "mongoose";
 
+const isPrivileged = (role: string) => role === "admin" || role === "super_admin";
+
 
 export const getSuppliers: CustomRequestHandler = async (req, res) => {
   try {
@@ -13,7 +15,7 @@ export const getSuppliers: CustomRequestHandler = async (req, res) => {
   
     let query: any = {};
     
-    if (req.user.role !== 'admin') {
+    if (!isPrivileged(req.user.role)) {
       query.user = req.user._id;
     }
 
@@ -40,7 +42,7 @@ export const getSupplierById: CustomRequestHandler = async (req, res) => {
       return res.status(404).json({ error: "Supplier not found" });
     }
 
-    if (req.user.role !== 'admin' && !supplier.user.equals(req.user._id)) {
+    if (!isPrivileged(req.user.role) && !supplier.user.equals(req.user._id)) {
       return res.status(403).json({ error: "Access denied" });
     }
 
@@ -153,7 +155,7 @@ export const updateSupplier: CustomRequestHandler = async (req, res) => {
       return res.status(404).json({ error: "Supplier not found" });
     }
 
-    if (req.user.role !== 'admin' && !supplier.user.equals(req.user._id)) {
+    if (!isPrivileged(req.user.role) && !supplier.user.equals(req.user._id)) {
       return res.status(403).json({ error: "Access denied" });
     }
 
@@ -198,7 +200,7 @@ export const deleteSupplier: CustomRequestHandler = async (req, res) => {
       return res.status(404).json({ error: "Supplier not found" });
     }
 
-    if (req.user.role !== 'admin' && !supplier.user.equals(req.user._id)) {
+    if (!isPrivileged(req.user.role) && !supplier.user.equals(req.user._id)) {
       return res.status(403).json({ error: "Access denied" });
     }
 

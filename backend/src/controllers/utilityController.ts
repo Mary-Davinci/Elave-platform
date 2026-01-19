@@ -5,6 +5,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 
+const isPrivileged = (role: string) => role === "admin" || role === "super_admin";
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -102,7 +103,7 @@ export const getUtilities: CustomRequestHandler = async (req, res) => {
 
 export const uploadUtility: CustomRequestHandler = async (req, res) => {
   try {
-    if (!req.user || req.user.role !== 'admin') {
+    if (!req.user || !isPrivileged(req.user.role)) {
       return res.status(403).json({ error: "Admin access required" });
     }
 
@@ -139,7 +140,7 @@ export const uploadUtility: CustomRequestHandler = async (req, res) => {
 
 export const addUtility: CustomRequestHandler = async (req, res) => {
   try {
-    if (!req.user || req.user.role !== 'admin') {
+    if (!req.user || !isPrivileged(req.user.role)) {
       return res.status(403).json({ error: "Admin access required" });
     }
 
@@ -174,7 +175,7 @@ export const addUtility: CustomRequestHandler = async (req, res) => {
 
 export const deleteUtility: CustomRequestHandler = async (req, res) => {
   try {
-    if (!req.user || req.user.role !== 'admin') {
+    if (!req.user || !isPrivileged(req.user.role)) {
       return res.status(403).json({ error: "Admin access required" });
     }
 
@@ -204,7 +205,7 @@ export const deleteUtility: CustomRequestHandler = async (req, res) => {
 
 export const initializeUtilities: CustomRequestHandler = async (req, res) => {
   try {
-    if (!req.user || req.user.role !== 'admin') {
+    if (!req.user || !isPrivileged(req.user.role)) {
       return res.status(403).json({ error: "Admin access required" });
     }
 

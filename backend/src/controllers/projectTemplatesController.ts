@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 import { CustomRequestHandler } from "../types/express";
 import Project from "../models/Project";
 
+const isPrivileged = (role: string) => role === "admin" || role === "super_admin";
+
 
 interface IProjectTemplate {
   _id: mongoose.Types.ObjectId;
@@ -102,7 +104,7 @@ export const getProjectTemplates: CustomRequestHandler = async (req, res) => {
     let query: any = {};
     
     // Regular users can only see public templates or ones specific to them
-    if (req.user.role !== 'admin') {
+    if (!isPrivileged(req.user.role)) {
       query.$or = [{ isPublic: true }, { createdBy: req.user._id }];
     }
 
@@ -129,7 +131,7 @@ export const getProjectTemplateById: CustomRequestHandler = async (req, res) => 
       return res.status(404).json({ error: "Project template not found" });
     }
 
-    if (req.user.role !== 'admin' && 
+    if (!isPrivileged(req.user.role) && 
         !template.isPublic && 
         !template.createdBy.equals(req.user._id)) {
       return res.status(403).json({ error: "Access denied" });
@@ -148,7 +150,7 @@ export const createProjectTemplate: CustomRequestHandler = async (req, res) => {
       return res.status(401).json({ error: "User not authenticated" });
     }
 
-    if (req.user.role !== 'admin') {
+    if (!isPrivileged(req.user.role)) {
       return res.status(403).json({ error: "Only administrators can create project templates" });
     }
 
@@ -204,7 +206,7 @@ export const updateProjectTemplate: CustomRequestHandler = async (req, res) => {
       return res.status(401).json({ error: "User not authenticated" });
     }
 
-    if (req.user.role !== 'admin') {
+    if (!isPrivileged(req.user.role)) {
       return res.status(403).json({ error: "Only administrators can update project templates" });
     }
 
@@ -260,7 +262,7 @@ export const deleteProjectTemplate: CustomRequestHandler = async (req, res) => {
       return res.status(401).json({ error: "User not authenticated" });
     }
 
-    if (req.user.role !== 'admin') {
+    if (!isPrivileged(req.user.role)) {
       return res.status(403).json({ error: "Only administrators can delete project templates" });
     }
 
@@ -318,7 +320,7 @@ export const createProjectsFromTemplates: CustomRequestHandler = async (req, res
           continue;
         }
 
-        if (req.user.role !== 'admin' && 
+        if (!isPrivileged(req.user.role) && 
             !template.isPublic && 
             !template.createdBy.equals(req.user._id)) {
           continue;

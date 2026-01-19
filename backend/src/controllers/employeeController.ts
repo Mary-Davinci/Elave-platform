@@ -8,6 +8,8 @@ import path from 'path';
 import fs from 'fs';
 import xlsx from 'xlsx';
 
+const isPrivileged = (role: string) => role === 'admin' || role === 'super_admin';
+
 
 console.log("Employee model loaded:", Employee);
 
@@ -65,7 +67,7 @@ export const getEmployeesByCompany: CustomRequestHandler = async (req, res) => {
       return res.status(404).json({ error: "Company not found" });
     }
 
-    if (req.user.role !== 'admin' && !company.user.equals(req.user._id)) {
+    if (!isPrivileged(req.user.role) && !company.user.equals(req.user._id)) {
       console.log("ERROR: Access denied");
       return res.status(403).json({ error: "Access denied" });
     }
@@ -99,7 +101,7 @@ export const getEmployeeById: CustomRequestHandler = async (req, res) => {
     }
 
     const company = await Company.findById(employee.companyId);
-    if (!company || (req.user.role !== 'admin' && !company.user.equals(req.user._id))) {
+    if (!company || (!isPrivileged(req.user.role) && !company.user.equals(req.user._id))) {
       console.log("ERROR: Access denied");
       return res.status(403).json({ error: "Access denied" });
     }
@@ -189,7 +191,7 @@ export const createEmployee: CustomRequestHandler = async (req, res) => {
       return res.status(404).json({ error: "Company not found" });
     }
 
-    if (req.user.role !== 'admin' && !company.user.equals(req.user._id)) {
+    if (!isPrivileged(req.user.role) && !company.user.equals(req.user._id)) {
       console.log("ERROR: Access denied. User role:", req.user.role, "Company user:", company.user, "Request user:", req.user._id);
       return res.status(403).json({ error: "Access denied" });
     }
@@ -293,7 +295,7 @@ export const updateEmployee: CustomRequestHandler = async (req, res) => {
     }
 
     const company = await Company.findById(employee.companyId);
-    if (!company || (req.user.role !== 'admin' && !company.user.equals(req.user._id))) {
+    if (!company || (!isPrivileged(req.user.role) && !company.user.equals(req.user._id))) {
       return res.status(403).json({ error: "Access denied" });
     }
 
@@ -347,7 +349,7 @@ export const deleteEmployee: CustomRequestHandler = async (req, res) => {
 
     
     const company = await Company.findById(employee.companyId);
-    if (!company || (req.user.role !== 'admin' && !company.user.equals(req.user._id))) {
+    if (!company || (!isPrivileged(req.user.role) && !company.user.equals(req.user._id))) {
       return res.status(403).json({ error: "Access denied" });
     }
 
@@ -378,7 +380,7 @@ export const uploadEmployeesFromExcel: CustomRequestHandler = async (req, res) =
       return res.status(404).json({ error: "Company not found" });
     }
 
-    if (req.user.role !== 'admin' && !company.user.equals(req.user._id)) {
+    if (!isPrivileged(req.user.role) && !company.user.equals(req.user._id)) {
       return res.status(403).json({ error: "Access denied" });
     }
 

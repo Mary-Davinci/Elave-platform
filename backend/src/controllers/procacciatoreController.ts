@@ -8,6 +8,8 @@ import fs from 'fs';
 import xlsx from 'xlsx';
 import { IUser } from "../models/User";
 
+const isPrivileged = (role: string) => role === 'admin' || role === 'super_admin';
+
 interface MulterFiles {
   [fieldname: string]: Express.Multer.File[];
 }
@@ -78,7 +80,7 @@ export const getProcacciatori: CustomRequestHandler = async (req, res) => {
 
     let query = {};
     
-    if (req.user.role !== 'admin') {
+    if (!isPrivileged(req.user.role)) {
       query = { user: req.user._id };
     }
 
@@ -105,7 +107,7 @@ export const getProcacciatoreById: CustomRequestHandler = async (req, res) => {
       return res.status(404).json({ error: "Procacciatore not found" });
     }
 
-    if (req.user.role !== 'admin' && !procacciatore.user.equals(req.user._id)) {
+    if (!isPrivileged(req.user.role) && !procacciatore.user.equals(req.user._id)) {
       return res.status(403).json({ error: "Access denied" });
     }
 
@@ -278,7 +280,7 @@ export const updateProcacciatore: CustomRequestHandler = async (req, res) => {
         return res.status(401).json({ message: 'Unauthorized' });
       }
       
-      if (req.user.role !== 'admin' && !procacciatore.user.equals(req.user._id)) {
+      if (!isPrivileged(req.user.role) && !procacciatore.user.equals(req.user._id)) {
         return res.status(403).json({ error: "Access denied" });
       }
 
@@ -377,7 +379,7 @@ export const deleteProcacciatore: CustomRequestHandler = async (req, res) => {
     }
 
     // Regular users can only delete their own procacciatori
-    if (req.user.role !== 'admin' && !procacciatore.user.equals(req.user._id)) {
+    if (!isPrivileged(req.user.role) && !procacciatore.user.equals(req.user._id)) {
       return res.status(403).json({ error: "Access denied" });
     }
 

@@ -82,6 +82,14 @@ const Users: React.FC = () => {
   // Role checking functions
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   const isResponsabileTerritoriale = user?.role === 'responsabile_territoriale' || isAdmin;
+  const canDeleteUser = (targetRole: User['role']) => {
+    if (!user) return false;
+    if (user.role === 'super_admin') return true;
+    if (user.role === 'admin') {
+      return targetRole !== 'admin' && targetRole !== 'super_admin';
+    }
+    return false;
+  };
 
   useEffect(() => {
     // Set active tab based on URL path
@@ -446,7 +454,7 @@ const Users: React.FC = () => {
                         >
                           ✏️
                         </button>
-                        {isAdmin && (
+                        {canDeleteUser(userItem.role) && (
                           <button 
                             onClick={() => handleDeleteUser(userItem._id)}
                             className="delete-button"

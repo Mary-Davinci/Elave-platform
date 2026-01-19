@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import Project from "../models/Project";
 import { CustomRequestHandler } from "../types/express";
 
+const isPrivileged = (role: string) => role === 'admin' || role === 'super_admin';
+
 export const getProjects: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
@@ -12,7 +14,7 @@ export const getProjects: CustomRequestHandler = async (req, res) => {
     let query: any = {};
     
     // Regular users can only see their own projects
-    if (req.user.role !== 'admin') {
+    if (!isPrivileged(req.user.role)) {
       query.user = req.user._id;
     }
     
@@ -47,7 +49,7 @@ export const getProjectById: CustomRequestHandler = async (req, res) => {
       return res.status(404).json({ error: "Project not found" });
     }
 
-    if (req.user.role !== 'admin' && !project.user.equals(req.user._id)) {
+    if (!isPrivileged(req.user.role) && !project.user.equals(req.user._id)) {
       return res.status(403).json({ error: "Access denied" });
     }
 
@@ -117,7 +119,7 @@ export const updateProject: CustomRequestHandler = async (req, res) => {
       return res.status(404).json({ error: "Project not found" });
     }
 
-    if (req.user.role !== 'admin' && !project.user.equals(req.user._id)) {
+    if (!isPrivileged(req.user.role) && !project.user.equals(req.user._id)) {
       return res.status(403).json({ error: "Access denied" });
     }
 
@@ -174,7 +176,7 @@ export const deleteProject: CustomRequestHandler = async (req, res) => {
     }
 
     
-    if (req.user.role !== 'admin' && !project.user.equals(req.user._id)) {
+    if (!isPrivileged(req.user.role) && !project.user.equals(req.user._id)) {
       return res.status(403).json({ error: "Access denied" });
     }
 

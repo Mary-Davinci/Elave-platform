@@ -225,7 +225,7 @@ const [formData, setFormData] = useState<CompanyFormData>({
         <div className="form-section">
           <div className="form-row">
             <div className="form-group">
-              <label>Segnalatore</label>
+              <label>Numero anagrafica</label>
               <input
                 name="signaler"
                 value={formData.signaler}
@@ -440,7 +440,7 @@ const [formData, setFormData] = useState<CompanyFormData>({
     </div>
 
     <div className="form-group">
-      <label>Procacciatore</label>
+      <label>Segnalatore</label>
       <input
         type="text"
         name="contactInfo.procurer" // UNIQUE

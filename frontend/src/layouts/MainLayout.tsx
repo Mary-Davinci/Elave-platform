@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import '../styles/Dashboard.css';
@@ -57,22 +57,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   const canCreateFornitore = isAdmin || isResponsabileTerritoriale || isSportelloLavoro;
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        sidebarRef.current &&
-        !sidebarRef.current.contains(event.target as Node) &&
-        toggleButtonRef.current &&
-        !toggleButtonRef.current.contains(event.target as Node)
-      ) {
-        setSidebarOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+  // Helper to close all dropdowns
+  const closeAllDropdowns = useCallback(() => {
+    setPostalDropdownOpen(false);
+    setSportelloLavoroDropdownOpen(false);
+    setSegnalatoriDropdownOpen(false);
+    setAbilaDropdownOpen(false);
+    setCompaniesDropdownOpen(false);
+    setFornitoriDropdownOpen(false);
   }, []);
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
@@ -98,15 +90,24 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     );
   })();
 
-  // Helper to close all dropdowns
-  const closeAllDropdowns = () => {
-    setPostalDropdownOpen(false);
-    setSportelloLavoroDropdownOpen(false);
-    setSegnalatoriDropdownOpen(false);
-    setAbilaDropdownOpen(false);
-    setCompaniesDropdownOpen(false);
-    setFornitoriDropdownOpen(false);
-  };
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        sidebarRef.current &&
+        !sidebarRef.current.contains(event.target as Node) &&
+        toggleButtonRef.current &&
+        !toggleButtonRef.current.contains(event.target as Node)
+      ) {
+        setSidebarOpen(false);
+        closeAllDropdowns();
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [closeAllDropdowns]);
 
   const togglePostalDropdown = (e: React.MouseEvent) => {
     e.stopPropagation();

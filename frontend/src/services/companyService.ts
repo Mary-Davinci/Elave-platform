@@ -24,6 +24,16 @@ export const getCompanyById = async (id: string): Promise<Company> => {
   }
 };
 
+export const getNextNumeroAnagrafica = async (): Promise<string> => {
+  try {
+    const response = await api.get<{ numeroAnagrafica: string }>('/api/companies/numero-anagrafica/next');
+    return response.data.numeroAnagrafica;
+  } catch (error) {
+    console.error('Error fetching next numero anagrafica:', error);
+    throw error;
+  }
+};
+
 // Create a new company
 // src/services/companyService.ts
 export const createCompany = async (companyData: CompanyFormData): Promise<Company> => {
@@ -38,6 +48,7 @@ export const createCompany = async (companyData: CompanyFormData): Promise<Compa
       fiscalCode: companyData.fiscalCode?.trim() || '',
       matricola: companyData.matricola?.trim() || '',
       inpsCode: companyData.inpsCode?.trim() || '',
+      numeroAnagrafica: companyData.numeroAnagrafica?.trim() || '',
 
       address: {
         street: companyData.address?.street?.trim() || '',
@@ -56,7 +67,6 @@ export const createCompany = async (companyData: CompanyFormData): Promise<Compa
         // NEW fields (kept if present)
         laborConsultant: companyData.contactInfo?.laborConsultant?.trim() || '',
         laborConsultantId: companyData.contactInfo?.laborConsultantId || '',
-        procurer: companyData.contactInfo?.procurer?.trim() || '',
       },
 
       contractDetails: {
@@ -109,6 +119,7 @@ export const updateCompany = async (id: string, companyData: Partial<CompanyForm
       fiscalCode: companyData.fiscalCode?.trim(),
       matricola: companyData.matricola?.trim(),
       inpsCode: companyData.inpsCode?.trim(),
+      numeroAnagrafica: companyData.numeroAnagrafica?.trim(),
       
       address: companyData.address ? {
         street: companyData.address.street?.trim(),

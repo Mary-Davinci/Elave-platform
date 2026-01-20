@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import Company from "../models/Company";
+import Counter from "../models/Counter";
 import SportelloLavoro from "../models/sportello";
 import { CustomRequestHandler } from "../types/express";
 import mongoose from "mongoose";
@@ -10,6 +11,35 @@ import xlsx from 'xlsx';
 import { NotificationService } from "../models/notificationService";
 
 const isPrivileged = (role: string) => role === 'admin' || role === 'super_admin';
+const COMPANY_ANAGRAFICA_COUNTER_ID = "companyNumeroAnagrafica";
+
+const normalizeNumeroAnagrafica = (value: unknown): string | undefined => {
+  if (value === undefined || value === null) return undefined;
+  const normalized = String(value).trim();
+  return normalized.length ? normalized : undefined;
+};
+
+const ensureAnagraficaCounterAtLeast = async (value: string) => {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return;
+  await Counter.findByIdAndUpdate(
+    COMPANY_ANAGRAFICA_COUNTER_ID,
+    { $max: { seq: numericValue } },
+    { upsert: true }
+  );
+};
+
+const getNextCompanyNumeroAnagrafica = async (): Promise<number> => {
+  const counter = await Counter.findByIdAndUpdate(
+    COMPANY_ANAGRAFICA_COUNTER_ID,
+    [
+      { $set: { seq: { $ifNull: ["$seq", -1] } } },
+      { $set: { seq: { $add: ["$seq", 1] } } }
+    ],
+    { new: true, upsert: true }
+  );
+  return counter.seq;
+};
 
 const storage = multer.diskStorage({
   destination: (req: Request, file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => {
@@ -96,6 +126,20 @@ export const getCompanies: CustomRequestHandler = async (req, res) => {
   }
 };
 
+export const getNextNumeroAnagrafica: CustomRequestHandler = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+
+    const next = await getNextCompanyNumeroAnagrafica();
+    return res.json({ numeroAnagrafica: String(next) });
+  } catch (err: any) {
+    console.error("Get next numero anagrafica error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
 export const getCompanyById: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
@@ -144,6 +188,7 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
       fiscalCode,
       matricola,
       inpsCode,
+      numeroAnagrafica,
       address,
       contactInfo,
       contractDetails,
@@ -192,6 +237,15 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
       delete contactInfo.laborConsultantId;
     }
 
+    const normalizedNumeroAnagrafica = normalizeNumeroAnagrafica(numeroAnagrafica);
+    let resolvedNumeroAnagrafica = normalizedNumeroAnagrafica;
+    if (!resolvedNumeroAnagrafica) {
+      const next = await getNextCompanyNumeroAnagrafica();
+      resolvedNumeroAnagrafica = String(next);
+    } else {
+      await ensureAnagraficaCounterAtLeast(resolvedNumeroAnagrafica);
+    }
+
     const newCompany = new Company({
       businessName, 
       companyName: companyName || businessName,
@@ -199,6 +253,7 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
       fiscalCode,
       matricola,
       inpsCode,
+      numeroAnagrafica: resolvedNumeroAnagrafica,
       address: address || {},
       contactInfo: contactInfo || {},
       contractDetails: contractDetails || {},
@@ -268,6 +323,7 @@ export const updateCompany: CustomRequestHandler = async (req, res) => {
       fiscalCode,
       matricola,
       inpsCode,
+      numeroAnagrafica,
       address,
       contactInfo,
       contractDetails,
@@ -305,6 +361,13 @@ export const updateCompany: CustomRequestHandler = async (req, res) => {
     if (fiscalCode !== undefined) company.fiscalCode = fiscalCode;
     if (matricola !== undefined) company.matricola = matricola;
     if (inpsCode !== undefined) company.inpsCode = inpsCode;
+    if (numeroAnagrafica !== undefined) {
+      const normalizedNumeroAnagrafica = normalizeNumeroAnagrafica(numeroAnagrafica);
+      company.numeroAnagrafica = normalizedNumeroAnagrafica || "";
+      if (normalizedNumeroAnagrafica) {
+        await ensureAnagraficaCounterAtLeast(normalizedNumeroAnagrafica);
+      }
+    }
     
     
     if (address) {
@@ -457,6 +520,7 @@ export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) =
               fiscalCode: row['Codice Fiscale'] || '',
               matricola: row['Matricola'] || '',
               inpsCode: row['Codice INPS'] || '',
+              numeroAnagrafica: row['Numero anagrafica'] || row['Numero Anagrafica'] || '',
               address: {
                 street: row['Indirizzo'] || '',
                 city: row['Citta\''] || row['Città'] || '',
@@ -492,6 +556,15 @@ export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) =
             }
             if (!companyData.vatNumber) {
               throw new Error("Partita IVA is required");
+            }
+
+            const normalizedNumeroAnagrafica = normalizeNumeroAnagrafica(companyData.numeroAnagrafica);
+            if (!normalizedNumeroAnagrafica) {
+              const next = await getNextCompanyNumeroAnagrafica();
+              companyData.numeroAnagrafica = String(next);
+            } else {
+              companyData.numeroAnagrafica = normalizedNumeroAnagrafica;
+              await ensureAnagraficaCounterAtLeast(normalizedNumeroAnagrafica);
             }
 
             console.log(`Saving company: ${companyData.businessName}`);

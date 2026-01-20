@@ -20,6 +20,7 @@ const emptyForm: CompanyFormData = {
   fiscalCode: '',
   matricola: '',
   inpsCode: '',
+  numeroAnagrafica: '',
 
   address: {
     street: '',
@@ -94,6 +95,10 @@ const CompanyEdit: React.FC = () => {
           fiscalCode: company.fiscalCode || '',
           matricola: company.matricola || '',
           inpsCode: company.inpsCode || '',
+          numeroAnagrafica:
+            company.numeroAnagrafica !== undefined
+              ? company.numeroAnagrafica || ''
+              : company.signaler || '',
 
           address: {
             street: company.address?.street || '',
@@ -123,7 +128,10 @@ const CompanyEdit: React.FC = () => {
             saluteAmicaAdhesion: company.contractDetails?.saluteAmicaAdhesion || '',
           },
 
-          signaler: company.signaler || '',
+          signaler:
+            company.numeroAnagrafica !== undefined
+              ? company.signaler || ''
+              : company.contactInfo?.procurer || '',
           industry: company.industry || '',
           actuator: company.actuator || '',
           territorialManager:
@@ -187,6 +195,7 @@ const CompanyEdit: React.FC = () => {
     fiscalCode: data.fiscalCode?.trim(),
     matricola: data.matricola?.trim(),
     inpsCode: data.inpsCode?.trim(),
+    numeroAnagrafica: data.numeroAnagrafica?.trim(),
     signaler: data.signaler?.trim(),
     industry: data.industry?.trim(),
     actuator: data.actuator?.trim(),
@@ -206,7 +215,6 @@ const CompanyEdit: React.FC = () => {
       pec: data.contactInfo?.pec?.trim(),
       referent: data.contactInfo?.referent?.trim(),
       laborConsultant: data.contactInfo?.laborConsultant?.trim(),
-      procurer: data.contactInfo?.procurer?.trim(),
     },
 
     contractDetails: {
@@ -273,8 +281,8 @@ const CompanyEdit: React.FC = () => {
             <div className="form-group">
               <label>Numero anagrafica</label>
               <input
-                name="signaler"
-                value={formData.signaler}
+                name="numeroAnagrafica"
+                value={formData.numeroAnagrafica}
                 onChange={handleChange}
                 className="form-control"
               />
@@ -462,8 +470,8 @@ const CompanyEdit: React.FC = () => {
               <label>Segnalatore</label>
               <input
                 type="text"
-                name="contactInfo.procurer"
-                value={formData.contactInfo?.procurer}
+                name="signaler"
+                value={formData.signaler}
                 onChange={handleChange}
                 className="form-control"
               />

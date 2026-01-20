@@ -8,6 +8,7 @@ export interface ICompany extends Document {
   fiscalCode?: string;   
   matricola?: string;   
   inpsCode?: string;    
+  numeroAnagrafica?: string;
   address: {
     street?: string;
     city?: string;
@@ -80,6 +81,10 @@ const CompanySchema = new Schema<ICompany>(
       trim: true,
     },
     inpsCode: {
+      type: String,
+      trim: true,
+    },
+    numeroAnagrafica: {
       type: String,
       trim: true,
     },

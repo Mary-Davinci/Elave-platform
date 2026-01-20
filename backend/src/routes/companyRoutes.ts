@@ -1,9 +1,13 @@
 import express from "express";
 import { getCompanies, createCompany, updateCompany, deleteCompany, getCompanyById, uploadCompaniesFromExcel } from "../controllers/companyController";
+import { getNextNumeroAnagrafica } from "../controllers/companyController";
 import { authMiddleware } from "../middleware/authMiddleware";
 import { segnalaториRoleMiddleware, sportelloLavoroRoleMiddleware } from "../middleware/roleMiddleware";
 
 const router = express.Router();
+
+router.get("/numero-anagrafica/next", authMiddleware, sportelloLavoroRoleMiddleware, getNextNumeroAnagrafica);
+
 
 router.get("/", authMiddleware, segnalaториRoleMiddleware, getCompanies);
 router.get("/:id", authMiddleware, segnalaториRoleMiddleware, getCompanyById);

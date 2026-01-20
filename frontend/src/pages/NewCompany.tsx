@@ -1,7 +1,7 @@
 // src/pages/NewCompany.tsx
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createCompany } from '../services/companyService';
+import { createCompany, getNextNumeroAnagrafica } from '../services/companyService';
 import { CompanyFormData } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
 import '../styles/NewCompany.css';
@@ -15,6 +15,8 @@ const NewCompany: React.FC = () => {
   const [consultants, setConsultants] = useState<SportelloLavoroResponse[]>([]);
   const [consultantsLoading, setConsultantsLoading] = useState(false);
   const [consultantsError, setConsultantsError] = useState<string | null>(null);
+  const [numeroAnagraficaLoading, setNumeroAnagraficaLoading] = useState(false);
+  const [numeroAnagraficaError, setNumeroAnagraficaError] = useState<string | null>(null);
 
   // Form state matching your interfaces
 const [formData, setFormData] = useState<CompanyFormData>({
@@ -28,6 +30,7 @@ const [formData, setFormData] = useState<CompanyFormData>({
   fiscalCode: '',
   matricola: '',
   inpsCode: '',
+  numeroAnagrafica: '',
 
   address: {
     street: '',
@@ -45,7 +48,6 @@ const [formData, setFormData] = useState<CompanyFormData>({
     referent: '',
     laborConsultant: '', // NEW
     laborConsultantId: '', // NEW
-    procurer: '',        // NEW
   },
 
   contractDetails: {
@@ -101,6 +103,34 @@ const [formData, setFormData] = useState<CompanyFormData>({
     loadConsultants();
   }, []);
 
+  useEffect(() => {
+    let ignore = false;
+    const loadNumeroAnagrafica = async () => {
+      try {
+        setNumeroAnagraficaLoading(true);
+        setNumeroAnagraficaError(null);
+        const next = await getNextNumeroAnagrafica();
+        if (ignore) return;
+        setFormData((prev) => {
+          if (prev.numeroAnagrafica) return prev;
+          return { ...prev, numeroAnagrafica: next };
+        });
+      } catch (e: any) {
+        if (!ignore) {
+          setNumeroAnagraficaError(
+            e?.response?.data?.error || 'Impossibile ottenere il numero anagrafica'
+          );
+        }
+      } finally {
+        if (!ignore) setNumeroAnagraficaLoading(false);
+      }
+    };
+    loadNumeroAnagrafica();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
  
 
   // Handle form input changes
@@ -154,6 +184,7 @@ const [formData, setFormData] = useState<CompanyFormData>({
   fiscalCode: formData.fiscalCode?.trim(),
   matricola: formData.matricola?.trim(),
   inpsCode: formData.inpsCode?.trim(),
+  numeroAnagrafica: formData.numeroAnagrafica?.trim(),
   signaler: formData.signaler?.trim(),
   industry: formData.industry?.trim(),
   actuator: formData.actuator?.trim(),
@@ -175,7 +206,6 @@ const [formData, setFormData] = useState<CompanyFormData>({
     referent: formData.contactInfo?.referent?.trim(),
     laborConsultant: formData.contactInfo?.laborConsultant?.trim(),
     laborConsultantId: formData.contactInfo?.laborConsultantId || '',
-    procurer: formData.contactInfo?.procurer?.trim(),
   },
 
   contractDetails: {
@@ -227,11 +257,15 @@ const [formData, setFormData] = useState<CompanyFormData>({
             <div className="form-group">
               <label>Numero anagrafica</label>
               <input
-                name="signaler"
-                value={formData.signaler}
+                name="numeroAnagrafica"
+                value={formData.numeroAnagrafica}
                 onChange={handleChange}
                 className="form-control"
+                placeholder={numeroAnagraficaLoading ? 'Assegnazione...' : 'Automatico'}
               />
+              {numeroAnagraficaError && (
+                <small style={{ color: 'red' }}>{numeroAnagraficaError}</small>
+              )}
             </div>
 
             <div className="form-group">
@@ -443,8 +477,8 @@ const [formData, setFormData] = useState<CompanyFormData>({
       <label>Segnalatore</label>
       <input
         type="text"
-        name="contactInfo.procurer" // UNIQUE
-        value={formData.contactInfo?.procurer}
+        name="signaler"
+        value={formData.signaler}
         onChange={handleChange}
         className="form-control"
       />

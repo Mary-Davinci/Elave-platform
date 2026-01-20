@@ -69,6 +69,7 @@ export interface Company {
   fiscalCode: string;   // Codice Fiscale
   matricola: string;    // Registration number
   inpsCode: string;     // Codice INPS
+  numeroAnagrafica?: string; // Identificativo interno
   address: {
     street: string;
     city: string;
@@ -98,7 +99,7 @@ export interface Company {
   };
   industry: string;
   employees: number;
-  signaler: string;     // Who reported/registered the company
+  signaler: string;     // Segnalatore
   actuator: string;     // Implementing entity
   isActive: boolean;
   user: string;          // User ID reference
@@ -115,6 +116,7 @@ export interface CompanyFormData {
   fiscalCode?: string;
   matricola?: string;
   inpsCode?: string;
+  numeroAnagrafica?: string;
   address?: {
     street?: string;
     city?: string;

@@ -36,7 +36,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   // ---- Capabilities (explicit) ----
   const canSeeApprovals = isAdmin;
-  const canSeeConto = role === 'admin';
+  const canSeeConto = isAdmin;
 
   const canSeeAziende = true;
   const canCreateAzienda = isAdmin || isSuperAdmin || isResponsabileTerritoriale || isSportelloLavoro;

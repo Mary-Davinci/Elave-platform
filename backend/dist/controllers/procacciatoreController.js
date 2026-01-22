@@ -65,7 +65,7 @@ const getProcacciatori = async (req, res) => {
             return res.status(401).json({ error: "User not authenticated" });
         }
         let query = {};
-        if (req.user.role !== 'admin') {
+        if (!['admin', 'super_admin'].includes(req.user.role)) {
             query = { user: req.user._id };
         }
         const procacciatori = await Procacciatore_1.default.find(query).sort({ createdAt: -1 });
@@ -87,7 +87,7 @@ const getProcacciatoreById = async (req, res) => {
         if (!procacciatore) {
             return res.status(404).json({ error: "Procacciatore not found" });
         }
-        if (req.user.role !== 'admin' && !procacciatore.user.equals(req.user._id)) {
+        if (!['admin', 'super_admin'].includes(req.user.role) && !procacciatore.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
         return res.json(procacciatore);
@@ -212,7 +212,7 @@ const updateProcacciatore = async (req, res) => {
             if (!req.user) {
                 return res.status(401).json({ message: 'Unauthorized' });
             }
-            if (req.user.role !== 'admin' && !procacciatore.user.equals(req.user._id)) {
+            if (!['admin', 'super_admin'].includes(req.user.role) && !procacciatore.user.equals(req.user._id)) {
                 return res.status(403).json({ error: "Access denied" });
             }
             const errors = [];
@@ -318,7 +318,7 @@ const deleteProcacciatore = async (req, res) => {
             return res.status(404).json({ error: "Procacciatore not found" });
         }
         // Regular users can only delete their own procacciatori
-        if (req.user.role !== 'admin' && !procacciatore.user.equals(req.user._id)) {
+        if (!['admin', 'super_admin'].includes(req.user.role) && !procacciatore.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
         // Delete associated files

@@ -78,7 +78,7 @@ const getProjectTemplates = async (req, res) => {
         }
         let query = {};
         // Regular users can only see public templates or ones specific to them
-        if (req.user.role !== 'admin') {
+        if (!['admin', 'super_admin'].includes(req.user.role)) {
             query.$or = [{ isPublic: true }, { createdBy: req.user._id }];
         }
         const templates = await ProjectTemplate.find(query).sort({ code: 1 });
@@ -100,7 +100,7 @@ const getProjectTemplateById = async (req, res) => {
         if (!template) {
             return res.status(404).json({ error: "Project template not found" });
         }
-        if (req.user.role !== 'admin' &&
+        if (!['admin', 'super_admin'].includes(req.user.role) &&
             !template.isPublic &&
             !template.createdBy.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
@@ -118,7 +118,7 @@ const createProjectTemplate = async (req, res) => {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
-        if (req.user.role !== 'admin') {
+        if (!['admin', 'super_admin'].includes(req.user.role)) {
             return res.status(403).json({ error: "Only administrators can create project templates" });
         }
         const { code, title, description, minPrice, maxPrice, hours, category, subcategory, type, isPublic } = req.body;
@@ -155,7 +155,7 @@ const updateProjectTemplate = async (req, res) => {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
-        if (req.user.role !== 'admin') {
+        if (!['admin', 'super_admin'].includes(req.user.role)) {
             return res.status(403).json({ error: "Only administrators can update project templates" });
         }
         const { id } = req.params;
@@ -202,7 +202,7 @@ const deleteProjectTemplate = async (req, res) => {
         if (!req.user) {
             return res.status(401).json({ error: "User not authenticated" });
         }
-        if (req.user.role !== 'admin') {
+        if (!['admin', 'super_admin'].includes(req.user.role)) {
             return res.status(403).json({ error: "Only administrators can delete project templates" });
         }
         const { id } = req.params;
@@ -244,7 +244,7 @@ const createProjectsFromTemplates = async (req, res) => {
                 if (!template) {
                     continue;
                 }
-                if (req.user.role !== 'admin' &&
+                if (!['admin', 'super_admin'].includes(req.user.role) &&
                     !template.isPublic &&
                     !template.createdBy.equals(req.user._id)) {
                     continue;

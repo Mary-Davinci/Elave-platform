@@ -65,7 +65,7 @@ const getSegnalatori = async (req, res) => {
             return res.status(401).json({ error: "User not authenticated" });
         }
         let query = {};
-        if (req.user.role !== 'admin') {
+        if (!['admin', 'super_admin'].includes(req.user.role)) {
             query = { user: req.user._id };
         }
         const segnalatori = await Segnalatore_1.default.find(query).sort({ createdAt: -1 });
@@ -87,7 +87,7 @@ const getSegnalatoreById = async (req, res) => {
         if (!segnalatore) {
             return res.status(404).json({ error: "Segnalatore not found" });
         }
-        if (req.user.role !== 'admin' && !segnalatore.user.equals(req.user._id)) {
+        if (!['admin', 'super_admin'].includes(req.user.role) && !segnalatore.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
         return res.json(segnalatore);
@@ -212,7 +212,7 @@ const updateSegnalatore = async (req, res) => {
             if (!req.user) {
                 return res.status(401).json({ message: 'Unauthorized' });
             }
-            if (req.user.role !== 'admin' && !segnalatore.user.equals(req.user._id)) {
+            if (!['admin', 'super_admin'].includes(req.user.role) && !segnalatore.user.equals(req.user._id)) {
                 return res.status(403).json({ error: "Access denied" });
             }
             const errors = [];
@@ -316,7 +316,7 @@ const deleteSegnalatore = async (req, res) => {
         if (!segnalatore) {
             return res.status(404).json({ error: "Segnalatore not found" });
         }
-        if (req.user.role !== 'admin' && !segnalatore.user.equals(req.user._id)) {
+        if (!['admin', 'super_admin'].includes(req.user.role) && !segnalatore.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
         if (segnalatore.contractFile?.path && fs_1.default.existsSync(segnalatore.contractFile.path)) {

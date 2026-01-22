@@ -86,7 +86,7 @@ const getUtilities = async (req, res) => {
 exports.getUtilities = getUtilities;
 const uploadUtility = async (req, res) => {
     try {
-        if (!req.user || req.user.role !== 'admin') {
+        if (!req.user || !['admin', 'super_admin'].includes(req.user.role)) {
             return res.status(403).json({ error: "Admin access required" });
         }
         if (!req.file) {
@@ -114,7 +114,7 @@ const uploadUtility = async (req, res) => {
 exports.uploadUtility = uploadUtility;
 const addUtility = async (req, res) => {
     try {
-        if (!req.user || req.user.role !== 'admin') {
+        if (!req.user || !['admin', 'super_admin'].includes(req.user.role)) {
             return res.status(403).json({ error: "Admin access required" });
         }
         const { name, fileUrl, type, isPublic } = req.body;
@@ -144,7 +144,7 @@ const addUtility = async (req, res) => {
 exports.addUtility = addUtility;
 const deleteUtility = async (req, res) => {
     try {
-        if (!req.user || req.user.role !== 'admin') {
+        if (!req.user || !['admin', 'super_admin'].includes(req.user.role)) {
             return res.status(403).json({ error: "Admin access required" });
         }
         const { id } = req.params;
@@ -169,7 +169,7 @@ const deleteUtility = async (req, res) => {
 exports.deleteUtility = deleteUtility;
 const initializeUtilities = async (req, res) => {
     try {
-        if (!req.user || req.user.role !== 'admin') {
+        if (!req.user || !['admin', 'super_admin'].includes(req.user.role)) {
             return res.status(403).json({ error: "Admin access required" });
         }
         const existingUtilities = await Utilities_1.default.countDocuments();

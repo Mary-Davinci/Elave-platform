@@ -12,7 +12,7 @@ const getSuppliers = async (req, res) => {
             return res.status(401).json({ error: "User not authenticated" });
         }
         let query = {};
-        if (req.user.role !== 'admin') {
+        if (!['admin', 'super_admin'].includes(req.user.role)) {
             query.user = req.user._id;
         }
         const suppliers = await Supplier_1.default.find(query).sort({ ragioneSociale: 1 });
@@ -34,7 +34,7 @@ const getSupplierById = async (req, res) => {
         if (!supplier) {
             return res.status(404).json({ error: "Supplier not found" });
         }
-        if (req.user.role !== 'admin' && !supplier.user.equals(req.user._id)) {
+        if (!['admin', 'super_admin'].includes(req.user.role) && !supplier.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
         return res.json(supplier);
@@ -113,7 +113,7 @@ const updateSupplier = async (req, res) => {
         if (!supplier) {
             return res.status(404).json({ error: "Supplier not found" });
         }
-        if (req.user.role !== 'admin' && !supplier.user.equals(req.user._id)) {
+        if (!['admin', 'super_admin'].includes(req.user.role) && !supplier.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
         if (ragioneSociale)
@@ -162,7 +162,7 @@ const deleteSupplier = async (req, res) => {
         if (!supplier) {
             return res.status(404).json({ error: "Supplier not found" });
         }
-        if (req.user.role !== 'admin' && !supplier.user.equals(req.user._id)) {
+        if (!['admin', 'super_admin'].includes(req.user.role) && !supplier.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
         await supplier.deleteOne();

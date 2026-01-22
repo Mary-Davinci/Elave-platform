@@ -60,7 +60,7 @@ const getCompanies = async (req, res) => {
             return res.status(401).json({ error: "User not authenticated" });
         }
         let query = {};
-        if (req.user.role !== 'admin') {
+        if (!['admin', 'super_admin'].includes(req.user.role)) {
             query = { user: req.user._id };
         }
         const companies = await Company_1.default.find(query).sort({ createdAt: -1 });
@@ -82,7 +82,7 @@ const getCompanyById = async (req, res) => {
         if (!company) {
             return res.status(404).json({ error: "Company not found" });
         }
-        if (req.user.role !== 'admin' && !company.user.equals(req.user._id)) {
+        if (!['admin', 'super_admin'].includes(req.user.role) && !company.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
         return res.json(company);
@@ -169,7 +169,7 @@ const updateCompany = async (req, res) => {
         if (!company) {
             return res.status(404).json({ error: "Company not found" });
         }
-        if (req.user.role !== 'admin' && !company.user.equals(req.user._id)) {
+        if (!['admin', 'super_admin'].includes(req.user.role) && !company.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
         const errors = [];
@@ -242,7 +242,7 @@ const deleteCompany = async (req, res) => {
         if (!company) {
             return res.status(404).json({ error: "Company not found" });
         }
-        if (req.user.role !== 'admin' && !company.user.equals(req.user._id)) {
+        if (!['admin', 'super_admin'].includes(req.user.role) && !company.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
         await company.deleteOne();

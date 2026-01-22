@@ -13,7 +13,7 @@ const getProjects = async (req, res) => {
         const { status } = req.query;
         let query = {};
         // Regular users can only see their own projects
-        if (req.user.role !== 'admin') {
+        if (!['admin', 'super_admin'].includes(req.user.role)) {
             query.user = req.user._id;
         }
         // Add status filter if provided
@@ -42,7 +42,7 @@ const getProjectById = async (req, res) => {
         if (!project) {
             return res.status(404).json({ error: "Project not found" });
         }
-        if (req.user.role !== 'admin' && !project.user.equals(req.user._id)) {
+        if (!['admin', 'super_admin'].includes(req.user.role) && !project.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
         return res.json(project);
@@ -98,7 +98,7 @@ const updateProject = async (req, res) => {
         if (!project) {
             return res.status(404).json({ error: "Project not found" });
         }
-        if (req.user.role !== 'admin' && !project.user.equals(req.user._id)) {
+        if (!['admin', 'super_admin'].includes(req.user.role) && !project.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
         const oldStatus = project.status;
@@ -148,7 +148,7 @@ const deleteProject = async (req, res) => {
         if (!project) {
             return res.status(404).json({ error: "Project not found" });
         }
-        if (req.user.role !== 'admin' && !project.user.equals(req.user._id)) {
+        if (!['admin', 'super_admin'].includes(req.user.role) && !project.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
         const status = project.status;

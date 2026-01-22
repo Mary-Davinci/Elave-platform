@@ -78,7 +78,7 @@ const getSportelloLavoro = async (req, res) => {
         }
         let query = {};
         // Regular users can only see their own sportello lavoro
-        if (req.user.role !== 'admin') {
+        if (!['admin', 'super_admin'].includes(req.user.role)) {
             query = { user: req.user._id };
         }
         const sportelloLavoro = await sportello_1.default.find(query).sort({ createdAt: -1 });
@@ -102,7 +102,7 @@ const getSportelloLavoroById = async (req, res) => {
             return res.status(404).json({ error: "Sportello Lavoro not found" });
         }
         // Regular users can only access their own sportello lavoro
-        if (req.user.role !== 'admin' && !sportelloLavoro.user.equals(req.user._id)) {
+        if (!['admin', 'super_admin'].includes(req.user.role) && !sportelloLavoro.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
         return res.json(sportelloLavoro);
@@ -226,7 +226,7 @@ const updateSportelloLavoro = async (req, res) => {
                 return res.status(401).json({ message: 'Unauthorized' });
             }
             // Regular users can only update their own sportello lavoro
-            if (req.user.role !== 'admin' && !sportelloLavoro.user.equals(req.user._id)) {
+            if (!['admin', 'super_admin'].includes(req.user.role) && !sportelloLavoro.user.equals(req.user._id)) {
                 return res.status(403).json({ error: "Access denied" });
             }
             // Validation for required fields
@@ -320,7 +320,7 @@ const deleteSportelloLavoro = async (req, res) => {
             return res.status(404).json({ error: "Sportello Lavoro not found" });
         }
         // Regular users can only delete their own sportello lavoro
-        if (req.user.role !== 'admin' && !sportelloLavoro.user.equals(req.user._id)) {
+        if (!['admin', 'super_admin'].includes(req.user.role) && !sportelloLavoro.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
         // Delete associated files

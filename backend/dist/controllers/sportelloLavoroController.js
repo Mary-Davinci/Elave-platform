@@ -75,7 +75,7 @@ const getSportelloLavoro = async (req, res) => {
             return res.status(401).json({ error: "User not authenticated" });
         }
         let query = {};
-        if (req.user.role !== 'admin') {
+        if (!['admin', 'super_admin'].includes(req.user.role)) {
             query = { user: req.user._id };
         }
         const sportelloLavoro = await sportello_1.default.find(query).sort({ createdAt: -1 });
@@ -97,7 +97,7 @@ const getSportelloLavoroById = async (req, res) => {
         if (!sportelloLavoro) {
             return res.status(404).json({ error: "Sportello Lavoro not found" });
         }
-        if (req.user.role !== 'admin' && !sportelloLavoro.user.equals(req.user._id)) {
+        if (!['admin', 'super_admin'].includes(req.user.role) && !sportelloLavoro.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
         return res.json(sportelloLavoro);
@@ -234,7 +234,7 @@ const updateSportelloLavoro = async (req, res) => {
             if (!req.user) {
                 return res.status(401).json({ message: 'Unauthorized' });
             }
-            if (req.user.role !== 'admin' && !sportelloLavoro.user.equals(req.user._id)) {
+            if (!['admin', 'super_admin'].includes(req.user.role) && !sportelloLavoro.user.equals(req.user._id)) {
                 return res.status(403).json({ error: "Access denied" });
             }
             const errors = [];
@@ -321,7 +321,7 @@ const deleteSportelloLavoro = async (req, res) => {
         if (!sportelloLavoro) {
             return res.status(404).json({ error: "Sportello Lavoro not found" });
         }
-        if (req.user.role !== 'admin' && !sportelloLavoro.user.equals(req.user._id)) {
+        if (!['admin', 'super_admin'].includes(req.user.role) && !sportelloLavoro.user.equals(req.user._id)) {
             return res.status(403).json({ error: "Access denied" });
         }
         if (sportelloLavoro.signedContractFile?.path && fs_1.default.existsSync(sportelloLavoro.signedContractFile.path)) {

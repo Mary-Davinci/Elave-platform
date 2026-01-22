@@ -90,11 +90,20 @@ export const getSportelloLavoro: CustomRequestHandler = async (req, res) => {
       return res.status(401).json({ error: "User not authenticated" });
     }
 
+    const role = req.user.role;
+    const isPrivilegedUser = isPrivileged(role);
     let query = {};
-    
-    if (!isPrivileged(req.user.role)) {
+
+    if (!isPrivilegedUser) {
       query = { user: req.user._id };
     }
+
+    console.log("SportelloLavoro list scope:", {
+      userId: req.user._id?.toString?.() ?? req.user._id,
+      role,
+      isPrivilegedUser,
+      query
+    });
 
     const sportelloLavoro = await SportelloLavoro.find(query).sort({ createdAt: -1 });
 

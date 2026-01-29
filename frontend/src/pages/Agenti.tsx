@@ -263,7 +263,7 @@ const Agenti: React.FC = () => {
   return (
     <div className="new-company-container">
       <div className="new-company-header">
-        <h1 className="page-title">Nuovo Agente</h1>
+        <h1 className="page-title">Nuovo Responsabile Territoriale</h1>
       </div>
 
       {/* Template Management Section */}

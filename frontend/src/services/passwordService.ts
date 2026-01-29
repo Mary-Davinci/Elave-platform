@@ -8,11 +8,12 @@ import api from './api';
  * @returns Promise with the response data
  */
 export const changePassword = async (
-  currentPassword: string, 
+  userId: string,
+  currentPassword: string,
   newPassword: string
 ): Promise<{success: boolean; message: string}> => {
   try {
-    const response = await api.post('/api/users/change-password', {
+    const response = await api.put(`/api/users/${userId}/password`, {
       currentPassword,
       newPassword
     });

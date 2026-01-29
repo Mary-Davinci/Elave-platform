@@ -182,8 +182,8 @@ const UserEdit: React.FC = () => {
           setPwError('La password deve avere almeno 6 caratteri');
         } else {
           setPwError(null);
-          await api.post(`/api/users/${form._id}/reset-password`, {
-            password: newPassword,
+          await api.put(`/api/users/${form._id}/password`, {
+            newPassword,
           });
         }
       }

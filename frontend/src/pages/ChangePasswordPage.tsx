@@ -68,7 +68,11 @@ const handleSubmit = async (e: React.FormEvent) => {
     setLoading(true);
     
     // Call password change API
-    await changePassword(currentPassword, newPassword);
+    if (!user?._id) {
+      throw new Error('Utente non trovato. Riprova il login.');
+    }
+
+    await changePassword(user._id, currentPassword, newPassword);
     
     setSuccess(true);
     setCurrentPassword('');

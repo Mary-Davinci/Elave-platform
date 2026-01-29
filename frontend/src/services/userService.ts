@@ -95,7 +95,7 @@ export const deleteUser = async (userId: string) => {
 // Change user password
 export const changePassword = async (userId: string, currentPassword: string, newPassword: string) => {
   try {
-    const response = await api.post(`/api/utilities/${userId}/change-password`, { 
+    const response = await api.put(`/api/users/${userId}/password`, { 
       currentPassword,
       newPassword
     });

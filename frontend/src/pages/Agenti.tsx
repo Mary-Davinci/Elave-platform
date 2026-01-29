@@ -297,7 +297,7 @@ const Agenti: React.FC = () => {
             <div className="template-upload-group" style={{background:'#f8f9fa', padding:'20px', borderRadius:'10px', border:'1px solid #e9ecef'}}>
               <div style={{display:'flex',alignItems:'center',marginBottom:'12px'}}>
                 <span style={{fontSize:'18px',marginRight:'8px'}}>📄</span>
-                <label style={{margin:0,fontWeight:600,color:'#495057',fontSize:'16px'}}>Carica Template Contratto</label>
+                <label style={{margin:0,fontWeight:600,color:'#495057',fontSize:'16px'}}>Carica Contratto Firmato</label>
                 {getAvailableTemplate('contract') && (
                   <span style={{color:'#28a745',fontSize:'12px',marginLeft:'12px',background:'#d4edda',padding:'2px 8px',borderRadius:'12px',fontWeight:500}}>✓ Disponibile</span>
                 )}
@@ -324,7 +324,7 @@ const Agenti: React.FC = () => {
             <div className="template-upload-group" style={{background:'#f8f9fa', padding:'20px', borderRadius:'10px', border:'1px solid #e9ecef'}}>
               <div style={{display:'flex',alignItems:'center',marginBottom:'12px'}}>
                 <span style={{fontSize:'18px',marginRight:'8px'}}>📋</span>
-                <label style={{margin:0,fontWeight:600,color:'#495057',fontSize:'16px'}}>Carica Documento Legale</label>
+                <label style={{margin:0,fontWeight:600,color:'#495057',fontSize:'16px'}}>Carica Documento del Legale Rappresentante</label>
                 {getAvailableTemplate('legal') && (
                   <span style={{color:'#28a745',fontSize:'12px',marginLeft:'12px',background:'#d4edda',padding:'2px 8px',borderRadius:'12px',fontWeight:500}}>✓ Disponibile</span>
                 )}

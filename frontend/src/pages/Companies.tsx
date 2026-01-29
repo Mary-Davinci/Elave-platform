@@ -376,7 +376,7 @@ const Companies: React.FC = () => {
         <h1>Aziende</h1>
         <div className="header-actions">
           <button className="add-button" onClick={handleAddCompany}>
-            Aggiungi Azienda
+            Crea Azienda
           </button>
           <button className="upload-button" onClick={() => navigate('/companies/upload')}>
             <span className="upload-icon">⬆️</span> Importa da XLSX
@@ -386,7 +386,7 @@ const Companies: React.FC = () => {
 
       {companies.length === 0 ? (
         <div className="no-data">
-          <p>Nessuna azienda trovata. Clicca "Aggiungi Azienda" per crearne una.</p>
+          <p>Nessuna azienda trovata. Clicca "Crea Azienda" per crearne una.</p>
         </div>
       ) : (
         <div className="companies-table-container">

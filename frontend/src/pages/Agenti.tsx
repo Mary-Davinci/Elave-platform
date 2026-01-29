@@ -506,7 +506,7 @@ const Agenti: React.FC = () => {
 
           <div className="form-actions">
             <button type="submit" className="submit-button" disabled={isSubmitting}>
-              {isSubmitting ? 'Creazione in corso...' : 'Crea Agente'}
+              {isSubmitting ? 'Creazione in corso...' : 'Crea Responsabile Territoriale'}
             </button>
           </div>
         </form>

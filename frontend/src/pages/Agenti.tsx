@@ -45,7 +45,10 @@ const Agenti: React.FC = () => {
     const fetchFormTemplates = async () => {
       try {
         const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+        const apiBaseUrl =
+          import.meta.env.VITE_API_URL ||
+          import.meta.env.VITE_API_BASE_URL ||
+          'http://localhost:5000';
         const response = await fetch(`${apiBaseUrl}/api/form-templates`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -124,7 +127,10 @@ const Agenti: React.FC = () => {
       if (legalDoc) submitFormData.append('legalDocumentFile', legalDoc);
 
       const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+      const apiBaseUrl =
+        import.meta.env.VITE_API_URL ||
+        import.meta.env.VITE_API_BASE_URL ||
+        'http://localhost:5000';
 
       const response = await fetch(`${apiBaseUrl}/api/agenti`, {
         method: 'POST',
@@ -187,7 +193,10 @@ const Agenti: React.FC = () => {
       uploadFormData.append('type', type);
 
       const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+      const apiBaseUrl =
+        import.meta.env.VITE_API_URL ||
+        import.meta.env.VITE_API_BASE_URL ||
+        'http://localhost:5000';
 
       const response = await fetch(`${apiBaseUrl}/api/form-templates`, {
         method: 'POST',
@@ -229,7 +238,10 @@ const Agenti: React.FC = () => {
   const handleDownloadTemplate = async (type: 'contract' | 'legal') => {
     try {
       const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+      const apiBaseUrl =
+        import.meta.env.VITE_API_URL ||
+        import.meta.env.VITE_API_BASE_URL ||
+        'http://localhost:5000';
 
       const response = await fetch(`${apiBaseUrl}/api/form-templates/download/${type}`, {
         headers: { Authorization: `Bearer ${token}` },

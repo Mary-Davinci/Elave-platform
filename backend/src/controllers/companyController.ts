@@ -32,10 +32,7 @@ const ensureAnagraficaCounterAtLeast = async (value: string) => {
 const getNextCompanyNumeroAnagrafica = async (): Promise<number> => {
   const counter = await Counter.findByIdAndUpdate(
     COMPANY_ANAGRAFICA_COUNTER_ID,
-    [
-      { $set: { seq: { $ifNull: ["$seq", -1] } } },
-      { $set: { seq: { $add: ["$seq", 1] } } }
-    ],
+    { $inc: { seq: 1 }, $setOnInsert: { seq: -1 } },
     { new: true, upsert: true }
   );
   return counter.seq;

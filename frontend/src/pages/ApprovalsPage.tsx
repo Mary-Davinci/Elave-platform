@@ -918,8 +918,8 @@ const StyledApprovalsPage: React.FC = () => {
                     </>
                   ) : pendingItems.total === 0 ? (
                     <>
-                      <CheckCircle size={20} />
-                      <span>Tutto fatto!</span>
+                      <CheckCircle size={40} />
+                      
                     </>
                   ) : (
                     <>

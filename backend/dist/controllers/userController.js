@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.searchUsers = exports.changePassword = exports.deleteUser = exports.updateUser = exports.getUserById = exports.createUser = exports.getManagedUsers = exports.rejectUser = exports.approveUser = exports.getPendingUsers = exports.getUsers = void 0;
+exports.searchUsers = exports.changePassword = exports.deleteUser = exports.updateUser = exports.getUserById = exports.createUser = exports.getManagedUsers = exports.rejectUser = exports.approveUser = exports.getPendingUsers = exports.getResponsabiliMinimal = exports.getUsers = void 0;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const mongoose_1 = __importDefault(require("mongoose"));
 const User_1 = __importDefault(require("../models/User"));
@@ -48,6 +48,28 @@ const getUsers = async (req, res) => {
     }
 };
 exports.getUsers = getUsers;
+const getResponsabiliMinimal = async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: "User not authenticated" });
+        }
+        if (!hasMinimumRole(req.user.role, "admin")) {
+            return res.status(403).json({ error: "Admin access required" });
+        }
+        const users = await User_1.default.find({
+            role: "responsabile_territoriale",
+            isActive: { $ne: false }
+        })
+            .select("_id username firstName lastName email isActive")
+            .sort({ createdAt: -1 });
+        return res.json(users);
+    }
+    catch (err) {
+        console.error("Get responsabili minimal error:", err);
+        return res.status(500).json({ error: "Server error" });
+    }
+};
+exports.getResponsabiliMinimal = getResponsabiliMinimal;
 const getPendingUsers = async (req, res) => {
     try {
         if (!req.user) {

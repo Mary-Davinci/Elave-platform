@@ -16,6 +16,15 @@ interface SportelloLavoro extends SportelloLavoroFormData {
   isActive?: boolean;
   signedContractFile?: string;
   legalDocumentFile?: string;
+  user?: {
+    _id?: string;
+    username?: string;
+    firstName?: string;
+    lastName?: string;
+    organization?: string;
+    role?: string;
+    isActive?: boolean;
+  } | string;
 }
 
 const SportelloLavoroList: React.FC = () => {
@@ -32,8 +41,7 @@ const SportelloLavoroList: React.FC = () => {
     date: '',
     businessName: '',
     vatNumber: '',
-    city: '',
-    province: '',
+    responsabile: '',
     email: '',
     pec: '',
     commission: '',
@@ -48,8 +56,7 @@ const SportelloLavoroList: React.FC = () => {
     date: new Set(),
     businessName: new Set(),
     vatNumber: new Set(),
-    city: new Set(),
-    province: new Set(),
+    responsabile: new Set(),
     email: new Set(),
     pec: new Set(),
     commission: new Set(),
@@ -61,13 +68,22 @@ const SportelloLavoroList: React.FC = () => {
     date: [],
     businessName: [],
     vatNumber: [],
-    city: [],
-    province: [],
+    responsabile: [],
     email: [],
     pec: [],
     commission: [],
     status: [],
   });
+
+  const getResponsabileTerritoriale = (sportello: SportelloLavoro) => {
+    const user = typeof sportello.user === 'object' && sportello.user ? sportello.user : undefined;
+    const display =
+      user?.organization ||
+      [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() ||
+      user?.username ||
+      (sportello.agentName ? String(sportello.agentName) : '');
+    return display || '-';
+  };
 
   // Ref for detecting clicks outside filter dropdowns
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -144,8 +160,7 @@ const SportelloLavoroList: React.FC = () => {
           date: new Set(),
           businessName: new Set(),
           vatNumber: new Set(),
-          city: new Set(),
-          province: new Set(),
+          responsabile: new Set(),
           email: new Set(),
           pec: new Set(),
           commission: new Set(),
@@ -156,8 +171,8 @@ const SportelloLavoroList: React.FC = () => {
           options.date.add(new Date(sportello.createdAt).toLocaleDateString());
           options.businessName.add(sportello.businessName);
           options.vatNumber.add(sportello.vatNumber);
-          options.city.add(sportello.city);
-          options.province.add(sportello.province);
+          const responsabile = getResponsabileTerritoriale(sportello);
+          if (responsabile !== '-') options.responsabile.add(responsabile);
           if (sportello.email) options.email.add(sportello.email);
           if (sportello.pec) options.pec.add(sportello.pec);
           options.commission.add(sportello.agreedCommission.toString());
@@ -195,14 +210,9 @@ const SportelloLavoroList: React.FC = () => {
         sportello.vatNumber.toLowerCase().includes(searchInputs.vatNumber.toLowerCase())
       );
     }
-    if (searchInputs.city) {
+    if (searchInputs.responsabile) {
       result = result.filter(sportello => 
-        sportello.city.toLowerCase().includes(searchInputs.city.toLowerCase())
-      );
-    }
-    if (searchInputs.province) {
-      result = result.filter(sportello => 
-        sportello.province.toLowerCase().includes(searchInputs.province.toLowerCase())
+        getResponsabileTerritoriale(sportello).toLowerCase().includes(searchInputs.responsabile.toLowerCase())
       );
     }
     if (searchInputs.email) {
@@ -238,10 +248,8 @@ const SportelloLavoroList: React.FC = () => {
           result = result.filter(sportello => values.includes(sportello.businessName));
         } else if (field === 'vatNumber') {
           result = result.filter(sportello => values.includes(sportello.vatNumber));
-        } else if (field === 'city') {
-          result = result.filter(sportello => values.includes(sportello.city));
-        } else if (field === 'province') {
-          result = result.filter(sportello => values.includes(sportello.province));
+        } else if (field === 'responsabile') {
+          result = result.filter(sportello => values.includes(getResponsabileTerritoriale(sportello)));
         } else if (field === 'email') {
           result = result.filter(sportello => values.includes(sportello.email || '-'));
         } else if (field === 'pec') {
@@ -434,8 +442,7 @@ const SportelloLavoroList: React.FC = () => {
                   {renderFilterDropdown('date', 'Data')}
                   {renderFilterDropdown('businessName', 'Ragione Sociale')}
                   {renderFilterDropdown('vatNumber', 'Partita IVA')}
-                  {renderFilterDropdown('city', 'Città')}
-                  {renderFilterDropdown('province', 'Provincia')}
+                  {renderFilterDropdown('responsabile', 'Responsabile Territoriale')}
                   {renderFilterDropdown('email', 'Email')}
                   {renderFilterDropdown('pec', 'PEC')}
                   {renderFilterDropdown('commission', 'Commissione')}
@@ -449,8 +456,7 @@ const SportelloLavoroList: React.FC = () => {
                     <td>{new Date(sportello.createdAt).toLocaleDateString()}</td>
                     <td>{sportello.agentName || sportello.businessName}</td>
                     <td>{sportello.vatNumber}</td>
-                    <td>{sportello.city}</td>
-                    <td>{sportello.province}</td>
+                    <td>{getResponsabileTerritoriale(sportello)}</td>
                     <td>{sportello.email || '-'}</td>
                     <td>{sportello.pec || '-'}</td>
                     <td>%{sportello.agreedCommission}</td>

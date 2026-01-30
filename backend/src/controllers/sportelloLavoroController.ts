@@ -8,6 +8,7 @@ import fs from 'fs';
 import xlsx from 'xlsx';
 import { IUser } from "../models/User";
 import { NotificationService } from "../models/notificationService";
+import User from "../models/User";
 
 const isPrivileged = (role: string) => role === 'admin' || role === 'super_admin';
 
@@ -96,7 +97,9 @@ export const getSportelloLavoro: CustomRequestHandler = async (req, res) => {
       query = { user: req.user._id };
     }
 
-    const sportelloLavoro = await SportelloLavoro.find(query).sort({ createdAt: -1 });
+    const sportelloLavoro = await SportelloLavoro.find(query)
+      .populate('user', 'username firstName lastName organization role isActive')
+      .sort({ createdAt: -1 });
 
     return res.json(sportelloLavoro);
   } catch (err: any) {
@@ -113,7 +116,8 @@ export const getSportelloLavoroById: CustomRequestHandler = async (req, res) => 
 
     const { id } = req.params;
     
-    const sportelloLavoro = await SportelloLavoro.findById(id);
+    const sportelloLavoro = await SportelloLavoro.findById(id)
+      .populate('user', 'username firstName lastName organization role isActive');
     
     if (!sportelloLavoro) {
       return res.status(404).json({ error: "Sportello Lavoro not found" });
@@ -150,6 +154,7 @@ export const createSportelloLavoro: CustomRequestHandler = async (req, res) => {
 
       const {
         agentName,
+        agentId,
         businessName,
         vatNumber,
         address,
@@ -204,6 +209,19 @@ export const createSportelloLavoro: CustomRequestHandler = async (req, res) => {
         const isAutoApproved = ["admin", "super_admin"].includes(user.role);
         const needsApproval = ["responsabile_territoriale"].includes(user.role);
 
+        let resolvedUserId = user._id;
+        if (isPrivileged(user.role) && agentId) {
+          const responsabile = await User.findOne({
+            _id: agentId,
+            role: "responsabile_territoriale",
+            isActive: { $ne: false }
+          }).select('_id');
+          if (!responsabile) {
+            return res.status(400).json({ error: "Responsabile Territoriale non valido o inattivo" });
+          }
+          resolvedUserId = responsabile._id;
+        }
+
         const newSportelloLavoro = new SportelloLavoro({
           agentName,
           businessName: resolvedBusinessName,
@@ -238,7 +256,7 @@ export const createSportelloLavoro: CustomRequestHandler = async (req, res) => {
           pendingApproval: needsApproval,
           approvedBy: isAutoApproved ? user._id : undefined,
           approvedAt: isAutoApproved ? new Date() : undefined,
-          user: new mongoose.Types.ObjectId(user._id)
+          user: new mongoose.Types.ObjectId(resolvedUserId)
         });
 
         await newSportelloLavoro.save();

@@ -13,6 +13,8 @@ const router = express_1.default.Router();
 router.use(authMiddleware_1.authMiddleware);
 // Get all users - Admin and above
 router.get("/", roleMiddleware_1.adminRoleMiddleware, userController_1.getUsers);
+// Get minimal list of responsabili territoriali (active) - Admin and above
+router.get("/responsabili/minimal", roleMiddleware_1.adminRoleMiddleware, userController_1.getResponsabiliMinimal);
 // NEW: Get pending approval users - Admin and above only
 router.get("/pending", roleMiddleware_1.adminRoleMiddleware, userController_1.getPendingUsers);
 // NEW: Approve a pending user - Admin and above only

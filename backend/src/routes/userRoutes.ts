@@ -11,7 +11,8 @@ import {
   getManagedUsers,
   getPendingUsers,
   approveUser,
-  rejectUser
+  rejectUser,
+  getResponsabiliMinimal
 } from "../controllers/userController";
 import { authMiddleware } from "../middleware/authMiddleware";
 import { adminRoleMiddleware, superAdminRoleMiddleware, responsabileTerritorialeMiddleware } from "../middleware/roleMiddleware";
@@ -23,6 +24,9 @@ router.use(authMiddleware);
 
 // Get all users - Admin and above
 router.get("/", adminRoleMiddleware, getUsers);
+
+// Get minimal list of responsabili territoriali (active) - Admin and above
+router.get("/responsabili/minimal", adminRoleMiddleware, getResponsabiliMinimal);
 
 // NEW: Get pending approval users - Admin and above only
 router.get("/pending", adminRoleMiddleware, getPendingUsers);

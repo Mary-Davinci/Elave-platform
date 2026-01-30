@@ -11,6 +11,7 @@ const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const xlsx_1 = __importDefault(require("xlsx"));
 const notificationService_1 = require("../models/notificationService");
+const User_1 = __importDefault(require("../models/User"));
 const storage = multer_1.default.diskStorage({
     destination: (req, file, cb) => {
         const uploadDir = path_1.default.join(__dirname, '../uploads/sportello-lavoro');
@@ -78,7 +79,9 @@ const getSportelloLavoro = async (req, res) => {
         if (!['admin', 'super_admin'].includes(req.user.role)) {
             query = { user: req.user._id };
         }
-        const sportelloLavoro = await sportello_1.default.find(query).sort({ createdAt: -1 });
+        const sportelloLavoro = await sportello_1.default.find(query)
+            .populate('user', 'username firstName lastName organization role isActive')
+            .sort({ createdAt: -1 });
         return res.json(sportelloLavoro);
     }
     catch (err) {
@@ -93,7 +96,8 @@ const getSportelloLavoroById = async (req, res) => {
             return res.status(401).json({ error: "User not authenticated" });
         }
         const { id } = req.params;
-        const sportelloLavoro = await sportello_1.default.findById(id);
+        const sportelloLavoro = await sportello_1.default.findById(id)
+            .populate('user', 'username firstName lastName organization role isActive');
         if (!sportelloLavoro) {
             return res.status(404).json({ error: "Sportello Lavoro not found" });
         }
@@ -118,7 +122,7 @@ const createSportelloLavoro = async (req, res) => {
                 console.error("File upload error:", err);
                 return res.status(400).json({ error: err.message });
             }
-            const { agentName, businessName, vatNumber, address, city, postalCode, province, agreedCommission, email, pec } = req.body;
+            const { agentName, agentId, businessName, vatNumber, address, city, postalCode, province, agreedCommission, email, pec } = req.body;
             const errors = [];
             if (!businessName)
                 errors.push("Ragione Sociale is required");
@@ -142,6 +146,18 @@ const createSportelloLavoro = async (req, res) => {
                 return res.status(401).json({ message: 'User not authenticated' });
             }
             try {
+                let resolvedUserId = req.user._id;
+                if (isPrivileged(req.user.role) && agentId) {
+                    const responsabile = await User_1.default.findOne({
+                        _id: agentId,
+                        role: "responsabile_territoriale",
+                        isActive: { $ne: false }
+                    }).select('_id');
+                    if (!responsabile) {
+                        return res.status(400).json({ error: "Responsabile Territoriale non valido o inattivo" });
+                    }
+                    resolvedUserId = responsabile._id;
+                }
                 const files = req.files;
                 const signedContractFile = files?.signedContractFile?.[0];
                 const legalDocumentFile = files?.legalDocumentFile?.[0];
@@ -178,7 +194,7 @@ const createSportelloLavoro = async (req, res) => {
                     pendingApproval: needsApproval,
                     approvedBy: isAutoApproved ? req.user._id : undefined,
                     approvedAt: isAutoApproved ? new Date() : undefined,
-                    user: new mongoose_1.default.Types.ObjectId(req.user._id)
+                    user: new mongoose_1.default.Types.ObjectId(resolvedUserId)
                 });
                 await newSportelloLavoro.save();
                 // Send notification if needs approval

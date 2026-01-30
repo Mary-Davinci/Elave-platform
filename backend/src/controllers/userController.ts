@@ -531,3 +531,27 @@ export const searchUsers: CustomRequestHandler = async (req, res) => {
     return res.status(500).json({ error: "Server error" });
   }
 };
+
+export const getResponsabiliMinimal: CustomRequestHandler = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+
+    if (!hasMinimumRole(req.user.role, "admin")) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+
+    const users = await User.find({
+      role: "responsabile_territoriale",
+      isActive: { $ne: false }
+    })
+      .select("_id username firstName lastName email isActive")
+      .sort({ createdAt: -1 });
+
+    return res.json(users);
+  } catch (err: any) {
+    console.error("Get responsabili minimal error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+};

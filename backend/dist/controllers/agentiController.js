@@ -312,7 +312,13 @@ const getAgentiMinimal = async (req, res) => {
         if (!user)
             return res.status(401).json({ error: "User not authenticated" });
         const scopeIds = await getScopeUserIds(toId(user._id), user.role);
-        const query = !scopeIds ? {} : { user: { $in: scopeIds } };
+        const userScopeFilter = !scopeIds ? {} : { _id: { $in: scopeIds } };
+        const responsabiliUsers = await User_1.default.find(Object.assign({ role: "responsabile_territoriale", isActive: { $ne: false } }, userScopeFilter), { _id: 1 }).lean();
+        const responsabileIds = responsabiliUsers.map(u => u._id);
+        if (responsabileIds.length === 0) {
+            return res.json([]);
+        }
+        const query = { user: { $in: responsabileIds } };
         const rows = await Agenti_1.default.find(query)
             .select('_id businessName isApproved isActive user')
             .lean();

@@ -27,7 +27,6 @@ const Agenti: React.FC = () => {
   // Templates state
   const [formTemplates, setFormTemplates] = useState<FormTemplate[]>([]);
   const [contractTemplate, setContractTemplate] = useState<File | null>(null);
-  const [legalTemplate, setLegalTemplate] = useState<File | null>(null);
   const [isUploadingTemplate, setIsUploadingTemplate] = useState(false);
   const [templateUploadMessage, setTemplateUploadMessage] = useState('');
 
@@ -35,7 +34,6 @@ const Agenti: React.FC = () => {
   const signedContractRef = useRef<HTMLInputElement>(null);
   const legalDocRef = useRef<HTMLInputElement>(null);
   const contractTemplateRef = useRef<HTMLInputElement>(null);
-  const legalTemplateRef = useRef<HTMLInputElement>(null);
 
   // Role checks actually used in the JSX
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
@@ -84,7 +82,6 @@ const Agenti: React.FC = () => {
   const handleTemplateFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'contract' | 'legal') => {
     const file = e.target.files?.[0] || null;
     if (type === 'contract') setContractTemplate(file);
-    else setLegalTemplate(file);
   };
 
   const validateForm = (): string[] => {
@@ -141,7 +138,7 @@ const Agenti: React.FC = () => {
       const result = await response.json();
 
       if (response.ok) {
-        setSuccessMessage('Agente creato con successo!');
+        setSuccessMessage('Responsabile territoriale creato con successo!');
         setFormData({
           businessName: '',
           vatNumber: '',
@@ -181,7 +178,8 @@ const Agenti: React.FC = () => {
   };
 
   const handleUploadTemplate = async (type: 'contract' | 'legal') => {
-    const file = type === 'contract' ? contractTemplate : legalTemplate;
+    if (type !== 'contract') return;
+    const file = contractTemplate;
     if (!file) return;
 
     setIsUploadingTemplate(true);
@@ -210,9 +208,6 @@ const Agenti: React.FC = () => {
         if (type === 'contract') {
           setContractTemplate(null);
           if (contractTemplateRef.current) contractTemplateRef.current.value = '';
-        } else {
-          setLegalTemplate(null);
-          if (legalTemplateRef.current) legalTemplateRef.current.value = '';
         }
 
         // Refresh templates list
@@ -290,7 +285,7 @@ const Agenti: React.FC = () => {
         }}>
           <div style={{display:'flex',alignItems:'center',marginBottom:'20px',paddingBottom:'16px',borderBottom:'2px solid #f8f9fa'}}>
             <div style={{backgroundColor:'#e3f2fd',padding:'8px',borderRadius:'8px',marginRight:'12px'}}><span style={{fontSize:'20px'}}>⚙️</span></div>
-            <h3 style={{margin:0,color:'#2c3e50',fontSize:'20px',fontWeight:600}}>Gestione Moduli Agente (Admin)</h3>
+            <h3 style={{margin:0,color:'#2c3e50',fontSize:'20px',fontWeight:600}}>Gestione Moduli Responsabile Territoriale (Admin)</h3>
           </div>
 
           {templateUploadMessage && (
@@ -304,12 +299,12 @@ const Agenti: React.FC = () => {
             </div>
           )}
 
-          <div style={{ display:'grid', gridTemplateColumns:'31% 31%', gap:'24px' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'minmax(0, 1fr)', gap:'24px' }}>
             {/* Contract Template Upload */}
             <div className="template-upload-group" style={{background:'#f8f9fa', padding:'20px', borderRadius:'10px', border:'1px solid #e9ecef'}}>
               <div style={{display:'flex',alignItems:'center',marginBottom:'12px'}}>
                 <span style={{fontSize:'18px',marginRight:'8px'}}>📄</span>
-                <label style={{margin:0,fontWeight:600,color:'#495057',fontSize:'16px'}}>Carica Contratto Firmato</label>
+                <label style={{margin:0,fontWeight:600,color:'#495057',fontSize:'16px'}}>Carica Contratto Responsabile Territoriale</label>
                 {getAvailableTemplate('contract') && (
                   <span style={{color:'#28a745',fontSize:'12px',marginLeft:'12px',background:'#d4edda',padding:'2px 8px',borderRadius:'12px',fontWeight:500}}>✓ Disponibile</span>
                 )}
@@ -332,32 +327,6 @@ const Agenti: React.FC = () => {
               </button>
             </div>
 
-            {/* Legal Template Upload */}
-            <div className="template-upload-group" style={{background:'#f8f9fa', padding:'20px', borderRadius:'10px', border:'1px solid #e9ecef'}}>
-              <div style={{display:'flex',alignItems:'center',marginBottom:'12px'}}>
-                <span style={{fontSize:'18px',marginRight:'8px'}}>📋</span>
-                <label style={{margin:0,fontWeight:600,color:'#495057',fontSize:'16px'}}>Carica Documento del Legale Rappresentante</label>
-                {getAvailableTemplate('legal') && (
-                  <span style={{color:'#28a745',fontSize:'12px',marginLeft:'12px',background:'#d4edda',padding:'2px 8px',borderRadius:'12px',fontWeight:500}}>✓ Disponibile</span>
-                )}
-              </div>
-              <input
-                type="file"
-                ref={legalTemplateRef}
-                onChange={(e) => handleTemplateFileChange(e, 'legal')}
-                accept=".pdf,.doc,.docx"
-                disabled={isUploadingTemplate}
-                style={{marginBottom:'12px',width:'100%',padding:'8px',border:'1px solid #ced4da',borderRadius:'6px',fontSize:'14px'}}
-              />
-              <button
-                type="button"
-                onClick={() => handleUploadTemplate('legal')}
-                disabled={!legalTemplate || isUploadingTemplate}
-                style={{background: legalTemplate && !isUploadingTemplate ? 'var(--primary-color)' : '#6c757d', color:'#fff', padding:'10px 20px', border:'none', borderRadius:'6px', width:'100%'}}
-              >
-                {isUploadingTemplate ? 'Caricamento...' : 'Carica Documento'}
-              </button>
-            </div>
           </div>
         </div>
       ) : (
@@ -368,7 +337,7 @@ const Agenti: React.FC = () => {
         }}>
           <div style={{display:'flex',alignItems:'center',marginBottom:'16px',paddingBottom:'16px',borderBottom:'2px solid #f8f9fa'}}>
             <div style={{background:'#e8f4f8',padding:'8px',borderRadius:'8px',marginRight:'12px'}}><span style={{fontSize:'20px'}}>📥</span></div>
-            <h3 style={{margin:0,color:'#0c5460',fontSize:'20px',fontWeight:600}}>Scarica Moduli Agente</h3>
+            <h3 style={{margin:0,color:'#0c5460',fontSize:'20px',fontWeight:600}}>Scarica Moduli Responsabile Territoriale</h3>
           </div>
 
           <div style={{display:'flex',gap:'16px',flexWrap:'wrap'}}>
@@ -378,15 +347,7 @@ const Agenti: React.FC = () => {
               disabled={!getAvailableTemplate('contract')}
               style={{background: getAvailableTemplate('contract') ? '#17a2b8' : '#6c757d', color:'#fff', padding:'14px 24px', border:'none', borderRadius:'8px', minWidth:'220px'}}
             >
-              📄 Scarica Contratto
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDownloadTemplate('legal')}
-              disabled={!getAvailableTemplate('legal')}
-              style={{background: getAvailableTemplate('legal') ? '#28a745' : '#6c757d', color:'#fff', padding:'14px 24px', border:'none', borderRadius:'8px', minWidth:'220px'}}
-            >
-              📋 Scarica Documento Legale
+              📄 Scarica Contratto Responsabile Territoriale
             </button>
           </div>
         </div>

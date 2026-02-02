@@ -18,6 +18,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   // Dropdown states
   const [postalDropdownOpen, setPostalDropdownOpen] = useState(false);
+  const [contoDropdownOpen, setContoDropdownOpen] = useState(false);
   const [sportelloLavoroDropdownOpen, setSportelloLavoroDropdownOpen] = useState(false);
   const [segnalatoriDropdownOpen, setSegnalatoriDropdownOpen] = useState(false);
   const [abilaDropdownOpen, setAbilaDropdownOpen] = useState(false);
@@ -60,6 +61,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   // Helper to close all dropdowns
   const closeAllDropdowns = useCallback(() => {
     setPostalDropdownOpen(false);
+    setContoDropdownOpen(false);
     setSportelloLavoroDropdownOpen(false);
     setSegnalatoriDropdownOpen(false);
     setAbilaDropdownOpen(false);
@@ -114,6 +116,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     const newState = !postalDropdownOpen;
     closeAllDropdowns();
     setPostalDropdownOpen(newState);
+  };
+
+  const toggleContoDropdown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newState = !contoDropdownOpen;
+    closeAllDropdowns();
+    setContoDropdownOpen(newState);
   };
 
   const toggleSportelloLavoroDropdown = (e: React.MouseEvent) => {
@@ -189,17 +198,32 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <span>Dashboard</span>
           </div>
 
-          {/* Conto - Admin only */}
+          {/* Conto */}
           {canSeeConto && (
-          <div
-            className={`menu-item ${isActive('/conto') ? 'active' : ''}`}
-            onClick={() => handleNavigation('/conto')}
-          >
-            <i className="menu-icon">💰</i>
-            <span>Conto</span>
-            <i className="arrow-icon">▼</i>
-          </div>
-
+            <div className="menu-item-container">
+              <div
+                className={`menu-item ${isActive('/conto') ? 'active' : ''}`}
+                onClick={toggleContoDropdown}
+              >
+                <i className="menu-icon">💰</i>
+                <span>Conto</span>
+                <i className={`arrow-icon ${contoDropdownOpen ? 'open' : ''}`}>▼</i>
+              </div>
+              {contoDropdownOpen && (
+                <div className="dropdown-menu">
+                  <div className="dropdown-item" onClick={() => handleNavigation('/conto')}>
+                    <i className="dropdown-icon">📋</i>
+                    <span>Elenco</span>
+                  </div>
+                  {isAdmin && (
+                    <div className="dropdown-item" onClick={() => handleNavigation('/conto/upload')}>
+                      <i className="dropdown-icon">📤</i>
+                      <span>Upload XLSX</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
           {/* Posta */}
@@ -410,3 +434,4 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 };
 
 export default MainLayout;
+

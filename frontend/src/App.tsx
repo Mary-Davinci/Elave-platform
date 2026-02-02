@@ -45,6 +45,7 @@ import SegnalatoreEditForm from './pages/SegnalatoreEditForm';
 import AgenteView from './pages/AgenteView';
 import AgenteEdit from './pages/AgenteEdit';
 import Conto from './pages/conto';
+import UploadConto from './pages/UploadConto';
 import RoleGuard from './components/RoleGuard';
 
 
@@ -83,6 +84,15 @@ const App: React.FC = () => {
               <MainLayout>
                 <RoleGuard roles={["admin", "super_admin", "responsabile_territoriale", "sportello_lavoro"]}>
                   <Conto />
+                </RoleGuard>
+              </MainLayout>
+            </ProtectedRoute>
+          } />
+          <Route path="/conto/upload" element={
+            <ProtectedRoute>
+              <MainLayout>
+                <RoleGuard roles={["admin", "super_admin"]}>
+                  <UploadConto />
                 </RoleGuard>
               </MainLayout>
             </ProtectedRoute>

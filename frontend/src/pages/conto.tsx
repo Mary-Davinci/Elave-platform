@@ -40,6 +40,8 @@ const Conto: React.FC = () => {
     const hasUserInfo = transactions.some((t) => !!getTxUserId(t));
     const myUserId = user?._id || '';
 
+    if (!hasUserInfo) return [];
+
     return transactions
       .filter((t) => t.account === activeAccount)
       .filter((t) => (filters.type ? t.type === filters.type : true))
@@ -48,7 +50,7 @@ const Conto: React.FC = () => {
       .filter((t) => (filters.to ? t.date <= filters.to : true))
       .filter((t) => (filters.q ? t.description.toLowerCase().includes((filters.q as string).toLowerCase()) : true))
       .filter((t) => {
-        if (!myUserId || !hasUserInfo) return true;
+        if (!myUserId) return false;
         return getTxUserId(t) === myUserId;
       });
   }, [transactions, activeAccount, filters, user?._id]);

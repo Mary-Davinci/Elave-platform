@@ -34,6 +34,32 @@ export interface Summary {
   updatedAt: string;
 }
 
+export interface ContoUploadRow {
+  mese?: string;
+  anno?: string;
+  matricolaInps?: string;
+  ragioneSociale?: string;
+  quotaRiconciliata?: number | string;
+  fondoSanitario?: number | string;
+  quotaFiacom?: number | string;
+}
+
+export interface ContoUploadPreviewRow {
+  rowNumber: number;
+  data?: ContoUploadRow;
+  errors?: string[];
+}
+
+export interface ContoUploadPreviewResponse {
+  preview: ContoUploadPreviewRow[];
+  errors?: string[];
+}
+
+export interface ContoUploadResponse {
+  message?: string;
+  errors?: string[];
+}
+
 export const contoService = {
   async getTransactions(account: AccountType, filters: ContoFilters, userId?: string): Promise<Transaction[]> {
     const params: Record<string, string> = { account };
@@ -74,5 +100,21 @@ export const contoService = {
       updatedAt: data.updatedAt ?? new Date().toISOString(),
     };
   },
+};
+
+export const previewContoFromExcel = async (formData: FormData): Promise<ContoUploadPreviewResponse> => {
+  const res = await api.post('/api/conto/preview', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 120000,
+  });
+  return res.data as ContoUploadPreviewResponse;
+};
+
+export const uploadContoFromExcel = async (formData: FormData): Promise<ContoUploadResponse> => {
+  const res = await api.post('/api/conto/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 120000,
+  });
+  return res.data as ContoUploadResponse;
 };
 

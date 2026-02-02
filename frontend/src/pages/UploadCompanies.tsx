@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { uploadCompaniesFromExcel, CompanyUploadPreviewResponse } from '../services/companyService';
+import { uploadCompaniesFromExcel, previewCompaniesFromExcel, CompanyUploadPreviewResponse } from '../services/companyService';
 import '../styles/UploadCompanies.css';
 
 const UploadCompanies: React.FC = () => {
@@ -68,7 +68,7 @@ const handleSubmit = async (e: React.FormEvent) => {
     formData.append('file', selectedFile);
     
     // Call the API to upload and process the file
-    const companies = await uploadCompaniesFromExcel(formData) as Company[];
+    const companies = await uploadCompaniesFromExcel(formData);
     
     // Success message
     console.log(`Upload successful: ${companies.length} companies imported`);
@@ -102,7 +102,7 @@ const handlePreview = async () => {
   try {
     const formData = new FormData();
     formData.append('file', selectedFile);
-    const preview = await uploadCompaniesFromExcel(formData, { preview: true }) as CompanyUploadPreviewResponse;
+    const preview = await previewCompaniesFromExcel(formData);
     setPreviewData(preview);
   } catch (err: any) {
     console.error('Error previewing companies:', err);

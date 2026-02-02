@@ -210,9 +210,8 @@ export interface CompanyUploadPreviewResponse {
 }
 
 export const uploadCompaniesFromExcel = async (
-  formData: FormData,
-  options?: { preview?: boolean }
-): Promise<Company[] | CompanyUploadPreviewResponse> => {
+  formData: FormData
+): Promise<Company[]> => {
   try {
     console.log("Uploading Excel file...");
     
@@ -221,7 +220,7 @@ export const uploadCompaniesFromExcel = async (
       console.log(`FormData contains: ${pair[0]}, ${pair[1] instanceof File ? pair[1].name : pair[1]}`);
     }
     
-    const endpoint = options?.preview ? '/api/companies/upload?preview=1' : '/api/companies/upload';
+    const endpoint = '/api/companies/upload';
     const response = await api.post<{
       message: string;
       companies?: Company[];
@@ -241,14 +240,6 @@ export const uploadCompaniesFromExcel = async (
       throw new Error(response.data.errors.join(', '));
     }
     
-    if (options?.preview) {
-      return {
-        message: response.data.message,
-        preview: response.data.preview || [],
-        errors: response.data.errors
-      };
-    }
-
     return response.data.companies || [];
   } catch (error: any) {
     console.error('Error uploading companies from Excel:', error);
@@ -260,6 +251,38 @@ export const uploadCompaniesFromExcel = async (
       throw new Error(error.response.data.error);
     }
     
+    throw error;
+  }
+};
+
+export const previewCompaniesFromExcel = async (
+  formData: FormData
+): Promise<CompanyUploadPreviewResponse> => {
+  try {
+    console.log("Previewing Excel file...");
+    const response = await api.post<{
+      message: string;
+      preview?: CompanyUploadPreviewRow[];
+      errors?: string[];
+    }>('/api/companies/upload?preview=1', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      },
+      timeout: 120000
+    });
+
+    return {
+      message: response.data.message,
+      preview: response.data.preview || [],
+      errors: response.data.errors
+    };
+  } catch (error: any) {
+    console.error('Error previewing companies from Excel:', error);
+    if (error.response?.data?.errors) {
+      throw new Error(error.response.data.errors.join(', '));
+    } else if (error.response?.data?.error) {
+      throw new Error(error.response.data.error);
+    }
     throw error;
   }
 };

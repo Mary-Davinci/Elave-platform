@@ -25,6 +25,7 @@ const formTempletRoutes_1 = __importDefault(require("./routes/formTempletRoutes"
 const approvalRoutes_1 = __importDefault(require("./routes/approvalRoutes"));
 const notificationRoutes_1 = __importDefault(require("./routes/notificationRoutes"));
 const employeeRoutes_1 = __importDefault(require("./routes/employeeRoutes"));
+const contoRoutes_1 = __importDefault(require("./routes/contoRoutes"));
 // Load environment variables
 dotenv_1.default.config();
 // Initialize express
@@ -92,6 +93,7 @@ app.use("/api/form-templates", formTempletRoutes_1.default);
 app.use("/api/approvals", approvalRoutes_1.default);
 app.use("/api/notifications", notificationRoutes_1.default);
 app.use("/api/employees", employeeRoutes_1.default);
+app.use("/api/conto", contoRoutes_1.default);
 app.get("/health", (req, res) => {
     res.status(200).json({
         status: "ok",

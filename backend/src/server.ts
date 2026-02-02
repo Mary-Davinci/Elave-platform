@@ -20,6 +20,7 @@ import sportelloRouter from "./routes/sportelloRouter";
   import approvalRoutes from "./routes/approvalRoutes";
 import notificationRoutes from "./routes/notificationRoutes"; 
 import  employeeRoutes from "./routes/employeeRoutes";
+import contoRoutes from "./routes/contoRoutes";
 
 // Load environment variables
 dotenv.config();
@@ -95,6 +96,7 @@ app.use("/api/form-templates", formTempletRoutes);
 app.use("/api/approvals", approvalRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/employees", employeeRoutes);
+app.use("/api/conto", contoRoutes);
 
 app.get("/health", (req: Request, res: Response) => {
   res.status(200).json({ 

@@ -44,8 +44,6 @@ const Users: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  console.log("Current user:", user);
-  console.log("User role:", user?.role);
   
   // New user form state with new role system
   const [newUser, setNewUser] = useState({

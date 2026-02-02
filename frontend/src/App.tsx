@@ -68,11 +68,11 @@ const App: React.FC = () => {
             </ProtectedRoute>
           } />
           
-          {/* Conto (Admin only) */}
+          {/* Conto (Admin + Responsabile Territoriale + Sportello Lavoro) */}
           <Route path="/conto" element={
             <ProtectedRoute>
               <MainLayout>
-                <RoleGuard roles={["admin", "super_admin"]}>
+                <RoleGuard roles={["admin", "super_admin", "responsabile_territoriale", "sportello_lavoro"]}>
                   <Conto />
                 </RoleGuard>
               </MainLayout>
@@ -81,7 +81,7 @@ const App: React.FC = () => {
           <Route path="/conto/:tab" element={
             <ProtectedRoute>
               <MainLayout>
-                <RoleGuard roles={["admin", "super_admin"]}>
+                <RoleGuard roles={["admin", "super_admin", "responsabile_territoriale", "sportello_lavoro"]}>
                   <Conto />
                 </RoleGuard>
               </MainLayout>

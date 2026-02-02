@@ -3,11 +3,13 @@ import { useNavigate, useParams } from 'react-router-dom';
 import '../styles/Dashboard.css';
 import '../styles/Conto.css';
 import { contoService, type AccountType, type Transaction, type ContoFilters, type TransactionType, type TransactionStatus } from '../services/contoService';
+import { useAuth } from '../contexts/AuthContext';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(value);
 
 const Conto: React.FC = () => {
+  const { user } = useAuth();
   const params = useParams<{ tab?: string }>();
   const navigate = useNavigate();
   const initialTab = (params.tab === 'servizi' || params.tab === 'proselitismo') ? (params.tab as AccountType) : 'proselitismo';
@@ -28,14 +30,28 @@ const Conto: React.FC = () => {
   ];
 
   const filteredTx = useMemo(() => {
+    const getTxUserId = (t: Transaction) =>
+      t.userId ||
+      (typeof t.user === 'string' ? t.user : t.user?._id) ||
+      t.createdBy ||
+      t.ownerId ||
+      '';
+
+    const hasUserInfo = transactions.some((t) => !!getTxUserId(t));
+    const myUserId = user?._id || '';
+
     return transactions
       .filter((t) => t.account === activeAccount)
       .filter((t) => (filters.type ? t.type === filters.type : true))
       .filter((t) => (filters.status ? t.status === filters.status : true))
       .filter((t) => (filters.from ? t.date >= filters.from : true))
       .filter((t) => (filters.to ? t.date <= filters.to : true))
-      .filter((t) => (filters.q ? t.description.toLowerCase().includes((filters.q as string).toLowerCase()) : true));
-  }, [transactions, activeAccount, filters]);
+      .filter((t) => (filters.q ? t.description.toLowerCase().includes((filters.q as string).toLowerCase()) : true))
+      .filter((t) => {
+        if (!myUserId || !hasUserInfo) return true;
+        return getTxUserId(t) === myUserId;
+      });
+  }, [transactions, activeAccount, filters, user?._id]);
 
   const summary = useMemo(() => {
     const incoming = filteredTx.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0);
@@ -57,7 +73,7 @@ const Conto: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const tx = await contoService.getTransactions(activeAccount, filters);
+        const tx = await contoService.getTransactions(activeAccount, filters, user?._id);
         if (!cancelled) setTransactions(tx);
       } catch (e: any) {
         console.warn('getTransactions failed, using mock fallback', e?.message || e);

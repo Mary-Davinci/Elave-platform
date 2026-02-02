@@ -21,6 +21,10 @@ export interface Transaction {
   type: TransactionType;
   status: TransactionStatus;
   category: string;
+  userId?: string;
+  user?: { _id?: string } | string;
+  createdBy?: string;
+  ownerId?: string;
 }
 
 export interface Summary {
@@ -31,13 +35,14 @@ export interface Summary {
 }
 
 export const contoService = {
-  async getTransactions(account: AccountType, filters: ContoFilters): Promise<Transaction[]> {
+  async getTransactions(account: AccountType, filters: ContoFilters, userId?: string): Promise<Transaction[]> {
     const params: Record<string, string> = { account };
     if (filters.from) params.from = filters.from;
     if (filters.to) params.to = filters.to;
     if (filters.type) params.type = filters.type;
     if (filters.status) params.status = filters.status;
     if (filters.q) params.q = filters.q;
+    if (userId) params.userId = userId;
 
     const res = await api.get('/api/conto/transactions', { params });
     // Be forgiving with response shape
@@ -46,13 +51,14 @@ export const contoService = {
     return [];
   },
 
-  async getSummary(account: AccountType, filters: ContoFilters): Promise<Summary | null> {
+  async getSummary(account: AccountType, filters: ContoFilters, userId?: string): Promise<Summary | null> {
     const params: Record<string, string> = { account };
     if (filters.from) params.from = filters.from;
     if (filters.to) params.to = filters.to;
     if (filters.type) params.type = filters.type;
     if (filters.status) params.status = filters.status;
     if (filters.q) params.q = filters.q;
+    if (userId) params.userId = userId;
 
     const res = await api.get('/api/conto/summary', { params });
     const data = res.data;

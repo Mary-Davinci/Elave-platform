@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { uploadCompaniesFromExcel } from '../services/companyService';
+import { uploadCompaniesFromExcel, CompanyUploadPreviewResponse } from '../services/companyService';
 import '../styles/UploadCompanies.css';
 
 const UploadCompanies: React.FC = () => {
@@ -11,6 +11,8 @@ const UploadCompanies: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewData, setPreviewData] = useState<CompanyUploadPreviewResponse | null>(null);
 
   // Check if user is authenticated
   React.useEffect(() => {
@@ -22,6 +24,7 @@ const UploadCompanies: React.FC = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setSelectedFile(e.target.files[0]);
+      setPreviewData(null);
     }
   };
 
@@ -80,6 +83,34 @@ const handleSubmit = async (e: React.FormEvent) => {
     setLoading(false);
   }
 };
+
+const handlePreview = async () => {
+  if (!selectedFile) {
+    setError('Seleziona un file prima di procedere');
+    return;
+  }
+
+  const fileExtension = selectedFile.name.split('.').pop()?.toLowerCase();
+  if (fileExtension !== 'xlsx' && fileExtension !== 'xls') {
+    setError('Solo file Excel (.xlsx, .xls) sono supportati');
+    return;
+  }
+
+  setPreviewLoading(true);
+  setError(null);
+
+  try {
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    const preview = await uploadCompaniesFromExcel(formData, { preview: true }) as CompanyUploadPreviewResponse;
+    setPreviewData(preview);
+  } catch (err: any) {
+    console.error('Error previewing companies:', err);
+    setError(err?.message || 'Si è verificato un errore durante l\'anteprima');
+  } finally {
+    setPreviewLoading(false);
+  }
+};
   return (
     <div className="upload-companies-container">
       <h1 className="page-title">Inserisci aziende da file XLSX</h1>
@@ -135,6 +166,15 @@ const handleSubmit = async (e: React.FormEvent) => {
           
           <div className="form-actions">
             <button
+              type="button"
+              className="submit-button"
+              onClick={handlePreview}
+              disabled={previewLoading || loading || !selectedFile}
+              style={{ backgroundColor: '#6c757d', marginRight: '12px' }}
+            >
+              {previewLoading ? 'Anteprima...' : 'Anteprima'}
+            </button>
+            <button
               type="submit"
               className="submit-button"
               disabled={loading || !selectedFile}
@@ -144,6 +184,54 @@ const handleSubmit = async (e: React.FormEvent) => {
           </div>
         </form>
       </div>
+
+      {previewData && (
+        <div className="upload-form-container" style={{ marginTop: '20px' }}>
+          <h3 style={{ marginBottom: '12px' }}>Anteprima import</h3>
+          {previewData.errors && previewData.errors.length > 0 && (
+            <div className="error-alert" style={{ marginBottom: '12px' }}>
+              <p>{previewData.errors.length} errori trovati</p>
+            </div>
+          )}
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e5e7eb' }}>Riga</th>
+                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e5e7eb' }}>Ragione Sociale</th>
+                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e5e7eb' }}>Partita IVA</th>
+                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e5e7eb' }}>Codice Fiscale</th>
+                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e5e7eb' }}>Matricola INPS</th>
+                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e5e7eb' }}>Responsabile Territoriale</th>
+                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e5e7eb' }}>Responsabile Sportello</th>
+                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e5e7eb' }}>Stato</th>
+                </tr>
+              </thead>
+              <tbody>
+                {previewData.preview.map((row) => {
+                  const status = row.errors && row.errors.length > 0 ? 'Errore' : 'OK';
+                  const vatDisplay =
+                    row.data?.vatNumber && String(row.data.vatNumber).startsWith('NO-PIVA-')
+                      ? '-'
+                      : row.data?.vatNumber || '-';
+                  return (
+                    <tr key={`${row.rowNumber}-${row.data?.vatNumber || row.data?.businessName}`}>
+                      <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.rowNumber}</td>
+                      <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.businessName || '-'}</td>
+                      <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{vatDisplay}</td>
+                      <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.fiscalCode || '-'}</td>
+                      <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.inpsCode || '-'}</td>
+                      <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.contractDetails?.territorialManager || '-'}</td>
+                      <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.contactInfo?.laborConsultant || '-'}</td>
+                      <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{status}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

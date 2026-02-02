@@ -153,7 +153,9 @@ const Companies: React.FC = () => {
           const matricolaInps = getMatricolaInps(company);
           if (matricolaInps !== '-') options.matricola.add(matricolaInps);
           options.businessName.add(company.businessName);
-          options.vatNumber.add(company.vatNumber);
+          const vatDisplay =
+            company.vatNumber && company.vatNumber.startsWith('NO-PIVA-') ? '-' : company.vatNumber;
+          if (vatDisplay) options.vatNumber.add(vatDisplay);
           options.territorialManager.add(getTerritorialManager(company));
           options.sportelloLavoro.add(getSportelloLavoro(company));
         });
@@ -194,9 +196,12 @@ const Companies: React.FC = () => {
     }
     
     if (searchInputs.vatNumber) {
-      result = result.filter(company => 
-        company.vatNumber.toLowerCase().includes(searchInputs.vatNumber.toLowerCase())
-      );
+      const query = searchInputs.vatNumber.toLowerCase();
+      result = result.filter(company => {
+        const vatDisplay =
+          company.vatNumber && company.vatNumber.startsWith('NO-PIVA-') ? '-' : company.vatNumber || '';
+        return vatDisplay.toLowerCase().includes(query);
+      });
     }
     
     if (searchInputs.territorialManager) {
@@ -234,9 +239,11 @@ const Companies: React.FC = () => {
             values.includes(company.businessName)
           );
         } else if (field === 'vatNumber') {
-          result = result.filter(company => 
-            values.includes(company.vatNumber)
-          );
+          result = result.filter(company => {
+            const vatDisplay =
+              company.vatNumber && company.vatNumber.startsWith('NO-PIVA-') ? '-' : company.vatNumber;
+            return values.includes(vatDisplay);
+          });
         } else if (field === 'territorialManager') {
           result = result.filter(company =>
             values.includes(getTerritorialManager(company))
@@ -769,7 +776,9 @@ const Companies: React.FC = () => {
                   <td>{new Date(company.createdAt).toLocaleDateString()}</td>
                   <td>{getMatricolaInps(company)}</td>
                   <td>{company.businessName}</td>
-                  <td>{company.vatNumber}</td>
+                  <td>
+                    {company.vatNumber && company.vatNumber.startsWith('NO-PIVA-') ? '-' : company.vatNumber}
+                  </td>
                   <td>{getTerritorialManager(company)}</td>
                   <td>{getSportelloLavoro(company)}</td>
                   <td>

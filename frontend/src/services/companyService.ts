@@ -197,7 +197,22 @@ export const deleteCompany = async (id: string): Promise<void> => {
  */
 // src/services/companyService.ts - update the uploadCompaniesFromExcel function
 
-export const uploadCompaniesFromExcel = async (formData: FormData): Promise<Company[]> => {
+export interface CompanyUploadPreviewRow {
+  rowNumber: number;
+  data: Company;
+  errors?: string[];
+}
+
+export interface CompanyUploadPreviewResponse {
+  message: string;
+  preview: CompanyUploadPreviewRow[];
+  errors?: string[];
+}
+
+export const uploadCompaniesFromExcel = async (
+  formData: FormData,
+  options?: { preview?: boolean }
+): Promise<Company[] | CompanyUploadPreviewResponse> => {
   try {
     console.log("Uploading Excel file...");
     
@@ -206,14 +221,17 @@ export const uploadCompaniesFromExcel = async (formData: FormData): Promise<Comp
       console.log(`FormData contains: ${pair[0]}, ${pair[1] instanceof File ? pair[1].name : pair[1]}`);
     }
     
+    const endpoint = options?.preview ? '/api/companies/upload?preview=1' : '/api/companies/upload';
     const response = await api.post<{
       message: string;
-      companies: Company[];
+      companies?: Company[];
+      preview?: CompanyUploadPreviewRow[];
       errors?: string[];
-    }>('/api/companies/upload', formData, {
+    }>(endpoint, formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
-      }
+      },
+      timeout: 120000
     });
     
     console.log("Upload response:", response.data);
@@ -223,6 +241,14 @@ export const uploadCompaniesFromExcel = async (formData: FormData): Promise<Comp
       throw new Error(response.data.errors.join(', '));
     }
     
+    if (options?.preview) {
+      return {
+        message: response.data.message,
+        preview: response.data.preview || [],
+        errors: response.data.errors
+      };
+    }
+
     return response.data.companies || [];
   } catch (error: any) {
     console.error('Error uploading companies from Excel:', error);

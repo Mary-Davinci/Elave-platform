@@ -371,7 +371,7 @@ const uploadCompaniesFromExcel = async (req, res) => {
                             numeroAnagrafica: pick(row, ['Numero anagrafica', 'Numero Anagrafica', 'N. Anagrafica']) || '',
                             address: {
                                 street: pick(row, ['Indirizzo', 'Via', 'Sede']) || '',
-                                city: pick(row, ['Citt?', 'Citta'', 'Citta', 'Citt??']) || '',
+                                city: pick(row, ['Città', "Citta'", 'Citta', 'CittÃ ']) || '',
                                 postalCode: pick(row, ['CAP', 'Cap', 'C.A.P.']) || '',
                                 province: pick(row, ['Provincia', 'Prov']) || '',
                                 country: 'Italy'

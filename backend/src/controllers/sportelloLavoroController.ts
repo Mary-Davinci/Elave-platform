@@ -166,6 +166,7 @@ export const createSportelloLavoro: CustomRequestHandler = async (req, res) => {
         pec
       } = req.body as {
         agentName?: string;
+        agentId?: string;
         businessName?: string;
         vatNumber?: string;
         address?: string;

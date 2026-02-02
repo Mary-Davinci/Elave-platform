@@ -41,16 +41,22 @@ connectDB()
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
+  process.env.FRONTEND_URL,
   'https://elave-platform-ovee-mary-s-projects-357233a1.vercel.app',
   'https://elave-platform-cm04fcsd1-mary-s-projects-357233a1.vercel.app',
   'https://elave-platform.vercel.app',
   'https://your-frontend-app.up.railway.app', // Optional
-  
 ];
+
+const isAllowedOrigin = (origin: string) => {
+  if (allowedOrigins.filter(Boolean).includes(origin)) return true;
+  if (/\.vercel\.app$/.test(origin)) return true;
+  return false;
+};
 
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin || isAllowedOrigin(origin)) {
       callback(null, true);
     } else {
       console.warn(`❌ Blocked by CORS: ${origin}`);

@@ -233,6 +233,7 @@ class SportelloLavoroService {
         method: 'POST',
         credentials: 'include',
         body: formData,
+        signal: AbortSignal.timeout(120000)
       });
 
       if (!response.ok) {

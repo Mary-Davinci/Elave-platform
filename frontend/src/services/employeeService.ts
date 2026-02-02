@@ -171,7 +171,8 @@ export const uploadEmployeesFromExcel = async (companyId: string, formData: Form
     }>(`/api/employees/company/${companyId}/upload`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
-      }
+      },
+      timeout: 120000
     });
     
     console.log("Employee upload response:", response.data);

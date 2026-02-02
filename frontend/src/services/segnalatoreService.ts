@@ -284,6 +284,7 @@ class SegnalatoreService {
           ...this.getAuthHeaders(),
         },
         body: formData,
+        signal: AbortSignal.timeout(120000)
       });
 
       if (!response.ok) {

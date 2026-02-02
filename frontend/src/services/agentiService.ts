@@ -211,7 +211,8 @@ export const uploadAgentiFromExcel = async (formData: FormData): Promise<Agente[
     }>('/api/agenti/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
-      }
+      },
+      timeout: 120000
     });
     
     console.log("Upload response:", response.data);

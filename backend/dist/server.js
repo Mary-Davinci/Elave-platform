@@ -67,10 +67,6 @@ app.use((0, cors_1.default)({
     },
     credentials: true
 }));
-        }
-    },
-    credentials: true
-}));
 app.use(express_1.default.json());
 // Static files directory for file downloads
 app.use('/files', express_1.default.static(path_1.default.join(__dirname, '../files')));

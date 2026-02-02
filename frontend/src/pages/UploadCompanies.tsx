@@ -68,7 +68,7 @@ const handleSubmit = async (e: React.FormEvent) => {
     formData.append('file', selectedFile);
     
     // Call the API to upload and process the file
-    const companies = await uploadCompaniesFromExcel(formData);
+    const companies = await uploadCompaniesFromExcel(formData) as Company[];
     
     // Success message
     console.log(`Upload successful: ${companies.length} companies imported`);

@@ -12,6 +12,7 @@ const fs_1 = __importDefault(require("fs"));
 const xlsx_1 = __importDefault(require("xlsx"));
 const notificationService_1 = require("../models/notificationService");
 const User_1 = __importDefault(require("../models/User"));
+const isPrivileged = (role) => role === 'admin' || role === 'super_admin';
 const storage = multer_1.default.diskStorage({
     destination: (req, file, cb) => {
         const uploadDir = path_1.default.join(__dirname, '../uploads/sportello-lavoro');

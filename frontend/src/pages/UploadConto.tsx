@@ -25,6 +25,7 @@ const UploadConto: React.FC = () => {
       'anno',
       'matricola INPS',
       'ragione sociale',
+      'non riconciliata',
       'Quota riconciliata',
       'Fondo Sanitario',
       'QUOTA FIACOM',
@@ -61,6 +62,30 @@ const UploadConto: React.FC = () => {
       const formData = new FormData();
       formData.append('file', selectedFile);
       const result = await uploadContoFromExcel(formData);
+      if (result?.requiresConfirmation) {
+        const dupLines = (result.duplicates || [])
+          .slice(0, 15)
+          .map((d) => `Riga ${d.rowNumber}: ${d.reason}`)
+          .join('\n');
+        const more = (result.duplicates && result.duplicates.length > 15)
+          ? `\n...altre ${result.duplicates.length - 15} righe`
+          : '';
+        const fileNote = result.fileAlreadyUploaded
+          ? `\n\nNota: questo file risulta già caricato${result.fileAlreadyUploadedAt ? ` (prima volta: ${new Date(result.fileAlreadyUploadedAt).toLocaleString('it-IT')})` : ''}.`
+          : '';
+        const ok = window.confirm(
+          `Sono state trovate righe duplicate.\n\n${dupLines}${more}${fileNote}\n\nVuoi procedere comunque?`
+        );
+        if (!ok) {
+          setLoading(false);
+          return;
+        }
+        formData.append('confirmDuplicates', 'true');
+        const confirmed = await uploadContoFromExcel(formData);
+        alert(confirmed?.message || 'Import completato con successo.');
+        navigate('/conto');
+        return;
+      }
       alert(result?.message || 'Import completato con successo.');
       navigate('/conto');
     } catch (err: any) {
@@ -158,6 +183,16 @@ const UploadConto: React.FC = () => {
       {previewData && (
         <div className="upload-form-container" style={{ marginTop: '20px' }}>
           <h3 style={{ marginBottom: '12px' }}>Anteprima import</h3>
+          {previewData.fileAlreadyUploaded && (
+            <div className="error-alert" style={{ marginBottom: '12px' }}>
+              <p>
+                Attenzione: questo file risulta gi? caricato
+                {previewData.fileAlreadyUploadedAt
+                  ? ` (prima volta: ${new Date(previewData.fileAlreadyUploadedAt).toLocaleString('it-IT')})`
+                  : ''}.
+              </p>
+            </div>
+          )}
           {previewData.errors && previewData.errors.length > 0 && (
             <div className="error-alert" style={{ marginBottom: '12px' }}>
               <p>{previewData.errors.length} errori trovati</p>
@@ -172,6 +207,7 @@ const UploadConto: React.FC = () => {
                   <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e5e7eb' }}>Anno</th>
                   <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e5e7eb' }}>Matricola INPS</th>
                   <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e5e7eb' }}>Ragione Sociale</th>
+                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e5e7eb' }}>Non riconciliata</th>
                   <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e5e7eb' }}>Quota Riconciliata</th>
                   <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e5e7eb' }}>Fondo Sanitario</th>
                   <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e5e7eb' }}>Quota Fiacom</th>
@@ -188,6 +224,7 @@ const UploadConto: React.FC = () => {
                       <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.anno || '-'}</td>
                       <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.matricolaInps || '-'}</td>
                       <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.ragioneSociale || '-'}</td>
+                      <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.nonRiconciliata ?? '-'}</td>
                       <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.quotaRiconciliata ?? '-'}</td>
                       <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.fondoSanitario ?? '-'}</td>
                       <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.quotaFiacom ?? '-'}</td>
@@ -195,6 +232,42 @@ const UploadConto: React.FC = () => {
                     </tr>
                   );
                 })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {previewData?.nonRiconciliate && previewData.nonRiconciliate.length > 0 && (
+        <div className="upload-form-container" style={{ marginTop: '20px' }}>
+          <h3 style={{ marginBottom: '12px' }}>Quote non riconciliate</h3>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e5e7eb' }}>Riga</th>
+                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e5e7eb' }}>Mese</th>
+                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e5e7eb' }}>Anno</th>
+                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e5e7eb' }}>Matricola INPS</th>
+                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e5e7eb' }}>Ragione Sociale</th>
+                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e5e7eb' }}>Non riconciliata</th>
+                  <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e5e7eb' }}>Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                {previewData.nonRiconciliate.map((row) => (
+                  <tr key={`nr-${row.rowNumber}-${row.data?.matricolaInps || row.data?.ragioneSociale}`}>
+                    <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.rowNumber}</td>
+                    <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.mese || '-'}</td>
+                    <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.anno || '-'}</td>
+                    <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.matricolaInps || '-'}</td>
+                    <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.ragioneSociale || '-'}</td>
+                    <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.nonRiconciliata ?? '-'}</td>
+                    <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>
+                      {row.errors?.length ? row.errors.join('; ') : 'Non riconciliata'}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

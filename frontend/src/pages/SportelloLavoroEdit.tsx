@@ -83,7 +83,7 @@ const SportelloLavoroEdit: React.FC = () => {
   const contractTemplateRef = useRef<HTMLInputElement>(null);
   const legalTemplateRef = useRef<HTMLInputElement>(null);
 
-  // ---- Load minimal agents for select (admin) ----
+  // ---- Load minimal responsabili for select (admin) ----
   useEffect(() => {
     const fetchAgents = async () => {
       setIsLoadingAgents(true);
@@ -92,28 +92,26 @@ const SportelloLavoroEdit: React.FC = () => {
         const token = localStorage.getItem('token') || sessionStorage.getItem('token');
         const headers = { ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 
-        let res = await fetch(`${API_BASE_URL}/api/agenti/list-minimal`, {
+        const res = await fetch(`${API_BASE_URL}/api/users/responsabili/minimal`, {
           headers,
           credentials: 'include',
         });
-
-        if (!res.ok && res.status === 404) {
-          res = await fetch(`${API_BASE_URL}/api/agenti`, { headers, credentials: 'include' });
-        }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
         const data = await res.json();
         const normalized: MinimalAgent[] = (data || []).map((a: any) => ({
           _id: a._id,
-          businessName: a.businessName ?? a.name ?? '',
-          isApproved: a.isApproved,
+          businessName:
+            [a.firstName, a.lastName].filter(Boolean).join(' ').trim() ||
+            a.username ||
+            a.email ||
+            '',
           isActive: a.isActive,
-          user: a.user,
         }));
         setAgents(normalized);
       } catch (err) {
-        console.error('Error fetching agents:', err);
-        setAgentsError('Impossibile caricare gli agenti.');
+        console.error('Error fetching responsabili:', err);
+        setAgentsError('Impossibile caricare i responsabili territoriali.');
       } finally {
         setIsLoadingAgents(false);
       }
@@ -375,7 +373,7 @@ const SportelloLavoroEdit: React.FC = () => {
   const validateForm = (): boolean => {
     const newErrors: string[] = [];
 
-    if (isAdmin && !formData.agentId) newErrors.push('Seleziona una Ragione Sociale (Agente)');
+    if (isAdmin && !formData.agentId) newErrors.push('Seleziona un Responsabile Territoriale');
     if (!formData.vatNumber.trim()) newErrors.push('Partita IVA is required');
     if (!formData.address.trim()) newErrors.push('Indirizzo is required');
     if (!formData.city.trim()) newErrors.push('Città is required');
@@ -768,9 +766,7 @@ const SportelloLavoroEdit: React.FC = () => {
 
           <div className="form-row">
             <div className="form-group">
-              <label htmlFor="agentId">
-                {isResponsabile ? 'Responsabile Territoriale *' : 'Ragione Sociale *'}
-              </label>
+              <label htmlFor="agentId">Responsabile Territoriale *</label>
 
               {isAdmin ? (
                 <select
@@ -782,7 +778,7 @@ const SportelloLavoroEdit: React.FC = () => {
                   disabled={isSubmitting || isLoadingAgents}
                 >
                   <option value="">
-                    {isLoadingAgents ? 'Caricamento agenti…' : 'Seleziona un agente'}
+                    {isLoadingAgents ? 'Caricamento responsabili…' : 'Seleziona un responsabile'}
                   </option>
                   {agents.map((a) => (
                     <option key={a._id} value={a._id}>

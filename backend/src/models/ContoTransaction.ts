@@ -15,6 +15,7 @@ export interface IContoTransaction extends Document {
   user: mongoose.Types.ObjectId;
   company?: mongoose.Types.ObjectId;
   source: TransactionSource;
+  importKey?: string;
   date: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -49,6 +50,7 @@ const ContoTransactionSchema = new Schema<IContoTransaction>(
       enum: ["manuale", "xlsx"],
       default: "manuale",
     },
+    importKey: { type: String, trim: true, index: true },
     date: { type: Date, default: () => new Date() },
   },
   { timestamps: true }

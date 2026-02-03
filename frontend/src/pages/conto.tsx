@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import '../styles/Dashboard.css';
 import '../styles/Conto.css';
-import { contoService, type AccountType, type Transaction, type ContoFilters, type TransactionType, type TransactionStatus } from '../services/contoService';
+import { contoService, type AccountType, type Transaction, type ContoFilters, type TransactionType, type TransactionStatus, type Summary, getContoImports, type ContoImportItem } from '../services/contoService';
 import { useAuth } from '../contexts/AuthContext';
 
 const formatCurrency = (value: number) =>
@@ -16,6 +16,8 @@ const Conto: React.FC = () => {
   const [activeAccount, setActiveAccount] = useState<AccountType>(initialTab);
   const [filters, setFilters] = useState<ContoFilters>({ type: '', status: '', q: '' });
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [summaryFromApi, setSummaryFromApi] = useState<Summary | null>(null);
+  const [imports, setImports] = useState<ContoImportItem[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,16 +57,19 @@ const Conto: React.FC = () => {
       });
   }, [transactions, activeAccount, filters, user?._id]);
 
-  const summary = useMemo(() => {
+  const derivedSummary = useMemo(() => {
     const incoming = filteredTx.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0);
     const outgoing = filteredTx.filter((t) => t.amount < 0).reduce((s, t) => s + t.amount, 0);
     return {
       balance: incoming + outgoing,
       incoming,
       outgoing: Math.abs(outgoing),
+      nonRiconciliateTotal: 0,
       updatedAt: new Date().toISOString(),
     };
   }, [filteredTx]);
+
+  const summary = summaryFromApi ?? derivedSummary;
 
   const onFilterChange = (patch: Partial<ContoFilters>) => setFilters((f) => ({ ...f, ...patch }));
 
@@ -75,12 +80,17 @@ const Conto: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const tx = await contoService.getTransactions(activeAccount, filters, user?._id);
+        const [tx, sum] = await Promise.all([
+          contoService.getTransactions(activeAccount, filters, user?._id),
+          contoService.getSummary(activeAccount, filters, user?._id),
+        ]);
         if (!cancelled) setTransactions(tx);
+        if (!cancelled) setSummaryFromApi(sum);
       } catch (e: any) {
         console.warn('getTransactions failed, using mock fallback', e?.message || e);
         const tx = mockTx; // fallback
         if (!cancelled) setTransactions(tx);
+        if (!cancelled) setSummaryFromApi(null);
         setError('Dati non disponibili, mostrati valori di esempio.');
       } finally {
         if (!cancelled) setLoading(false);
@@ -89,6 +99,20 @@ const Conto: React.FC = () => {
     run();
     return () => { cancelled = true; };
   }, [activeAccount, filters.from, filters.to, filters.type, filters.status, filters.q]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadImports = async () => {
+      try {
+        const data = await getContoImports();
+        if (!cancelled) setImports(data);
+      } catch (e) {
+        if (!cancelled) setImports([]);
+      }
+    };
+    loadImports();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (params.tab && (params.tab === 'servizi' || params.tab === 'proselitismo')) {
@@ -125,11 +149,11 @@ const Conto: React.FC = () => {
       <div className="projects-section" style={{ marginBottom: 20 }}>
         <div className="project-card-dash">
           <div className="project-number">{formatCurrency(summary.balance)}</div>
-          <div className="project-title">Saldo</div>
+          <div className="project-title">Saldo FIACOM</div>
         </div>
         <div className="project-card-dash">
-          <div className="project-number">{formatCurrency(summary.incoming)}</div>
-          <div className="project-title">Entrate</div>
+          <div className="project-number">{formatCurrency(summary.nonRiconciliateTotal || 0)}</div>
+          <div className="project-title">Quote non riconciliate</div>
         </div>
         <div className="project-card-dash">
           <div className="project-number">{formatCurrency(summary.outgoing)}</div>
@@ -218,6 +242,42 @@ const Conto: React.FC = () => {
               {filteredTx.length === 0 && (
                 <tr>
                   <td colSpan={6} style={{ padding: 16, color: '#666' }}>Nessun movimento trovato.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="utility-section" style={{ marginTop: 20 }}>
+        <div className="section-header">Registro flussi</div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ textAlign: 'left' }}>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Data</th>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Orario</th>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Nome file</th>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Chiave univoca</th>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Righe</th>
+              </tr>
+            </thead>
+            <tbody>
+              {imports.map((item) => {
+                const date = new Date(item.createdAt);
+                return (
+                  <tr key={item._id} style={{ borderBottom: '1px solid #f1f1f1' }}>
+                    <td style={{ padding: '8px' }}>{date.toLocaleDateString('it-IT')}</td>
+                    <td style={{ padding: '8px' }}>{date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</td>
+                    <td style={{ padding: '8px' }}>{item.originalName}</td>
+                    <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: 12 }}>{item.fileHash}</td>
+                    <td style={{ padding: '8px' }}>{item.rowCount}</td>
+                  </tr>
+                );
+              })}
+              {imports.length === 0 && (
+                <tr>
+                  <td colSpan={5} style={{ padding: 16, color: '#666' }}>Nessun file flussi caricato.</td>
                 </tr>
               )}
             </tbody>

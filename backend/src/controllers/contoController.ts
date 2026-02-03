@@ -345,10 +345,14 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
     if (!req.user) {
       return res.status(401).json({ error: "User not authenticated" });
     }
+    const uploaderId = req.user._id;
 
     upload(req, res, async (err) => {
       if (err) {
         return res.status(400).json({ error: err.message });
+      }
+      if (!uploaderId) {
+        return res.status(401).json({ error: "User not authenticated" });
       }
 
       const file = req.file;
@@ -422,7 +426,7 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
                 account: "proselitismo",
                 amount: nonRec,
                 description,
-                user: req.user._id,
+                user: uploaderId,
                 source: "xlsx",
                 importKey,
                 date,
@@ -465,7 +469,9 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
               const sportello = await SportelloLavoro.findOne({
                 isActive: true,
                 $or: [{ businessName: consultantRegex }, { agentName: consultantRegex }],
-              }).select("_id");
+              })
+                .select("_id")
+                .lean<{ _id: mongoose.Types.ObjectId }>();
               if (sportello) {
                 sportelloId = sportello._id.toString();
                 await Company.updateOne(
@@ -514,7 +520,7 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
               status: "completata",
               description,
               category: "Competenza",
-              user: req.user._id,
+              user: uploaderId,
               company: company._id,
               source: "xlsx",
               importKey,
@@ -601,7 +607,7 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
           await ContoImport.create({
             fileHash,
             originalName: file.originalname,
-            uploadedBy: req.user._id,
+            uploadedBy: uploaderId,
             rowCount: rows.length - 1,
           });
         }

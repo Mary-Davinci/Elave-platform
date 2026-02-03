@@ -299,32 +299,93 @@ const Agenti: React.FC = () => {
             </div>
           )}
 
-          <div style={{ display:'grid', gridTemplateColumns:'minmax(0, 1fr)', gap:'24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
             {/* Contract Template Upload */}
-            <div className="template-upload-group" style={{background:'#f8f9fa', padding:'20px', borderRadius:'10px', border:'1px solid #e9ecef'}}>
-              <div style={{display:'flex',alignItems:'center',marginBottom:'12px'}}>
-                <span style={{fontSize:'18px',marginRight:'8px'}}>📄</span>
-                <label style={{margin:0,fontWeight:600,color:'#495057',fontSize:'16px'}}>Carica Contratto Responsabile Territoriale</label>
+            <div
+              className="template-upload-group"
+              style={{
+                backgroundColor: '#ffffff',
+                padding: '18px',
+                borderRadius: '12px',
+                border: '1px solid #e6e9ee',
+                boxShadow: '0 1px 4px rgba(16, 24, 40, 0.08)'
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '12px'
+                }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label
+                    style={{
+                      display: 'block',
+                      margin: 0,
+                      fontWeight: '600',
+                      color: '#2c3e50',
+                      fontSize: '16px'
+                    }}
+                  >
+                    Carica Contratto Responsabile Territoriale
+                  </label>
+                  <span style={{ fontSize: '12px', color: '#6c757d' }}>
+                    Formati supportati: PDF, DOC, DOCX
+                  </span>
+                </div>
                 {getAvailableTemplate('contract') && (
-                  <span style={{color:'#28a745',fontSize:'12px',marginLeft:'12px',background:'#d4edda',padding:'2px 8px',borderRadius:'12px',fontWeight:500}}>✓ Disponibile</span>
+                  <span
+                    style={{
+                      color: '#1f7a3e',
+                      fontSize: '12px',
+                      backgroundColor: '#e7f6ee',
+                      padding: '4px 10px',
+                      borderRadius: '999px',
+                      fontWeight: '600',
+                      border: '1px solid #cfe9db'
+                    }}
+                  >
+                    Disponibile
+                  </span>
                 )}
               </div>
-              <input
-                type="file"
-                ref={contractTemplateRef}
-                onChange={(e) => handleTemplateFileChange(e, 'contract')}
-                accept=".pdf,.doc,.docx"
-                disabled={isUploadingTemplate}
-                style={{marginBottom:'12px',width:'100%',padding:'8px',border:'1px solid #ced4da',borderRadius:'6px',fontSize:'14px'}}
-              />
-              <button
-                type="button"
-                onClick={() => handleUploadTemplate('contract')}
-                disabled={!contractTemplate || isUploadingTemplate}
-                style={{background: contractTemplate && !isUploadingTemplate ? 'var(--primary-color)' : '#6c757d', color:'#fff', padding:'10px 20px', border:'none', borderRadius:'6px', width:'100%'}}
-              >
-                {isUploadingTemplate ? 'Caricamento...' : 'Carica Contratto'}
-              </button>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '12px' }}>
+                <input
+                  type="file"
+                  ref={contractTemplateRef}
+                  onChange={(e) => handleTemplateFileChange(e, 'contract')}
+                  accept=".pdf,.doc,.docx"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1px solid #d0d7de',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    backgroundColor: '#f8fafc'
+                  }}
+                  disabled={isUploadingTemplate}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleUploadTemplate('contract')}
+                  disabled={!contractTemplate || isUploadingTemplate}
+                  style={{
+                    backgroundColor: contractTemplate && !isUploadingTemplate ? 'var(--primary-color)' : '#9aa0a6',
+                    color: 'white',
+                    padding: '10px 18px',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: contractTemplate && !isUploadingTemplate ? 'pointer' : 'not-allowed',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  {isUploadingTemplate ? 'Caricamento...' : 'Carica'}
+                </button>
+              </div>
             </div>
 
           </div>

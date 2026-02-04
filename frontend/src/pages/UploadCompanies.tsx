@@ -155,13 +155,6 @@ const handlePreview = async () => {
               <span className="icon">⬇️</span> Scarica file di esempio
             </button>
             
-            <button
-              type="button"
-              className="download-example-btn orange"
-              onClick={handleDownloadCCNLExample}
-            >
-              <span className="icon">⬇️</span> Scarica file CCNL da abbinare alla colonna "M" del file di esempio aziende
-            </button>
           </div>
           
           <div className="form-actions">

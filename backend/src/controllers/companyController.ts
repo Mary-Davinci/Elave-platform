@@ -133,6 +133,16 @@ export const getNextNumeroAnagrafica: CustomRequestHandler = async (req, res) =>
       return res.status(401).json({ error: "User not authenticated" });
     }
 
+    const preview =
+      String(req.query?.preview || "").toLowerCase() === "1" ||
+      String(req.query?.preview || "").toLowerCase() === "true";
+
+    if (preview) {
+      const counter = await Counter.findById(COMPANY_ANAGRAFICA_COUNTER_ID);
+      const next = Number(counter?.seq ?? -1) + 1;
+      return res.json({ numeroAnagrafica: String(next) });
+    }
+
     const next = await getNextCompanyNumeroAnagrafica();
     return res.json({ numeroAnagrafica: String(next) });
   } catch (err: any) {

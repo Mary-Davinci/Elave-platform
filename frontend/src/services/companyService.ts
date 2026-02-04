@@ -26,7 +26,10 @@ export const getCompanyById = async (id: string): Promise<Company> => {
 
 export const getNextNumeroAnagrafica = async (): Promise<string> => {
   try {
-    const response = await api.get<{ numeroAnagrafica: string }>('/api/companies/numero-anagrafica/next');
+    const response = await api.get<{ numeroAnagrafica: string }>(
+      '/api/companies/numero-anagrafica/next',
+      { params: { preview: true } }
+    );
     return response.data.numeroAnagrafica;
   } catch (error) {
     console.error('Error fetching next numero anagrafica:', error);

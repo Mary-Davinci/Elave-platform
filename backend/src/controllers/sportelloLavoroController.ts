@@ -322,6 +322,7 @@ export const updateSportelloLavoro: CustomRequestHandler = async (req, res) => {
       }
 
       const {
+        agentName,
         businessName,
         vatNumber,
         address,
@@ -358,13 +359,15 @@ export const updateSportelloLavoro: CustomRequestHandler = async (req, res) => {
         const signedContractFile = files?.signedContractFile?.[0];
         const legalDocumentFile = files?.legalDocumentFile?.[0];
 
+        if (agentName !== undefined) sportelloLavoro.agentName = agentName;
         if (businessName !== undefined) sportelloLavoro.businessName = businessName;
         if (vatNumber !== undefined) sportelloLavoro.vatNumber = vatNumber;
         if (address !== undefined) sportelloLavoro.address = address;
         if (city !== undefined) sportelloLavoro.city = city;
         if (postalCode !== undefined) sportelloLavoro.postalCode = postalCode;
         if (province !== undefined) sportelloLavoro.province = province;
-        if (agreedCommission !== undefined) sportelloLavoro.agreedCommission = parseFloat(agreedCommission);
+        // Sportello lavoro always fixed to 30%
+        if (agreedCommission !== undefined) sportelloLavoro.agreedCommission = 30;
         if (email !== undefined) sportelloLavoro.email = email;
         if (pec !== undefined) sportelloLavoro.pec = pec;
 

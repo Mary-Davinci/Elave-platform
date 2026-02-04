@@ -165,7 +165,7 @@ const SportelloLavoroEdit: React.FC = () => {
           city: data.city || '',
           postalCode: data.postalCode || '',
           province: data.province || '',
-          agreedCommission: Number(data.agreedCommission ?? 0),
+          agreedCommission: 30,
           email: data.email || '',
           pec: data.pec || '',
         });
@@ -233,7 +233,7 @@ const SportelloLavoroEdit: React.FC = () => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: name === 'agreedCommission' ? parseFloat(value) || 0 : value,
+      [name]: name === 'agreedCommission' ? 30 : value,
     }));
     if (errors.length) setErrors([]);
     if (successMessage) setSuccessMessage('');
@@ -900,13 +900,13 @@ const SportelloLavoroEdit: React.FC = () => {
                 type="number"
                 id="agreedCommission"
                 name="agreedCommission"
-                value={formData.agreedCommission || 0}
+                value={30}
                 onChange={handleChange}
                 required
                 min="0"
                 step="0.01"
                 placeholder="Inserisci la percentuale"
-                disabled={isSubmitting}
+                disabled
               />
             </div>
 

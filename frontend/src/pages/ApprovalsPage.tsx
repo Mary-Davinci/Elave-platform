@@ -64,7 +64,7 @@ const StyledApprovalsPage: React.FC = () => {
       console.log('🔄 Fetching pending items from API...');
       
       const data = await approvalService.getPendingItems();
-      console.log('✅ Pending items fetched successfully:', data);
+      
       
       setPendingItems(data);
     } catch (err: any) {

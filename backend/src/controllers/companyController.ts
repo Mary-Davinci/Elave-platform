@@ -196,6 +196,13 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
       return res.status(401).json({ error: "User not authenticated" });
     }
 
+    console.log("[createCompany] request user:", {
+      id: req.user._id,
+      role: req.user.role,
+      email: req.user.email,
+    });
+    console.log("[createCompany] request body keys:", Object.keys(req.body || {}));
+
     const { 
       businessName, 
       companyName,
@@ -215,23 +222,30 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
     } = req.body;
 
     // valida sportello lavoro se cè
-    if (contactInfo?.laborConsultantId) {
-      try {
-        const consultant = await SportelloLavoro.findById(contactInfo.laborConsultantId);
-        if (!consultant) {
-          return res.status(400).json({ error: 'Invalid laborConsultantId: consultant not found' });
+      if (contactInfo?.laborConsultantId) {
+        try {
+          const consultant = await SportelloLavoro.findById(contactInfo.laborConsultantId);
+          if (!consultant) {
+            console.warn("[createCompany] consultant not found", contactInfo.laborConsultantId);
+            return res.status(400).json({ error: 'Invalid laborConsultantId: consultant not found' });
+          }
+          // Solo il proprietario o admin possono selezionare il consulente
+          if (!isPrivileged(req.user.role) && !consultant.user.equals(req.user._id)) {
+            console.warn("[createCompany] consultant ownership mismatch", {
+              userId: req.user._id,
+              consultantUser: consultant.user,
+            });
+            return res.status(403).json({ error: 'You do not own the selected consultant' });
+          }
+          if (!consultant.isActive) {
+            console.warn("[createCompany] consultant not active", contactInfo.laborConsultantId);
+            return res.status(400).json({ error: 'Selected consultant is not active' });
+          }
+        } catch (e) {
+          console.error("[createCompany] consultant lookup error", e);
+          return res.status(400).json({ error: 'Invalid laborConsultantId' });
         }
-        // Solo il proprietario o admin possono selezionare il consulente
-        if (!isPrivileged(req.user.role) && !consultant.user.equals(req.user._id)) {
-          return res.status(403).json({ error: 'You do not own the selected consultant' });
-        }
-        if (!consultant.isActive) {
-          return res.status(400).json({ error: 'Selected consultant is not active' });
-        }
-      } catch (e) {
-        return res.status(400).json({ error: 'Invalid laborConsultantId' });
       }
-    }
 
 
     const errors: string[] = [];
@@ -239,6 +253,7 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
     if (!vatNumber) errors.push("Partita IVA is required");
     
     if (errors.length > 0) {
+      console.warn("[createCompany] validation errors:", errors);
       return res.status(400).json({ errors });
     }
 

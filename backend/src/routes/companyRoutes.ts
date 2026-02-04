@@ -6,6 +6,10 @@ import { segnalaториRoleMiddleware, sportelloLavoroRoleMiddleware } from "..
 
 const router = express.Router();
 
+router.get("/__ping", authMiddleware, (_req, res) => {
+  return res.status(200).json({ ok: true, route: "companies" });
+});
+
 router.get("/numero-anagrafica/next", authMiddleware, sportelloLavoroRoleMiddleware, getNextNumeroAnagrafica);
 
 

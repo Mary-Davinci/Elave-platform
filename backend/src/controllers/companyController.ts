@@ -32,9 +32,13 @@ const ensureAnagraficaCounterAtLeast = async (value: string) => {
 const getNextCompanyNumeroAnagrafica = async (): Promise<number> => {
   const counter = await Counter.findByIdAndUpdate(
     COMPANY_ANAGRAFICA_COUNTER_ID,
-    { $inc: { seq: 1 }, $setOnInsert: { seq: -1 } },
+    [
+      { $set: { seq: { $ifNull: ["$seq", -1] } } },
+      { $set: { seq: { $add: ["$seq", 1] } } },
+    ],
     { new: true, upsert: true }
   );
+  if (!counter) return 0;
   return counter.seq;
 };
 
@@ -132,7 +136,11 @@ export const getNextNumeroAnagrafica: CustomRequestHandler = async (req, res) =>
     const next = await getNextCompanyNumeroAnagrafica();
     return res.json({ numeroAnagrafica: String(next) });
   } catch (err: any) {
-    console.error("Get next numero anagrafica error:", err);
+    console.error("Get next numero anagrafica error:", {
+      message: err?.message,
+      name: err?.name,
+      stack: err?.stack,
+    });
     return res.status(500).json({ error: "Server error" });
   }
 };

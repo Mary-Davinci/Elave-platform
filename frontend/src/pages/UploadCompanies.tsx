@@ -34,12 +34,6 @@ const UploadCompanies: React.FC = () => {
     alert('Download esempio file aziende avviato');
   };
 
-  const handleDownloadCCNLExample = () => {
-    // In a real implementation, this would trigger a file download
-    // For now we'll just show an alert
-    alert('Download esempio file CCNL avviato');
-  };
-
  // Fix handleSubmit in UploadCompanies.tsx
 // In UploadCompanies.tsx
 const handleSubmit = async (e: React.FormEvent) => {

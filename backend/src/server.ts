@@ -74,10 +74,13 @@ app.use(express.json());
 app.use('/files', express.static(path.join(__dirname, '../files')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+const BUILD_VERSION = "2026-02-04-1";
+
 // Log environment info on startup
 console.log('Environment:', process.env.NODE_ENV);
 console.log('Frontend URL:', process.env.FRONTEND_URL);
 console.log('Port:', PORT);
+console.log('Build Version:', BUILD_VERSION);
 
 // Routes
 app.use("/api/auth", authRoutes);

@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "build": "npm --prefix backend run build",
+    "start": "npm --prefix backend run start"
+  },
   "dependencies": {
     "@types/nodemailer": "^6.4.17",
     "@types/react": "^19.1.0",

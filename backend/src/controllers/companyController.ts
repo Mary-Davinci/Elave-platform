@@ -196,6 +196,14 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
       return res.status(401).json({ error: "User not authenticated" });
     }
 
+    const isPreview =
+      String(req.query?.preview || "").toLowerCase() === "1" ||
+      String(req.query?.preview || "").toLowerCase() === "true";
+
+    if (isPreview) {
+      return res.status(400).json({ error: "Preview not supported for company creation" });
+    }
+
     console.log("[createCompany] request user:", {
       id: req.user._id,
       role: req.user.role,

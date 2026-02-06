@@ -97,6 +97,17 @@ export interface ContoImportItem {
   createdAt: string;
 }
 
+export interface NonRiconciliataItem {
+  _id: string;
+  account: AccountType;
+  amount: number;
+  description: string;
+  date: string;
+  companyName?: string;
+  responsabileName?: string;
+  sportelloName?: string;
+}
+
 export const contoService = {
   async getTransactions(account: AccountType, filters: ContoFilters, userId?: string): Promise<Transaction[]> {
     const params: Record<string, string> = { account };
@@ -165,6 +176,22 @@ export const getContoImports = async (): Promise<ContoImportItem[]> => {
   const res = await api.get('/api/conto/imports');
   if (Array.isArray(res.data)) return res.data as ContoImportItem[];
   if (Array.isArray(res.data?.imports)) return res.data.imports as ContoImportItem[];
+  return [];
+};
+
+export const getNonRiconciliate = async (
+  account: AccountType,
+  filters: ContoFilters,
+  userId?: string
+): Promise<NonRiconciliataItem[]> => {
+  const params: Record<string, string> = { account };
+  if (filters.from) params.from = filters.from;
+  if (filters.to) params.to = filters.to;
+  if (filters.q) params.q = filters.q;
+  if (userId) params.userId = userId;
+  const res = await api.get('/api/conto/non-riconciliate', { params });
+  if (Array.isArray(res.data)) return res.data as NonRiconciliataItem[];
+  if (Array.isArray(res.data?.items)) return res.data.items as NonRiconciliataItem[];
   return [];
 };
 

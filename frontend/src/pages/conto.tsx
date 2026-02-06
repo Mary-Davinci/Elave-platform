@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import '../styles/Dashboard.css';
 import '../styles/Conto.css';
-import { contoService, type AccountType, type Transaction, type ContoFilters, type TransactionType, type TransactionStatus, type Summary, getContoImports, type ContoImportItem } from '../services/contoService';
+import { contoService, type AccountType, type Transaction, type ContoFilters, type TransactionType, type TransactionStatus, type Summary, getContoImports, type ContoImportItem, getNonRiconciliate, type NonRiconciliataItem } from '../services/contoService';
 import { getCompanies } from '../services/companyService';
 import type { Company } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
@@ -40,6 +40,7 @@ const Conto: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [summaryFromApi, setSummaryFromApi] = useState<Summary | null>(null);
   const [imports, setImports] = useState<ContoImportItem[]>([]);
+  const [nonRiconciliate, setNonRiconciliate] = useState<NonRiconciliataItem[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -126,6 +127,22 @@ const Conto: React.FC = () => {
     run();
     return () => { cancelled = true; };
   }, [activeAccount, filters.from, filters.to, filters.type, filters.status, filters.q]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+        const userIdForQuery = isAdmin ? undefined : user?._id;
+        const data = await getNonRiconciliate(activeAccount, filters, userIdForQuery);
+        if (!cancelled) setNonRiconciliate(data);
+      } catch (e) {
+        if (!cancelled) setNonRiconciliate([]);
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [activeAccount, filters.from, filters.to, filters.q, user?._id, user?.role]);
 
   useEffect(() => {
     let cancelled = false;
@@ -381,6 +398,41 @@ const Conto: React.FC = () => {
               {imports.length === 0 && (
                 <tr>
                   <td colSpan={5} style={{ padding: 16, color: '#666' }}>Nessun file flussi caricato.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="utility-section" style={{ marginTop: 20 }}>
+        <div className="section-header">Quote non riconciliate</div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ textAlign: 'left' }}>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Data</th>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Aziende</th>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Responsabile Territoriale</th>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Sportello Lavoro</th>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Quota non riconciliata</th>
+              </tr>
+            </thead>
+            <tbody>
+              {nonRiconciliate.map((t) => (
+                <tr key={t._id} style={{ borderBottom: '1px solid #f1f1f1' }}>
+                  <td style={{ padding: '8px' }}>{new Date(t.date).toLocaleDateString('it-IT')}</td>
+                  <td style={{ padding: '8px' }}>{t.companyName || '-'}</td>
+                  <td style={{ padding: '8px' }}>{t.responsabileName || '-'}</td>
+                  <td style={{ padding: '8px' }}>{t.sportelloName || '-'}</td>
+                  <td style={{ padding: '8px', color: '#e67e22', fontWeight: 600 }}>
+                    {formatCurrency(t.amount)}
+                  </td>
+                </tr>
+              ))}
+              {nonRiconciliate.length === 0 && (
+                <tr>
+                  <td colSpan={5} style={{ padding: 16, color: '#666' }}>Nessuna quota non riconciliata.</td>
                 </tr>
               )}
             </tbody>

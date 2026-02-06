@@ -939,3 +939,96 @@ export const getContoImports: CustomRequestHandler = async (req, res) => {
     return res.status(500).json({ error: "Server error" });
   }
 };
+
+export const getNonRiconciliate: CustomRequestHandler = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+
+    const { account, from, to, q } = req.query as Record<string, string>;
+    const userId = getEffectiveUserId(req);
+    const query: any = {};
+    if (userId) query.user = userId;
+    if (account) query.account = account;
+    if (q) query.description = { $regex: q, $options: "i" };
+    if (from || to) {
+      query.date = {};
+      if (from) query.date.$gte = new Date(from);
+      if (to) query.date.$lte = new Date(to);
+    }
+
+    const items = await ContoNonRiconciliata.find(query)
+      .sort({ date: -1, createdAt: -1 })
+      .populate({
+        path: "company",
+        select: "businessName companyName user contactInfo.laborConsultantId contactInfo.laborConsultant contractDetails.territorialManager",
+        populate: [
+          { path: "user", select: "firstName lastName username" },
+          { path: "contactInfo.laborConsultantId", select: "businessName agentName" },
+        ],
+      })
+      .lean();
+
+    const enriched = await Promise.all(items.map(async (item: any) => {
+      let company = item.company;
+
+      if (!company && item.description) {
+        const matricolaMatch = String(item.description).match(/Matricola:\s*([0-9A-Za-z]+)/i);
+        const nameMatch = String(item.description).match(/Azienda:\s*([^|]+)/i);
+        const matricolaToken = matricolaMatch ? matricolaMatch[1].trim() : "";
+        const nameToken = nameMatch ? nameMatch[1].trim() : "";
+
+        if (matricolaToken) {
+          const matricolaRegex = new RegExp(
+            `(^|\\s)${escapeRegex(matricolaToken)}(\\s|$)`,
+            "i"
+          );
+          company = await Company.findOne({
+            $or: [
+              { inpsCode: matricolaToken },
+              { matricola: matricolaToken },
+              { inpsCode: matricolaRegex },
+              { matricola: matricolaRegex },
+            ],
+          })
+            .populate("user", "firstName lastName username")
+            .populate("contactInfo.laborConsultantId", "businessName agentName")
+            .lean();
+        }
+
+        if (!company && nameToken) {
+          const nameRegex = new RegExp(`^\\s*${escapeRegex(nameToken)}\\s*$`, "i");
+          company = await Company.findOne({
+            $or: [{ businessName: nameRegex }, { companyName: nameRegex }],
+          })
+            .populate("user", "firstName lastName username")
+            .populate("contactInfo.laborConsultantId", "businessName agentName")
+            .lean();
+        }
+      }
+
+      const companyName = company?.companyName || company?.businessName;
+      const responsabileName =
+        company?.contractDetails?.territorialManager ||
+        (company?.user
+          ? `${company.user.firstName || ""} ${company.user.lastName || ""}`.trim() || company.user.username
+          : undefined);
+      const sportelloName =
+        company?.contactInfo?.laborConsultant ||
+        company?.contactInfo?.laborConsultantId?.businessName ||
+        company?.contactInfo?.laborConsultantId?.agentName;
+      return {
+        ...item,
+        companyName,
+        responsabileName,
+        sportelloName,
+      };
+    }));
+
+    return res.json(enriched);
+  } catch (err: any) {
+    console.error("Get non riconciliate error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+};

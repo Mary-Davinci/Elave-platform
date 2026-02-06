@@ -14,6 +14,9 @@ interface MulterRequest extends Request {
   files: Express.Multer.File[];
 }
 
+const toObjectIdArray = (ids: string[]) =>
+  ids.filter(Boolean).map((id) => new mongoose.Types.ObjectId(id));
+
 const storage = multer.diskStorage({
   destination: (req: Express.Request, file: Express.Multer.File, cb: Function) => {
     const uploadDir = path.join(__dirname, "../uploads/attachments");
@@ -321,7 +324,7 @@ export const saveDraft: CustomRequestHandler = async (req, res) => {
       }
 
       if (recipients && Array.isArray(recipients)) {
-        draft.recipients = recipients;
+        draft.recipients = toObjectIdArray(recipients);
       }
       
       if (subject !== undefined) {
@@ -350,7 +353,7 @@ export const saveDraft: CustomRequestHandler = async (req, res) => {
 
       draft = new Message({
         sender: req.user._id,
-        recipients: recipients || [],
+        recipients: toObjectIdArray(recipients || []),
         subject: subject || '',
         body: body || '',
         attachments, 

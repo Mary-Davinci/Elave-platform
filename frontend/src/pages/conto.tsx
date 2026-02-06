@@ -3,10 +3,32 @@ import { useNavigate, useParams } from 'react-router-dom';
 import '../styles/Dashboard.css';
 import '../styles/Conto.css';
 import { contoService, type AccountType, type Transaction, type ContoFilters, type TransactionType, type TransactionStatus, type Summary, getContoImports, type ContoImportItem } from '../services/contoService';
+import { getCompanies } from '../services/companyService';
+import type { Company } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(value);
+
+const normalizeCompanyKey = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+
+const extractCompanyFromDescription = (value: string) => {
+  if (!value) return '';
+  const match = value.match(/Azienda:\s*([^|]+)/i);
+  return match ? match[1].trim() : '';
+};
+
+const extractMatricolaFromDescription = (value: string) => {
+  if (!value) return '';
+  const match = value.match(/Matricola:\s*([0-9A-Za-z]+)/i);
+  return match ? match[1].trim() : '';
+};
 
 const Conto: React.FC = () => {
   const { user } = useAuth();
@@ -18,6 +40,7 @@ const Conto: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [summaryFromApi, setSummaryFromApi] = useState<Summary | null>(null);
   const [imports, setImports] = useState<ContoImportItem[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -115,6 +138,20 @@ const Conto: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    const loadCompanies = async () => {
+      try {
+        const data = await getCompanies();
+        if (!cancelled) setCompanies(data);
+      } catch (e) {
+        if (!cancelled) setCompanies([]);
+      }
+    };
+    loadCompanies();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
     if (params.tab && (params.tab === 'servizi' || params.tab === 'proselitismo')) {
       setActiveAccount(params.tab as AccountType);
     }
@@ -124,6 +161,27 @@ const Conto: React.FC = () => {
     setActiveAccount(tab);
     navigate(`/conto/${tab}`);
   };
+
+  const movementsTitle =
+    activeAccount === 'proselitismo' ? 'Proselitismo Agenti e Consulenti' : 'Movimenti';
+
+  const companiesByKey = useMemo(() => {
+    const map = new Map<string, Company>();
+    companies.forEach((c) => {
+      const name = c.companyName || c.businessName || c.name || '';
+      if (name) map.set(normalizeCompanyKey(name), c);
+      if (c.matricola) map.set(normalizeCompanyKey(c.matricola), c);
+    });
+    return map;
+  }, [companies]);
+
+  const companiesById = useMemo(() => {
+    const map = new Map<string, Company>();
+    companies.forEach((c) => {
+      if (c._id) map.set(c._id, c);
+    });
+    return map;
+  }, [companies]);
 
   return (
     <div className="dashboard-page">
@@ -213,35 +271,68 @@ const Conto: React.FC = () => {
       </div>
 
       <div className="utility-section">
-        <div className="section-header">Movimenti</div>
+        <div className="section-header">{movementsTitle}</div>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ textAlign: 'left' }}>
                 <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Data</th>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Descrizione</th>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Importo</th>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Aziende</th>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Responsabile Territoriale</th>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Sportello Lavoro</th>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Quota ELAV</th>
                 <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Tipo</th>
                 <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Stato</th>
                 <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Categoria</th>
               </tr>
             </thead>
             <tbody>
-              {filteredTx.map((t) => (
-                <tr key={t.id} style={{ borderBottom: '1px solid #f1f1f1' }}>
-                  <td style={{ padding: '8px' }}>{new Date(t.date).toLocaleDateString('it-IT')}</td>
-                  <td style={{ padding: '8px' }}>{t.description}</td>
-                  <td style={{ padding: '8px', color: t.amount < 0 ? '#e74c3c' : '#253676', fontWeight: 600 }}>
-                    {formatCurrency(t.amount)}
-                  </td>
-                  <td style={{ padding: '8px', textTransform: 'capitalize' }}>{t.type}</td>
-                  <td style={{ padding: '8px', textTransform: 'capitalize' }}>{t.status.replace('_', ' ')}</td>
-                  <td style={{ padding: '8px' }}>{t.category}</td>
-                </tr>
-              ))}
+              {filteredTx.map((t, index) => {
+                const rawCompanyName =
+                  t.companyName ||
+                  t.company?.companyName ||
+                  t.company?.businessName ||
+                  extractCompanyFromDescription(t.description) ||
+                  '';
+                const matricola = extractMatricolaFromDescription(t.description);
+                const companyKey = normalizeCompanyKey(rawCompanyName);
+                const companyFromId =
+                  t.company?._id ? companiesById.get(t.company._id) : undefined;
+                const companyFromList =
+                  companyFromId ||
+                  (matricola && companiesByKey.get(normalizeCompanyKey(matricola))) ||
+                  (companyKey ? companiesByKey.get(companyKey) : undefined);
+                const companyName = rawCompanyName || '-';
+                const responsabile =
+                  companyFromList?.contractDetails?.territorialManager ||
+                  t.responsabileName ||
+                  '-';
+                const sportello =
+                  companyFromList?.contactInfo?.laborConsultant ||
+                  t.sportelloName ||
+                  '-';
+                const displayAmount =
+                  activeAccount === 'proselitismo' && typeof t.rawAmount === 'number'
+                    ? t.rawAmount
+                    : t.amount;
+                return (
+                  <tr key={t.id || t._id || `${t.date}-${index}`} style={{ borderBottom: '1px solid #f1f1f1' }}>
+                    <td style={{ padding: '8px' }}>{new Date(t.date).toLocaleDateString('it-IT')}</td>
+                    <td style={{ padding: '8px' }}>{companyName}</td>
+                    <td style={{ padding: '8px' }}>{responsabile}</td>
+                    <td style={{ padding: '8px' }}>{sportello}</td>
+                    <td style={{ padding: '8px', color: displayAmount < 0 ? '#e74c3c' : '#253676', fontWeight: 600 }}>
+                      {formatCurrency(displayAmount)}
+                    </td>
+                    <td style={{ padding: '8px', textTransform: 'capitalize' }}>{t.type}</td>
+                    <td style={{ padding: '8px', textTransform: 'capitalize' }}>{t.status.replace('_', ' ')}</td>
+                    <td style={{ padding: '8px' }}>{t.category}</td>
+                  </tr>
+                );
+              })}
               {filteredTx.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ padding: 16, color: '#666' }}>Nessun movimento trovato.</td>
+                  <td colSpan={8} style={{ padding: 16, color: '#666' }}>Nessun movimento trovato.</td>
                 </tr>
               )}
             </tbody>

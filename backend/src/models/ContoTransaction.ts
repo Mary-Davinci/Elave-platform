@@ -8,6 +8,7 @@ export type TransactionSource = "manuale" | "xlsx";
 export interface IContoTransaction extends Document {
   account: AccountType;
   amount: number;
+  rawAmount?: number;
   type: TransactionType;
   status: TransactionStatus;
   description: string;
@@ -30,6 +31,7 @@ const ContoTransactionSchema = new Schema<IContoTransaction>(
       default: "proselitismo",
     },
     amount: { type: Number, required: true },
+    rawAmount: { type: Number },
     type: {
       type: String,
       enum: ["entrata", "uscita"],

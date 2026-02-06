@@ -13,11 +13,18 @@ import fs from "fs";
 import xlsx from "xlsx";
 import crypto from "crypto";
 
-const FIACOM_NET_RATIO = 3.5 / 8;
-const RESPONSABILE_RATIO = 1.5 / 8;
-const SPORTELLO_RATIO = 3 / 8;
+const FIACOM_NET_RATIO = 0.8;
+const DEFAULT_RESPONSABILE_PERCENT = 20;
+const SPORTELLO_PERCENT = 30;
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
+const normalizePercent = (value: unknown, fallback: number) => {
+  const num = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  if (num < 0) return 0;
+  if (num > 100) return 100;
+  return num;
+};
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -147,6 +154,7 @@ const getEffectiveUserId = (req: Request) => {
   const requested = typeof req.query.userId === "string" ? req.query.userId : undefined;
   const isAdmin = req.user.role === "admin" || req.user.role === "super_admin";
   if (isAdmin && requested) return requested;
+  if (isAdmin) return null; // global view for admin/super_admin
   return req.user._id?.toString() || null;
 };
 
@@ -197,8 +205,20 @@ export const createCompetenzaTransactions: CustomRequestHandler = async (req, re
     }
 
     const fiacomAmount = round2(base * FIACOM_NET_RATIO);
-    const responsabileAmount = round2(base * RESPONSABILE_RATIO);
-    const sportelloAmount = round2(base * SPORTELLO_RATIO);
+    const responsabilePercent = normalizePercent(
+      responsabile.profitSharePercentage,
+      DEFAULT_RESPONSABILE_PERCENT
+    );
+    const responsabileAmount = round2(fiacomAmount * (responsabilePercent / 100));
+    const sportelloAmount = round2(fiacomAmount * (SPORTELLO_PERCENT / 100));
+    console.log("[conto] competenza ratios", {
+      base,
+      fiacomAmount,
+      responsabilePercent,
+      responsabileAmount,
+      sportelloPercent: SPORTELLO_PERCENT,
+      sportelloAmount,
+    });
 
     const companyRef = companyId && mongoose.Types.ObjectId.isValid(companyId)
       ? new mongoose.Types.ObjectId(companyId)
@@ -208,6 +228,7 @@ export const createCompetenzaTransactions: CustomRequestHandler = async (req, re
       {
         account,
         amount: fiacomAmount,
+        rawAmount: base,
         type: "entrata",
         status: "completata",
         description,
@@ -219,6 +240,7 @@ export const createCompetenzaTransactions: CustomRequestHandler = async (req, re
       {
         account,
         amount: responsabileAmount,
+        rawAmount: base,
         type: "entrata",
         status: "completata",
         description,
@@ -230,6 +252,7 @@ export const createCompetenzaTransactions: CustomRequestHandler = async (req, re
       {
         account,
         amount: sportelloAmount,
+        rawAmount: base,
         type: "entrata",
         status: "completata",
         description,
@@ -492,8 +515,28 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
           }
 
           const fiacomAmount = round2(baseAmount * FIACOM_NET_RATIO);
-          const responsabileAmount = round2(baseAmount * RESPONSABILE_RATIO);
-          const sportelloAmount = round2(baseAmount * SPORTELLO_RATIO);
+          const responsabileUser = await User.findById(responsabileId).select(
+            "_id role isActive profitSharePercentage"
+          );
+          if (!responsabileUser || responsabileUser.isActive === false) {
+            errors.push(`Row ${i + 1}: Responsabile territoriale non valido o inattivo`);
+            continue;
+          }
+          const responsabilePercent = normalizePercent(
+            responsabileUser.profitSharePercentage,
+            DEFAULT_RESPONSABILE_PERCENT
+          );
+          const responsabileAmount = round2(fiacomAmount * (responsabilePercent / 100));
+          const sportelloAmount = round2(fiacomAmount * (SPORTELLO_PERCENT / 100));
+          console.log("[conto] xlsx ratios", {
+            row: i + 1,
+            baseAmount,
+            fiacomAmount,
+            responsabilePercent,
+            responsabileAmount,
+            sportelloPercent: SPORTELLO_PERCENT,
+            sportelloAmount,
+          });
 
           const month = parseMonth(data.mese);
           const year = Number(data.anno);
@@ -516,6 +559,7 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
             {
               account: "proselitismo",
               amount: fiacomAmount,
+              rawAmount: baseAmount,
               type: "entrata",
               status: "completata",
               description,
@@ -529,6 +573,7 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
             {
               account: "proselitismo",
               amount: responsabileAmount,
+              rawAmount: baseAmount,
               type: "entrata",
               status: "completata",
               description,
@@ -542,6 +587,7 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
             {
               account: "proselitismo",
               amount: sportelloAmount,
+              rawAmount: baseAmount,
               type: "entrata",
               status: "completata",
               description,
@@ -640,11 +686,8 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
 
     const { account, from, to, type, status, q } = req.query as Record<string, string>;
     const userId = getEffectiveUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "User not authenticated" });
-    }
-
-    const query: any = { user: userId };
+    const query: any = {};
+    if (userId) query.user = userId;
     if (account) query.account = account;
     if (type) query.type = type;
     if (status) query.status = status;
@@ -655,8 +698,40 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
       if (to) query.date.$lte = new Date(to);
     }
 
-    const transactions = await ContoTransaction.find(query).sort({ date: -1, createdAt: -1 });
-    return res.json(transactions);
+    const transactions = await ContoTransaction.find(query)
+      .sort({ date: -1, createdAt: -1 })
+      .populate({
+        path: "company",
+        select: "businessName companyName user contactInfo.laborConsultantId",
+        populate: [
+          { path: "user", select: "firstName lastName username" },
+          { path: "contactInfo.laborConsultantId", select: "businessName agentName" },
+        ],
+      })
+      .populate({ path: "user", select: "firstName lastName username role" })
+      .lean();
+
+    const enriched = transactions.map((tx: any) => {
+      const company = tx.company;
+      const companyName = company?.companyName || company?.businessName;
+      const responsabileFromCompanyUser = company?.user
+        ? `${company.user.firstName || ""} ${company.user.lastName || ""}`.trim() || company.user.username
+        : undefined;
+      const sportello = company?.contactInfo?.laborConsultantId;
+      const sportelloFromId = sportello?.businessName || sportello?.agentName;
+      const responsabileName =
+        company?.contractDetails?.territorialManager || responsabileFromCompanyUser;
+      const sportelloName =
+        company?.contactInfo?.laborConsultant || sportelloFromId;
+      return {
+        ...tx,
+        companyName,
+        responsabileName,
+        sportelloName,
+      };
+    });
+
+    return res.json(enriched);
   } catch (err: any) {
     console.error("Get conto transactions error:", err);
     return res.status(500).json({ error: "Server error" });
@@ -671,11 +746,10 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
 
     const { account, from, to, type, status, q } = req.query as Record<string, string>;
     const userId = getEffectiveUserId(req);
-    if (!userId) {
-      return res.status(401).json({ error: "User not authenticated" });
+    const match: any = {};
+    if (userId) {
+      match.user = new mongoose.Types.ObjectId(userId);
     }
-
-    const match: any = { user: new mongoose.Types.ObjectId(userId) };
     if (account) match.account = account;
     if (type) match.type = type;
     if (status) match.status = status;
@@ -686,15 +760,45 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
       if (to) match.date.$lte = new Date(to);
     }
 
+    const useRawForFiacom = account === "proselitismo";
+
     const totals = await ContoTransaction.aggregate([
       { $match: match },
+      ...(useRawForFiacom
+        ? [
+            {
+              $addFields: {
+                computedFiacom: {
+                  $cond: [
+                    { $gt: ["$rawAmount", 0] },
+                    { $round: [{ $multiply: ["$rawAmount", FIACOM_NET_RATIO] }, 2] },
+                    "$amount",
+                  ],
+                },
+              },
+            },
+            {
+              $addFields: {
+                isFiacomRow: { $eq: ["$amount", "$computedFiacom"] },
+              },
+            },
+          ]
+        : []),
       {
         $group: {
           _id: null,
           incoming: {
-            $sum: {
-              $cond: [{ $eq: ["$type", "entrata"] }, "$amount", 0],
-            },
+            $sum: useRawForFiacom
+              ? {
+                  $cond: [
+                    { $and: [{ $eq: ["$type", "entrata"] }, "$isFiacomRow"] },
+                    "$computedFiacom",
+                    0,
+                  ],
+                }
+              : {
+                  $cond: [{ $eq: ["$type", "entrata"] }, "$amount", 0],
+                },
           },
           outgoing: {
             $sum: {
@@ -709,9 +813,10 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
     const outgoing = totals[0]?.outgoing ?? 0;
     const balance = incoming - outgoing;
 
-    const matchNonRiconciliate: any = {
-      user: new mongoose.Types.ObjectId(userId),
-    };
+    const matchNonRiconciliate: any = {};
+    if (userId) {
+      matchNonRiconciliate.user = new mongoose.Types.ObjectId(userId);
+    }
     if (account) matchNonRiconciliate.account = account;
     if (q) matchNonRiconciliate.description = { $regex: q, $options: "i" };
     if (from || to) {

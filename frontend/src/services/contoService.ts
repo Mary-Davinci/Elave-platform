@@ -14,10 +14,12 @@ export interface ContoFilters {
 
 export interface Transaction {
   id: string;
+  _id?: string;
   account: AccountType;
   date: string; // ISO yyyy-mm-dd
   description: string;
   amount: number; // positive for entrata, negative for uscita
+  rawAmount?: number;
   type: TransactionType;
   status: TransactionStatus;
   category: string;
@@ -25,6 +27,14 @@ export interface Transaction {
   user?: { _id?: string } | string;
   createdBy?: string;
   ownerId?: string;
+  companyName?: string;
+  responsabileName?: string;
+  sportelloName?: string;
+  company?: {
+    _id?: string;
+    companyName?: string;
+    businessName?: string;
+  };
 }
 
 export interface Summary {

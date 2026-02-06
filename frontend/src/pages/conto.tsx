@@ -105,9 +105,11 @@ const Conto: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
+        const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+        const userIdForQuery = isAdmin ? undefined : user?._id;
         const [tx, sum] = await Promise.all([
-          contoService.getTransactions(activeAccount, filters, user?._id),
-          contoService.getSummary(activeAccount, filters, user?._id),
+          contoService.getTransactions(activeAccount, filters, userIdForQuery),
+          contoService.getSummary(activeAccount, filters, userIdForQuery),
         ]);
         if (!cancelled) setTransactions(tx);
         if (!cancelled) setSummaryFromApi(sum);

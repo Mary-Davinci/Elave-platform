@@ -464,14 +464,48 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
             ? new RegExp(`^\\s*${escapeRegex(data.ragioneSociale)}\\s*$`, "i")
             : null;
 
-          const company = await Company.findOne({
-            $or: [
-              data.matricolaInps ? { inpsCode: data.matricolaInps } : undefined,
-              data.matricolaInps ? { matricola: data.matricolaInps } : undefined,
-              nameRegex ? { businessName: nameRegex } : undefined,
-              nameRegex ? { companyName: nameRegex } : undefined,
-            ].filter(Boolean) as any[],
-          }).select("_id user contactInfo.laborConsultantId contactInfo.laborConsultant");
+          let company = null as any;
+
+          let triedMatricola = false;
+          if (data.matricolaInps) {
+            triedMatricola = true;
+            const matricolaToken = String(data.matricolaInps).trim();
+            const matricolaRegex = new RegExp(
+              `(^|\\s)${escapeRegex(matricolaToken)}(\\s|$)`,
+              "i"
+            );
+            company = await Company.findOne({
+              $or: [
+                { inpsCode: data.matricolaInps },
+                { matricola: data.matricolaInps },
+                { inpsCode: matricolaRegex },
+                { matricola: matricolaRegex },
+              ],
+            }).select("_id user contactInfo.laborConsultantId contactInfo.laborConsultant");
+            if (company) {
+              console.log("[conto-upload] matched by matricola", {
+                row: i + 1,
+                matricola: matricolaToken,
+                companyId: company._id?.toString?.() || company._id,
+                companyName: company.companyName || company.businessName,
+              });
+            }
+          }
+
+          if (!company && nameRegex) {
+            const matches = await Company.find({
+              $or: [{ businessName: nameRegex }, { companyName: nameRegex }],
+            })
+              .select("_id user contactInfo.laborConsultantId contactInfo.laborConsultant")
+              .limit(2);
+
+            if (matches.length > 1) {
+              errors.push(`Row ${i + 1}: Azienda ambigua (stesso nome, matricola diversa). Usa la matricola.`);
+              continue;
+            }
+
+            company = matches[0] || null;
+          }
 
           if (!company) {
             errors.push(`Row ${i + 1}: Azienda non trovata`);

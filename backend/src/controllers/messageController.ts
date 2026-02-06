@@ -141,7 +141,30 @@ export const sendMessage: CustomRequestHandler = async (req, res) => {
       return res.status(401).json({ error: "User not authenticated" });
     }
 
-    const { recipients, subject, body, sendEmail = true } = req.body;
+    const { subject, body } = req.body;
+    const rawRecipients = (req.body as any).recipients;
+    const rawSendEmail = (req.body as any).sendEmail;
+    let recipients: string[] = [];
+
+    if (Array.isArray(rawRecipients)) {
+      recipients = rawRecipients;
+    } else if (typeof rawRecipients === "string") {
+      try {
+        const parsed = JSON.parse(rawRecipients);
+        if (Array.isArray(parsed)) {
+          recipients = parsed;
+        } else if (parsed) {
+          recipients = [String(parsed)];
+        }
+      } catch {
+        recipients = [rawRecipients];
+      }
+    }
+
+    const sendEmail =
+      typeof rawSendEmail === "boolean"
+        ? rawSendEmail
+        : String(rawSendEmail || "true").toLowerCase() !== "false";
 
     // Validate required fields
     if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
@@ -250,7 +273,24 @@ export const saveDraft: CustomRequestHandler = async (req, res) => {
       return res.status(401).json({ error: "User not authenticated" });
     }
 
-    const { recipients, subject, body } = req.body;
+    const { subject, body } = req.body;
+    const rawRecipients = (req.body as any).recipients;
+    let recipients: string[] = [];
+
+    if (Array.isArray(rawRecipients)) {
+      recipients = rawRecipients;
+    } else if (typeof rawRecipients === "string") {
+      try {
+        const parsed = JSON.parse(rawRecipients);
+        if (Array.isArray(parsed)) {
+          recipients = parsed;
+        } else if (parsed) {
+          recipients = [String(parsed)];
+        }
+      } catch {
+        recipients = [rawRecipients];
+      }
+    }
     const { id } = req.params; 
 
     const attachments: IAttachment[] = [];

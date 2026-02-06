@@ -767,51 +767,89 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
       ...(useRawForFiacom
         ? [
             {
-              $addFields: {
-                computedFiacom: {
-                  $cond: [
-                    { $gt: ["$rawAmount", 0] },
-                    { $round: [{ $multiply: ["$rawAmount", FIACOM_NET_RATIO] }, 2] },
-                    "$amount",
-                  ],
-                },
-              },
-            },
-            {
-              $addFields: {
-                isFiacomRow: { $eq: ["$amount", "$computedFiacom"] },
+              $facet: {
+                fiacom: [
+                  { $match: { type: "entrata", rawAmount: { $gt: 0 }, importKey: { $exists: true, $ne: "" } } },
+                  { $group: { _id: "$importKey", elav: { $first: "$rawAmount" } } },
+                  {
+                    $group: {
+                      _id: null,
+                      totalElav: { $sum: "$elav" },
+                      fiacomTotal: { $sum: { $multiply: ["$elav", FIACOM_NET_RATIO] } },
+                    },
+                  },
+                ],
+                roles: [
+                  { $match: { type: "entrata" } },
+                  {
+                    $lookup: {
+                      from: "users",
+                      localField: "user",
+                      foreignField: "_id",
+                      as: "userDoc",
+                    },
+                  },
+                  { $unwind: { path: "$userDoc", preserveNullAndEmptyArrays: true } },
+                  {
+                    $group: {
+                      _id: null,
+                      responsabileTotal: {
+                        $sum: {
+                          $cond: [
+                            { $eq: ["$userDoc.role", "responsabile_territoriale"] },
+                            "$amount",
+                            0,
+                          ],
+                        },
+                      },
+                      sportelloTotal: {
+                        $sum: {
+                          $cond: [{ $eq: ["$userDoc.role", "sportello_lavoro"] }, "$amount", 0],
+                        },
+                      },
+                    },
+                  },
+                ],
+                totals: [
+                  {
+                    $group: {
+                      _id: null,
+                      incoming: { $sum: { $cond: [{ $eq: ["$type", "entrata"] }, "$amount", 0] } },
+                      outgoing: { $sum: { $cond: [{ $eq: ["$type", "uscita"] }, "$amount", 0] } },
+                    },
+                  },
+                ],
               },
             },
           ]
-        : []),
-      {
-        $group: {
-          _id: null,
-          incoming: {
-            $sum: useRawForFiacom
-              ? {
-                  $cond: [
-                    { $and: [{ $eq: ["$type", "entrata"] }, "$isFiacomRow"] },
-                    "$computedFiacom",
-                    0,
-                  ],
-                }
-              : {
-                  $cond: [{ $eq: ["$type", "entrata"] }, "$amount", 0],
-                },
-          },
-          outgoing: {
-            $sum: {
-              $cond: [{ $eq: ["$type", "uscita"] }, "$amount", 0],
+        : [
+            {
+              $group: {
+                _id: null,
+                incoming: { $sum: { $cond: [{ $eq: ["$type", "entrata"] }, "$amount", 0] } },
+                outgoing: { $sum: { $cond: [{ $eq: ["$type", "uscita"] }, "$amount", 0] } },
+              },
             },
-          },
-        },
-      },
+          ]),
     ]);
 
-    const incoming = totals[0]?.incoming ?? 0;
-    const outgoing = totals[0]?.outgoing ?? 0;
-    const balance = incoming - outgoing;
+    const fiacomTotal =
+      useRawForFiacom && totals[0]?.fiacom?.[0]?.fiacomTotal != null
+        ? Number(totals[0].fiacom[0].fiacomTotal)
+        : null;
+    const incoming = useRawForFiacom
+      ? Number(totals[0]?.totals?.[0]?.incoming ?? 0)
+      : Number(totals[0]?.incoming ?? 0);
+    const outgoing = useRawForFiacom
+      ? Number(totals[0]?.totals?.[0]?.outgoing ?? 0)
+      : Number(totals[0]?.outgoing ?? 0);
+    const balance = fiacomTotal != null ? fiacomTotal - outgoing : incoming - outgoing;
+    const responsabileTotal = useRawForFiacom
+      ? Number(totals[0]?.roles?.[0]?.responsabileTotal ?? 0)
+      : 0;
+    const sportelloTotal = useRawForFiacom
+      ? Number(totals[0]?.roles?.[0]?.sportelloTotal ?? 0)
+      : 0;
 
     const matchNonRiconciliate: any = {};
     if (userId) {
@@ -841,6 +879,8 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
       incoming,
       outgoing,
       nonRiconciliateTotal,
+      responsabileTotal,
+      sportelloTotal,
       updatedAt: new Date().toISOString(),
     });
   } catch (err: any) {

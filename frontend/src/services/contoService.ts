@@ -42,6 +42,8 @@ export interface Summary {
   incoming: number;
   outgoing: number; // absolute value for UI convenience
   nonRiconciliateTotal: number;
+  responsabileTotal?: number;
+  sportelloTotal?: number;
   updatedAt: string;
 }
 
@@ -129,11 +131,15 @@ export const contoService = {
     const outgoingRaw = Number(data.outgoing ?? data.totOutgoing ?? 0);
     const balance = Number(data.balance ?? incoming - outgoingRaw);
     const nonRiconciliateTotal = Number(data.nonRiconciliateTotal ?? 0);
+    const responsabileTotal = Number(data.responsabileTotal ?? 0);
+    const sportelloTotal = Number(data.sportelloTotal ?? 0);
     return {
       balance,
       incoming,
       outgoing: Math.abs(outgoingRaw),
       nonRiconciliateTotal,
+      responsabileTotal,
+      sportelloTotal,
       updatedAt: data.updatedAt ?? new Date().toISOString(),
     };
   },

@@ -88,6 +88,8 @@ const Conto: React.FC = () => {
       incoming,
       outgoing: Math.abs(outgoing),
       nonRiconciliateTotal: 0,
+      responsabileTotal: 0,
+      sportelloTotal: 0,
       updatedAt: new Date().toISOString(),
     };
   }, [filteredTx]);
@@ -208,6 +210,14 @@ const Conto: React.FC = () => {
         <div className="project-card-dash">
           <div className="project-number">{formatCurrency(summary.balance)}</div>
           <div className="project-title">Saldo FIACOM</div>
+        </div>
+        <div className="project-card-dash">
+          <div className="project-number">{formatCurrency(summary.responsabileTotal || 0)}</div>
+          <div className="project-title">Saldo Responsabili</div>
+        </div>
+        <div className="project-card-dash">
+          <div className="project-number">{formatCurrency(summary.sportelloTotal || 0)}</div>
+          <div className="project-title">Saldo Sportelli</div>
         </div>
         <div className="project-card-dash">
           <div className="project-number">{formatCurrency(summary.nonRiconciliateTotal || 0)}</div>

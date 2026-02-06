@@ -64,7 +64,7 @@ const headerAliases: Record<string, string[]> = {
   nonRiconciliata: ["non riconciliata", "quota non riconciliata", "non riconciliate"],
   quotaRiconciliata: ["quota riconciliata", "riconciliata"],
   fondoSanitario: ["fondo sanitario", "fondo sanitario"],
-  quotaFiacom: ["quota fiacom", "fiacom", "quota fiacom"],
+  quotaFiacom: ["quota fiacom", "fiacom", "quota elav", "elav"],
 };
 
 const findHeaderIndex = (headers: any[], aliases: string[]) => {

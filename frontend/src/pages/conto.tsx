@@ -370,6 +370,41 @@ const Conto: React.FC = () => {
       </div>
 
       <div className="utility-section" style={{ marginTop: 20 }}>
+        <div className="section-header">Quote non riconciliate</div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ textAlign: 'left' }}>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Data</th>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Aziende</th>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Responsabile Territoriale</th>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Sportello Lavoro</th>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Quota non riconciliata</th>
+              </tr>
+            </thead>
+            <tbody>
+              {nonRiconciliate.map((t) => (
+                <tr key={t._id} style={{ borderBottom: '1px solid #f1f1f1' }}>
+                  <td style={{ padding: '8px' }}>{new Date(t.date).toLocaleDateString('it-IT')}</td>
+                  <td style={{ padding: '8px' }}>{t.companyName || '-'}</td>
+                  <td style={{ padding: '8px' }}>{t.responsabileName || '-'}</td>
+                  <td style={{ padding: '8px' }}>{t.sportelloName || '-'}</td>
+                  <td style={{ padding: '8px', color: '#e67e22', fontWeight: 600 }}>
+                    {formatCurrency(t.amount)}
+                  </td>
+                </tr>
+              ))}
+              {nonRiconciliate.length === 0 && (
+                <tr>
+                  <td colSpan={5} style={{ padding: 16, color: '#666' }}>Nessuna quota non riconciliata.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="utility-section" style={{ marginTop: 20 }}>
         <div className="section-header">Registro flussi</div>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -398,41 +433,6 @@ const Conto: React.FC = () => {
               {imports.length === 0 && (
                 <tr>
                   <td colSpan={5} style={{ padding: 16, color: '#666' }}>Nessun file flussi caricato.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="utility-section" style={{ marginTop: 20 }}>
-        <div className="section-header">Quote non riconciliate</div>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ textAlign: 'left' }}>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Data</th>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Aziende</th>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Responsabile Territoriale</th>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Sportello Lavoro</th>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Quota non riconciliata</th>
-              </tr>
-            </thead>
-            <tbody>
-              {nonRiconciliate.map((t) => (
-                <tr key={t._id} style={{ borderBottom: '1px solid #f1f1f1' }}>
-                  <td style={{ padding: '8px' }}>{new Date(t.date).toLocaleDateString('it-IT')}</td>
-                  <td style={{ padding: '8px' }}>{t.companyName || '-'}</td>
-                  <td style={{ padding: '8px' }}>{t.responsabileName || '-'}</td>
-                  <td style={{ padding: '8px' }}>{t.sportelloName || '-'}</td>
-                  <td style={{ padding: '8px', color: '#e67e22', fontWeight: 600 }}>
-                    {formatCurrency(t.amount)}
-                  </td>
-                </tr>
-              ))}
-              {nonRiconciliate.length === 0 && (
-                <tr>
-                  <td colSpan={5} style={{ padding: 16, color: '#666' }}>Nessuna quota non riconciliata.</td>
                 </tr>
               )}
             </tbody>

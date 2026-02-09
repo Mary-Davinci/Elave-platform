@@ -14,7 +14,6 @@ import xlsx from "xlsx";
 import crypto from "crypto";
 
 const FIACOM_NET_RATIO = 0.8;
-const DEFAULT_RESPONSABILE_PERCENT = 20;
 const SPORTELLO_PERCENT = 30;
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
@@ -207,7 +206,7 @@ export const createCompetenzaTransactions: CustomRequestHandler = async (req, re
     const fiacomAmount = round2(base * FIACOM_NET_RATIO);
     const responsabilePercent = normalizePercent(
       responsabile.profitSharePercentage,
-      DEFAULT_RESPONSABILE_PERCENT
+      0
     );
     const responsabileAmount = round2(fiacomAmount * (responsabilePercent / 100));
     const sportelloAmount = round2(fiacomAmount * (SPORTELLO_PERCENT / 100));
@@ -481,7 +480,7 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
                 { inpsCode: matricolaRegex },
                 { matricola: matricolaRegex },
               ],
-            }).select("_id user contactInfo.laborConsultantId contactInfo.laborConsultant");
+            }).select("_id user companyName businessName contactInfo.laborConsultantId contactInfo.laborConsultant");
             if (company) {
               console.log("[conto-upload] matched by matricola", {
                 row: i + 1,
@@ -496,7 +495,7 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
             const matches = await Company.find({
               $or: [{ businessName: nameRegex }, { companyName: nameRegex }],
             })
-              .select("_id user contactInfo.laborConsultantId contactInfo.laborConsultant")
+              .select("_id user companyName businessName contactInfo.laborConsultantId contactInfo.laborConsultant")
               .limit(2);
 
             if (matches.length > 1) {
@@ -558,7 +557,7 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
           }
           const responsabilePercent = normalizePercent(
             responsabileUser.profitSharePercentage,
-            DEFAULT_RESPONSABILE_PERCENT
+            0
           );
           const responsabileAmount = round2(fiacomAmount * (responsabilePercent / 100));
           const sportelloAmount = round2(fiacomAmount * (SPORTELLO_PERCENT / 100));
@@ -813,33 +812,48 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
                     },
                   },
                 ],
-                roles: [
-                  { $match: { type: "entrata" } },
+                competenze: [
+                  { $match: { type: "entrata", rawAmount: { $gt: 0 }, importKey: { $exists: true, $ne: "" } } },
+                  {
+                    $group: {
+                      _id: "$importKey",
+                      elav: { $first: "$rawAmount" },
+                      company: { $first: "$company" },
+                    },
+                  },
+                  {
+                    $lookup: {
+                      from: "companies",
+                      localField: "company",
+                      foreignField: "_id",
+                      as: "companyDoc",
+                    },
+                  },
+                  { $unwind: { path: "$companyDoc", preserveNullAndEmptyArrays: true } },
                   {
                     $lookup: {
                       from: "users",
-                      localField: "user",
+                      localField: "companyDoc.user",
                       foreignField: "_id",
-                      as: "userDoc",
+                      as: "responsabileDoc",
                     },
                   },
-                  { $unwind: { path: "$userDoc", preserveNullAndEmptyArrays: true } },
+                  { $unwind: { path: "$responsabileDoc", preserveNullAndEmptyArrays: true } },
+                  {
+                    $addFields: {
+                      responsabilePercent: "$responsabileDoc.profitSharePercentage",
+                    },
+                  },
                   {
                     $group: {
                       _id: null,
                       responsabileTotal: {
                         $sum: {
-                          $cond: [
-                            { $eq: ["$userDoc.role", "responsabile_territoriale"] },
-                            "$amount",
-                            0,
-                          ],
+                          $multiply: ["$elav", { $divide: ["$responsabilePercent", 100] }],
                         },
                       },
                       sportelloTotal: {
-                        $sum: {
-                          $cond: [{ $eq: ["$userDoc.role", "sportello_lavoro"] }, "$amount", 0],
-                        },
+                        $sum: { $multiply: ["$elav", SPORTELLO_PERCENT / 100] },
                       },
                     },
                   },
@@ -879,10 +893,10 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
       : Number(totals[0]?.outgoing ?? 0);
     const balance = fiacomTotal != null ? fiacomTotal - outgoing : incoming - outgoing;
     const responsabileTotal = useRawForFiacom
-      ? Number(totals[0]?.roles?.[0]?.responsabileTotal ?? 0)
+      ? Number(totals[0]?.competenze?.[0]?.responsabileTotal ?? 0)
       : 0;
     const sportelloTotal = useRawForFiacom
-      ? Number(totals[0]?.roles?.[0]?.sportelloTotal ?? 0)
+      ? Number(totals[0]?.competenze?.[0]?.sportelloTotal ?? 0)
       : 0;
 
     const matchNonRiconciliate: any = {};

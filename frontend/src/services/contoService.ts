@@ -20,6 +20,7 @@ export interface Transaction {
   description: string;
   amount: number; // positive for entrata, negative for uscita
   rawAmount?: number;
+  importKey?: string;
   type: TransactionType;
   status: TransactionStatus;
   category: string;

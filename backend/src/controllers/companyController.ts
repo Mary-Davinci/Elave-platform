@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import Company from "../models/Company";
 import Counter from "../models/Counter";
 import SportelloLavoro from "../models/sportello";
+import User from "../models/User";
 import { CustomRequestHandler } from "../types/express";
 import mongoose from "mongoose";
 import multer from 'multer';
@@ -12,6 +13,47 @@ import { NotificationService } from "../models/notificationService";
 
 const isPrivileged = (role: string) => role === 'admin' || role === 'super_admin';
 const COMPANY_ANAGRAFICA_COUNTER_ID = "companyNumeroAnagrafica";
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const buildExactRegex = (value: string) => new RegExp(`^\\s*${escapeRegex(value)}\\s*$`, "i");
+
+const resolveResponsabileByTerritorialManager = async (territorialManager?: string) => {
+  const raw = (territorialManager || "").trim();
+  if (!raw) return null;
+  const exact = buildExactRegex(raw);
+  const parts = raw.split(/\s+/).filter(Boolean);
+  const nameQueries: any[] = [{ organization: exact }, { username: exact }];
+  if (parts.length >= 2) {
+    const first = parts[0];
+    const last = parts.slice(1).join(" ");
+    nameQueries.push({
+      firstName: buildExactRegex(first),
+      lastName: buildExactRegex(last),
+    });
+  } else {
+    nameQueries.push({ firstName: exact }, { lastName: exact });
+  }
+
+  const candidates = await User.find({
+    role: "responsabile_territoriale",
+    isActive: { $ne: false },
+    $or: nameQueries,
+  }).select("_id firstName lastName username organization");
+
+  if (candidates.length === 1) return candidates[0];
+  if (candidates.length > 1) {
+    console.warn("[company] responsabile ambiguo", {
+      territorialManager: raw,
+      candidates: candidates.map((c) => ({
+        id: c._id?.toString(),
+        organization: c.organization,
+        username: c.username,
+        firstName: c.firstName,
+        lastName: c.lastName,
+      })),
+    });
+  }
+  return null;
+};
 
 const normalizeNumeroAnagrafica = (value: unknown): string | undefined => {
   if (value === undefined || value === null) return undefined;
@@ -222,6 +264,7 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
       address,
       contactInfo,
       contractDetails,
+      territorialManager,
       industry,
       employees,
       signaler,
@@ -284,6 +327,20 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
       await ensureAnagraficaCounterAtLeast(resolvedNumeroAnagrafica);
     }
 
+    const territorialManagerName =
+      contractDetails?.territorialManager?.trim?.() ||
+      String(territorialManager || "").trim();
+    let resolvedResponsabileId: mongoose.Types.ObjectId | undefined;
+    if (territorialManagerName) {
+      const resolved = await resolveResponsabileByTerritorialManager(territorialManagerName);
+      if (!resolved) {
+        return res.status(400).json({
+          error: `Responsabile territoriale non trovato per "${territorialManagerName}"`,
+        });
+      }
+      resolvedResponsabileId = resolved._id as mongoose.Types.ObjectId;
+    }
+
     const newCompany = new Company({
       businessName, 
       companyName: companyName || businessName,
@@ -294,7 +351,10 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
       numeroAnagrafica: resolvedNumeroAnagrafica,
       address: address || {},
       contactInfo: contactInfo || {},
-      contractDetails: contractDetails || {},
+      contractDetails: {
+        ...(contractDetails || {}),
+        ...(territorialManagerName ? { territorialManager: territorialManagerName } : {}),
+      },
       industry: industry || '',
       employees: employees || 0,
       signaler,
@@ -305,7 +365,7 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
       pendingApproval: needsApproval,
       approvedBy: isAutoApproved ? req.user._id : undefined,
       approvedAt: isAutoApproved ? new Date() : undefined,
-      user: new mongoose.Types.ObjectId(req.user._id)
+      user: resolvedResponsabileId || new mongoose.Types.ObjectId(req.user._id)
     });
 
     await newCompany.save();
@@ -365,6 +425,7 @@ export const updateCompany: CustomRequestHandler = async (req, res) => {
       address,
       contactInfo,
       contractDetails,
+      territorialManager,
       industry,
       employees,
       signaler,
@@ -444,11 +505,24 @@ export const updateCompany: CustomRequestHandler = async (req, res) => {
       };
     }
 
-    if (contractDetails) {
+    if (contractDetails || territorialManager !== undefined) {
+      const territorialManagerName =
+        contractDetails?.territorialManager?.trim?.() ||
+        String(territorialManager || "").trim();
       company.contractDetails = { 
         ...company.contractDetails, 
-        ...contractDetails 
+        ...contractDetails,
+        ...(territorialManagerName ? { territorialManager: territorialManagerName } : {}),
       };
+      if (territorialManagerName) {
+        const resolved = await resolveResponsabileByTerritorialManager(territorialManagerName);
+        if (!resolved) {
+          return res.status(400).json({
+            error: `Responsabile territoriale non trovato per "${territorialManagerName}"`,
+          });
+        }
+        company.user = resolved._id as mongoose.Types.ObjectId;
+      }
     }
 
     if (industry !== undefined) company.industry = industry;
@@ -621,7 +695,7 @@ export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) =
             console.log(`Processing row ${index + 1}:`, JSON.stringify(row));
             
 
-            const companyData = {
+            const companyData: any = {
               businessName: pick(row, ['Ragione Sociale', 'Ragione sociale', 'Azienda']) || '',
               companyName: pick(row, ['Azienda', 'Ragione Sociale', 'Ragione sociale']) || '',
               vatNumber: pick(row, ['Partita IVA', 'Partita Iva', 'P.IVA', 'P IVA']) || '',
@@ -693,6 +767,19 @@ export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) =
             }
 
             const normalizedVat = String(companyData.vatNumber || '').trim();
+
+            if (companyData.contractDetails?.territorialManager) {
+              const resolved = await resolveResponsabileByTerritorialManager(
+                companyData.contractDetails.territorialManager
+              );
+              if (!resolved) {
+                rowErrors.push(
+                  `Responsabile territoriale non trovato per "${companyData.contractDetails.territorialManager}"`
+                );
+              } else {
+                companyData.user = resolved._id;
+              }
+            }
 
             if (normalizedVat) {
               if (seenVat.has(normalizedVat)) rowErrors.push("Duplicate Partita IVA in file");

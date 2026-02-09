@@ -6,7 +6,7 @@ import { segnalaториRoleMiddleware,  } from "../middleware/roleMiddleware";
 
 const router = express.Router();
 
-// Supplier routes - all users can manage suppliers
+// Supplier routes - tutti gli utenti possono gestire i supplier
 router.get("/", authMiddleware, getSuppliers);
 router.get("/:id", authMiddleware, getSupplierById);
 router.post("/", authMiddleware, segnalaториRoleMiddleware, createSupplier);

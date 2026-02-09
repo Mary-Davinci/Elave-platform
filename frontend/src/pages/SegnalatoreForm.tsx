@@ -377,7 +377,7 @@ const SegnalatoreForm: React.FC = () => {
             borderBottom: '2px solid #f8f9fa'
           }}>
             <div style={{
-              backgroundColor: '#fff3e0',
+              backgroundColor: '#e8f0fe',
               padding: '8px',
               borderRadius: '8px',
               marginRight: '12px'
@@ -386,7 +386,7 @@ const SegnalatoreForm: React.FC = () => {
             </div>
             <h3 style={{ 
               margin: 0, 
-              color: '#e65100',
+              color: '#1e3a8a',
               fontSize: '20px',
               fontWeight: '600'
             }}>
@@ -412,10 +412,10 @@ const SegnalatoreForm: React.FC = () => {
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '31% 31%', gap: '24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
             {/* Contract Template Upload */}
             <div className="template-upload-group" style={{
-              backgroundColor: '#f8f9fa',
+              backgroundColor: '#ffffff',
               padding: '20px',
               borderRadius: '10px',
               border: '1px solid #e9ecef'
@@ -433,19 +433,23 @@ const SegnalatoreForm: React.FC = () => {
                   color: '#495057',
                   fontSize: '16px'
                 }}>
-                  Carica Template Contratto
+                  Carica Contratto Segnalatore
                 </label>
+                <span style={{ fontSize: '12px', color: '#6c757d', marginLeft: '12px' }}>
+                  Formati supportati: PDF, DOC, DOCX
+                </span>
                 {getAvailableTemplate('contract') && (
                   <span style={{ 
-                    color: '#28a745', 
-                    fontSize: '12px', 
-                    marginLeft: '12px',
-                    backgroundColor: '#d4edda',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    fontWeight: '500'
+                    color: '#1f7a3e', 
+                    fontSize: '12px',
+                    backgroundColor: '#e7f6ee',
+                    padding: '4px 10px',
+                    borderRadius: '999px',
+                    fontWeight: '600',
+                    border: '1px solid #cfe9db',
+                    marginLeft: '12px'
                   }}>
-                    ✓ Disponibile
+                    Disponibile
                   </span>
                 )}
               </div>
@@ -489,89 +493,7 @@ const SegnalatoreForm: React.FC = () => {
                 ) : (
                   <span>
                     <span style={{ marginRight: '8px' }}>📤</span>
-                    Carica Contratto
-                  </span>
-                )}
-              </button>
-            </div>
-
-            {/* ID Document Template Upload */}
-            <div className="template-upload-group" style={{
-              backgroundColor: '#f8f9fa',
-              padding: '20px',
-              borderRadius: '10px',
-              border: '1px solid #e9ecef'
-            }}>
-              <div style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                marginBottom: '12px' 
-              }}>
-                <span style={{ fontSize: '18px', marginRight: '8px' }}>🆔</span>
-                <label style={{ 
-                  display: 'block', 
-                  margin: 0, 
-                  fontWeight: '600',
-                  color: '#495057',
-                  fontSize: '16px'
-                }}>
-                  Carica Template Documento ID
-                </label>
-                {getAvailableTemplate('id') && (
-                  <span style={{ 
-                    color: '#28a745', 
-                    fontSize: '12px', 
-                    marginLeft: '12px',
-                    backgroundColor: '#d4edda',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    fontWeight: '500'
-                  }}>
-                    ✓ Disponibile
-                  </span>
-                )}
-              </div>
-              <input
-                type="file"
-                ref={idTemplateRef}
-                onChange={(e) => handleTemplateFileChange(e, 'id')}
-                accept=".pdf,.doc,.docx"
-                style={{ 
-                  marginBottom: '12px', 
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ced4da',
-                  borderRadius: '6px',
-                  fontSize: '14px'
-                }}
-                disabled={isUploadingTemplate}
-              />
-              <button
-                type="button"
-                onClick={() => handleUploadTemplate('id')}
-                disabled={!idTemplate || isUploadingTemplate}
-                style={{
-                  backgroundColor: idTemplate && !isUploadingTemplate ? 'var(--primary-color)' : 'rgb(108, 117, 125)',
-                  color: 'white',
-                  padding: '10px 20px',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: idTemplate && !isUploadingTemplate ? 'pointer' : 'not-allowed',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  transition: 'all 0.3s ease',
-                  width: '100%'
-                }}
-              >
-                {isUploadingTemplate ? (
-                  <span>
-                    <span style={{ marginRight: '8px' }}>⏳</span>
-                    Caricamento...
-                  </span>
-                ) : (
-                  <span>
-                    <span style={{ marginRight: '8px' }}>📤</span>
-                    Carica Template ID
+                    Carica
                   </span>
                 )}
               </button>
@@ -1056,3 +978,4 @@ const SegnalatoreForm: React.FC = () => {
 };
 
 export default SegnalatoreForm;
+

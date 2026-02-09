@@ -1,7 +1,7 @@
 // src/pages/Dashboard.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { getDashboardStats, initializeDashboard } from '../services/dashboardService';
+import { getDashboardStats } from '../services/dashboardService';
 import { getUtilities, uploadUtility, deleteUtility } from '../services/utilityService';
 import { useNavigate } from 'react-router-dom';
 import '../styles/Dashboard.css';
@@ -77,13 +77,6 @@ const Dashboard: React.FC = () => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
-
-        // Initialize dashboard if needed
-        try {
-          await initializeDashboard();
-        } catch (initError) {
-          console.log('Dashboard may already be initialized');
-        }
 
         // Get dashboard data
         const data = await getDashboardStats();

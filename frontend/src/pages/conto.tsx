@@ -65,17 +65,19 @@ const Conto: React.FC = () => {
 
     const hasUserInfo = transactions.some((t) => !!getTxUserId(t));
     const myUserId = user?._id || '';
+    const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
-    if (!hasUserInfo) return [];
+    if (!hasUserInfo && !isAdmin) return [];
 
     return transactions
       .filter((t) => t.account === activeAccount)
       .filter((t) => (filters.type ? t.type === filters.type : true))
       .filter((t) => (filters.status ? t.status === filters.status : true))
-      .filter((t) => (filters.from ? t.date >= filters.from : true))
-      .filter((t) => (filters.to ? t.date <= filters.to : true))
+      .filter((t) => (filters.from ? new Date(t.date) >= new Date(filters.from) : true))
+      .filter((t) => (filters.to ? new Date(t.date) <= new Date(filters.to) : true))
       .filter((t) => (filters.q ? t.description.toLowerCase().includes((filters.q as string).toLowerCase()) : true))
       .filter((t) => {
+        if (isAdmin) return true;
         if (!myUserId) return false;
         return getTxUserId(t) === myUserId;
       });
@@ -191,7 +193,13 @@ const Conto: React.FC = () => {
     companies.forEach((c) => {
       const name = c.companyName || c.businessName || c.name || '';
       if (name) map.set(normalizeCompanyKey(name), c);
-      if (c.matricola) map.set(normalizeCompanyKey(c.matricola), c);
+      if (c.matricola) {
+        c.matricola
+          .split(/\s+|,|;|\//)
+          .map((token) => token.trim())
+          .filter(Boolean)
+          .forEach((token) => map.set(normalizeCompanyKey(token), c));
+      }
     });
     return map;
   }, [companies]);
@@ -203,6 +211,20 @@ const Conto: React.FC = () => {
     });
     return map;
   }, [companies]);
+
+  // Backend returns 3 rows per importKey (fiacom/responsabile/sportello).
+  // We aggregate to 1 row for the UI to avoid confusion.
+  const displayTx = useMemo(() => {
+    if (activeAccount !== 'proselitismo') return filteredTx;
+    const byKey = new Map<string, Transaction>();
+    filteredTx.forEach((t, index) => {
+      const fallbackKey = t.importKey || t._id || `${t.date}-${index}`;
+      if (!byKey.has(fallbackKey)) {
+        byKey.set(fallbackKey, t);
+      }
+    });
+    return Array.from(byKey.values());
+  }, [filteredTx, activeAccount]);
 
   return (
     <div className="dashboard-page">
@@ -316,7 +338,7 @@ const Conto: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredTx.map((t, index) => {
+              {displayTx.map((t, index) => {
                 const rawCompanyName =
                   t.companyName ||
                   t.company?.companyName ||

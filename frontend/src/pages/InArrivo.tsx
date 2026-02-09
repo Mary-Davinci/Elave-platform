@@ -40,7 +40,7 @@ const InArrivo: React.FC = () => {
   };
 
   const handleReadMessage = async (message: Message) => {
-    if (!message.read) {
+    if (activeTab === 'inbox' && !message.read) {
       try {
         await markReadStatus(message._id, true);
         // Update message in state

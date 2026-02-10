@@ -10,7 +10,6 @@ export const authMiddleware: CustomRequestHandler = async (
 ) => {
   try {
     const rawAuthHeader = req.header("Authorization");
-    console.log("Authorization header received:", rawAuthHeader);
 
     const token = rawAuthHeader?.replace("Bearer ", "");
 

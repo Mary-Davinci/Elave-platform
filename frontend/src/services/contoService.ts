@@ -109,6 +109,18 @@ export interface NonRiconciliataItem {
   sportelloName?: string;
 }
 
+export interface BreakdownRow {
+  _id?: string;
+  name?: string;
+  total: number;
+  count: number;
+}
+
+export interface ContoBreakdownResponse {
+  responsabili: BreakdownRow[];
+  sportelli: BreakdownRow[];
+}
+
 export const contoService = {
   async getTransactions(account: AccountType, filters: ContoFilters, userId?: string): Promise<Transaction[]> {
     const params: Record<string, string> = { account };
@@ -153,6 +165,23 @@ export const contoService = {
       responsabileTotal,
       sportelloTotal,
       updatedAt: data.updatedAt ?? new Date().toISOString(),
+    };
+  },
+
+  async getBreakdown(account: AccountType, filters: ContoFilters, userId?: string): Promise<ContoBreakdownResponse> {
+    const params: Record<string, string> = { account };
+    if (filters.from) params.from = filters.from;
+    if (filters.to) params.to = filters.to;
+    if (filters.type) params.type = filters.type;
+    if (filters.status) params.status = filters.status;
+    if (filters.q) params.q = filters.q;
+    if (userId) params.userId = userId;
+
+    const res = await api.get('/api/conto/breakdown', { params });
+    const data = res.data || {};
+    return {
+      responsabili: Array.isArray(data.responsabili) ? data.responsabili : [],
+      sportelli: Array.isArray(data.sportelli) ? data.sportelli : [],
     };
   },
 };

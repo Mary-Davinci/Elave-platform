@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import '../styles/Dashboard.css';
 import '../styles/Conto.css';
-import { contoService, type AccountType, type Transaction, type ContoFilters, type TransactionType, type TransactionStatus, type Summary, getContoImports, type ContoImportItem, getNonRiconciliate, type NonRiconciliataItem } from '../services/contoService';
+import { contoService, type AccountType, type Transaction, type ContoFilters, type TransactionType, type TransactionStatus, type Summary, getContoImports, type ContoImportItem, getNonRiconciliate, type NonRiconciliataItem, type BreakdownRow } from '../services/contoService';
 import { getCompanies } from '../services/companyService';
 import type { Company } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
@@ -44,6 +44,16 @@ const Conto: React.FC = () => {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [showResponsabiliModal, setShowResponsabiliModal] = useState(false);
+  const responsabiliAnchorRef = useRef<HTMLDivElement | null>(null);
+  const [responsabiliPos, setResponsabiliPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [responsabiliOpen, setResponsabiliOpen] = useState(false);
+  const [showSportelliModal, setShowSportelliModal] = useState(false);
+  const sportelliAnchorRef = useRef<HTMLDivElement | null>(null);
+  const [sportelliPos, setSportelliPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [sportelliOpen, setSportelliOpen] = useState(false);
+  const [responsabiliBreakdown, setResponsabiliBreakdown] = useState<BreakdownRow[]>([]);
+  const [sportelliBreakdown, setSportelliBreakdown] = useState<BreakdownRow[]>([]);
 
   // Local mock fallback
   const mockTx: Transaction[] = [
@@ -212,6 +222,31 @@ const Conto: React.FC = () => {
     return map;
   }, [companies]);
 
+  const resolveCompanyFromTransaction = (t: Transaction) => {
+    if (t.company && typeof t.company !== 'string') {
+      return t.company as Company;
+    }
+    const companyId =
+      typeof t.company === 'string'
+        ? t.company
+        : t.company?._id || '';
+    if (companyId && companiesById.has(companyId)) {
+      return companiesById.get(companyId);
+    }
+    const rawCompanyName =
+      t.companyName ||
+      t.company?.companyName ||
+      t.company?.businessName ||
+      extractCompanyFromDescription(t.description) ||
+      '';
+    const matricola = extractMatricolaFromDescription(t.description);
+    const companyKey = normalizeCompanyKey(rawCompanyName);
+    return (
+      (matricola && companiesByKey.get(normalizeCompanyKey(matricola))) ||
+      (companyKey ? companiesByKey.get(companyKey) : undefined)
+    );
+  };
+
   // Backend returns 3 rows per importKey (fiacom/responsabile/sportello).
   // We aggregate to 1 row for the UI to avoid confusion.
   const displayTx = useMemo(() => {
@@ -225,6 +260,70 @@ const Conto: React.FC = () => {
     });
     return Array.from(byKey.values());
   }, [filteredTx, activeAccount]);
+
+  useEffect(() => {
+    if (activeAccount !== 'proselitismo') {
+      setResponsabiliBreakdown([]);
+      setSportelliBreakdown([]);
+      return;
+    }
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+        const userIdForQuery = isAdmin ? undefined : user?._id;
+        const data = await contoService.getBreakdown(activeAccount, filters, userIdForQuery);
+        if (cancelled) return;
+        setResponsabiliBreakdown(data.responsabili || []);
+        setSportelliBreakdown(data.sportelli || []);
+      } catch (e) {
+        if (cancelled) return;
+        setResponsabiliBreakdown([]);
+        setSportelliBreakdown([]);
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [activeAccount, filters.from, filters.to, filters.type, filters.status, filters.q, user?._id, user?.role]);
+
+  const handleResponsabiliClick = () => {
+    setShowSportelliModal(false);
+    setShowResponsabiliModal(true);
+    setResponsabiliOpen(false);
+  };
+  const handleCloseResponsabili = () => setShowResponsabiliModal(false);
+  const handleSportelliClick = () => {
+    setShowResponsabiliModal(false);
+    setShowSportelliModal(true);
+    setSportelliOpen(false);
+  };
+  const handleCloseSportelli = () => setShowSportelliModal(false);
+
+  useEffect(() => {
+    if (!showResponsabiliModal) return;
+    const anchor = responsabiliAnchorRef.current;
+    if (!anchor) return;
+    const rect = anchor.getBoundingClientRect();
+    const top = rect.bottom + 8;
+    const left = rect.left + rect.width / 2;
+    const width = rect.width;
+    setResponsabiliPos({ top, left, width });
+    const raf = requestAnimationFrame(() => setResponsabiliOpen(true));
+    return () => cancelAnimationFrame(raf);
+  }, [showResponsabiliModal]);
+
+  useEffect(() => {
+    if (!showSportelliModal) return;
+    const anchor = sportelliAnchorRef.current;
+    if (!anchor) return;
+    const rect = anchor.getBoundingClientRect();
+    const top = rect.bottom + 8;
+    const left = rect.left + rect.width / 2;
+    const width = rect.width;
+    setSportelliPos({ top, left, width });
+    const raf = requestAnimationFrame(() => setSportelliOpen(true));
+    return () => cancelAnimationFrame(raf);
+  }, [showSportelliModal]);
 
   return (
     <div className="dashboard-page">
@@ -252,11 +351,33 @@ const Conto: React.FC = () => {
           <div className="project-number">{formatCurrency(summary.balance)}</div>
           <div className="project-title">Saldo FIACOM</div>
         </div>
-        <div className="project-card-dash">
+        <div
+          className="project-card-dash"
+          ref={responsabiliAnchorRef}
+          role="button"
+          tabIndex={0}
+          onClick={handleResponsabiliClick}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') handleResponsabiliClick();
+          }}
+          title="Vedi dettaglio quote responsabili"
+          style={{ cursor: 'pointer' }}
+        >
           <div className="project-number">{formatCurrency(summary.responsabileTotal || 0)}</div>
           <div className="project-title">Saldo Responsabili</div>
         </div>
-        <div className="project-card-dash">
+        <div
+          className="project-card-dash"
+          ref={sportelliAnchorRef}
+          role="button"
+          tabIndex={0}
+          onClick={handleSportelliClick}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') handleSportelliClick();
+          }}
+          title="Vedi dettaglio quote sportelli"
+          style={{ cursor: 'pointer' }}
+        >
           <div className="project-number">{formatCurrency(summary.sportelloTotal || 0)}</div>
           <div className="project-title">Saldo Sportelli</div>
         </div>
@@ -390,6 +511,220 @@ const Conto: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {activeAccount === 'proselitismo' && showResponsabiliModal && responsabiliPos && (
+        <div
+          role="dialog"
+          aria-modal="false"
+          onClick={handleCloseResponsabili}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'fixed',
+              top: responsabiliPos.top,
+              left: responsabiliPos.left,
+              transform: 'translateX(-50%)',
+              width: Math.min(640, responsabiliPos.width * 1.6),
+              maxWidth: '92vw',
+              background: '#fff',
+              borderRadius: 12,
+              overflow: 'hidden',
+              boxShadow: '0 16px 40px rgba(15, 23, 42, 0.18)',
+              border: '1px solid #e2e8f0',
+              opacity: responsabiliOpen ? 1 : 0,
+              transformOrigin: 'top center',
+              transition: 'opacity 180ms ease, transform 200ms ease',
+              transform: responsabiliOpen ? 'translateX(-50%) translateY(0)' : 'translateX(-50%) translateY(-6px)',
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                top: -8,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: 14,
+                height: 14,
+                background: '#fff',
+                borderLeft: '1px solid #e2e8f0',
+                borderTop: '1px solid #e2e8f0',
+                transformOrigin: 'center',
+                rotate: '45deg',
+              }}
+            />
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '12px 16px',
+                borderBottom: '1px solid #edf2f7',
+              }}
+            >
+              <div style={{ fontWeight: 700, color: '#1f2937' }}>
+                Quote Responsabili Territoriali
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseResponsabili}
+                style={{
+                  border: 'none',
+                  background: '#f1f5f9',
+                  color: '#1f2937',
+                  padding: '4px 8px',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                }}
+              >
+                Chiudi
+              </button>
+            </div>
+            <div style={{ padding: 12, overflow: 'auto', maxHeight: '50vh' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ textAlign: 'left' }}>
+                    <th style={{ padding: '8px', borderBottom: '1px solid #eee' }}>Responsabile</th>
+                    <th style={{ padding: '8px', borderBottom: '1px solid #eee' }}>Movimenti</th>
+                    <th style={{ padding: '8px', borderBottom: '1px solid #eee' }}>Totale Quote</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {responsabiliBreakdown.map((row) => (
+                    <tr key={row._id || row.name} style={{ borderBottom: '1px solid #f1f1f1' }}>
+                      <td style={{ padding: '8px' }}>{row.name || '-'}</td>
+                      <td style={{ padding: '8px' }}>{row.count ?? 0}</td>
+                      <td style={{ padding: '8px', fontWeight: 600 }}>
+                        {formatCurrency(Number.isFinite(row.total) ? row.total : 0)}
+                      </td>
+                    </tr>
+                  ))}
+                  {responsabiliBreakdown.length === 0 && (
+                    <tr>
+                      <td colSpan={3} style={{ padding: 12, color: '#666' }}>
+                        Nessuna quota responsabili trovata.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeAccount === 'proselitismo' && showSportelliModal && sportelliPos && (
+        <div
+          role="dialog"
+          aria-modal="false"
+          onClick={handleCloseSportelli}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'fixed',
+              top: sportelliPos.top,
+              left: sportelliPos.left,
+              transform: 'translateX(-50%)',
+              width: Math.min(640, sportelliPos.width * 1.6),
+              maxWidth: '92vw',
+              background: '#fff',
+              borderRadius: 12,
+              overflow: 'hidden',
+              boxShadow: '0 16px 40px rgba(15, 23, 42, 0.18)',
+              border: '1px solid #e2e8f0',
+              opacity: sportelliOpen ? 1 : 0,
+              transformOrigin: 'top center',
+              transition: 'opacity 180ms ease, transform 200ms ease',
+              transform: sportelliOpen ? 'translateX(-50%) translateY(0)' : 'translateX(-50%) translateY(-6px)',
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                top: -8,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: 14,
+                height: 14,
+                background: '#fff',
+                borderLeft: '1px solid #e2e8f0',
+                borderTop: '1px solid #e2e8f0',
+                transformOrigin: 'center',
+                rotate: '45deg',
+              }}
+            />
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '12px 16px',
+                borderBottom: '1px solid #edf2f7',
+              }}
+            >
+              <div style={{ fontWeight: 700, color: '#1f2937' }}>
+                Quote Sportelli Lavoro
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseSportelli}
+                style={{
+                  border: 'none',
+                  background: '#f1f5f9',
+                  color: '#1f2937',
+                  padding: '4px 8px',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                }}
+              >
+                Chiudi
+              </button>
+            </div>
+            <div style={{ padding: 12, overflow: 'auto', maxHeight: '50vh' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ textAlign: 'left' }}>
+                    <th style={{ padding: '8px', borderBottom: '1px solid #eee' }}>Sportello</th>
+                    <th style={{ padding: '8px', borderBottom: '1px solid #eee' }}>Movimenti</th>
+                    <th style={{ padding: '8px', borderBottom: '1px solid #eee' }}>Totale Quote</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sportelliBreakdown.map((row) => (
+                    <tr key={row._id || row.name} style={{ borderBottom: '1px solid #f1f1f1' }}>
+                      <td style={{ padding: '8px' }}>{row.name || '-'}</td>
+                      <td style={{ padding: '8px' }}>{row.count ?? 0}</td>
+                      <td style={{ padding: '8px', fontWeight: 600 }}>
+                        {formatCurrency(Number.isFinite(row.total) ? row.total : 0)}
+                      </td>
+                    </tr>
+                  ))}
+                  {sportelliBreakdown.length === 0 && (
+                    <tr>
+                      <td colSpan={3} style={{ padding: 12, color: '#666' }}>
+                        Nessuna quota sportelli trovata.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="utility-section" style={{ marginTop: 20 }}>
         <div className="section-header">Quote non riconciliate</div>

@@ -137,6 +137,15 @@ const buildRowData = (row: any[], headerIndexes: Record<string, number>) => {
   };
 };
 
+const isRowEmpty = (row: any[]) =>
+  !row ||
+  row.length === 0 ||
+  row.every((cell) => {
+    if (cell === null || cell === undefined) return true;
+    const value = String(cell).trim();
+    return value === "";
+  });
+
 const buildImportKey = (data: any, baseAmount: number | null, nonRec: number | null) => {
   const mese = (data.mese || "").toString().trim();
   const anno = (data.anno || "").toString().trim();
@@ -325,6 +334,7 @@ export const previewContoFromExcel: CustomRequestHandler = async (req, res) => {
         const nonRiconciliate: any[] = [];
 
         rows.slice(1).forEach((row, idx) => {
+          if (isRowEmpty(row)) return;
           const data = buildRowData(row, headerIndexes);
           const errors: string[] = [];
           const baseAmount = parseNumber(data.quotaFiacom);
@@ -419,6 +429,9 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
 
         for (let i = 1; i < rows.length; i++) {
           const row = rows[i];
+          if (isRowEmpty(row)) {
+            continue;
+          }
           const data = buildRowData(row, headerIndexes);
           const baseAmount = parseNumber(data.quotaFiacom);
           const nonRec = parseNumber(data.nonRiconciliata);
@@ -751,8 +764,8 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
         path: "company",
         select: "businessName companyName user contactInfo.laborConsultantId",
         populate: [
-          { path: "user", select: "firstName lastName username" },
-          { path: "contactInfo.laborConsultantId", select: "businessName agentName" },
+          { path: "user", select: "firstName lastName username profitSharePercentage" },
+          { path: "contactInfo.laborConsultantId", select: "businessName agentName agreedCommission" },
         ],
       })
       .populate({ path: "user", select: "firstName lastName username role" })
@@ -1067,6 +1080,180 @@ export const getNonRiconciliate: CustomRequestHandler = async (req, res) => {
     return res.json(enriched);
   } catch (err: any) {
     console.error("Get non riconciliate error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
+export const getContoBreakdown: CustomRequestHandler = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+
+    const { account, from, to, type, status, q } = req.query as Record<string, string>;
+    const userId = getEffectiveUserId(req);
+    const match: any = {};
+    if (userId) {
+      match.user = new mongoose.Types.ObjectId(userId);
+    }
+    if (account) match.account = account;
+    if (type) match.type = type;
+    if (status) match.status = status;
+    if (q) match.description = { $regex: q, $options: "i" };
+    if (from || to) {
+      match.date = {};
+      if (from) match.date.$gte = new Date(from);
+      if (to) match.date.$lte = new Date(to);
+    }
+
+    const pipeline: any[] = [
+      { $match: match },
+      {
+        $match: {
+          type: "entrata",
+          rawAmount: { $gt: 0 },
+          importKey: { $exists: true, $ne: "" },
+        },
+      },
+      {
+        $group: {
+          _id: "$importKey",
+          elav: { $first: "$rawAmount" },
+          company: { $first: "$company" },
+        },
+      },
+      {
+        $lookup: {
+          from: "companies",
+          localField: "company",
+          foreignField: "_id",
+          as: "companyDoc",
+        },
+      },
+      { $unwind: { path: "$companyDoc", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "companyDoc.user",
+          foreignField: "_id",
+          as: "responsabileDoc",
+        },
+      },
+      { $unwind: { path: "$responsabileDoc", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "sportellolavoros",
+          localField: "companyDoc.contactInfo.laborConsultantId",
+          foreignField: "_id",
+          as: "sportelloDoc",
+        },
+      },
+      { $unwind: { path: "$sportelloDoc", preserveNullAndEmptyArrays: true } },
+      {
+        $addFields: {
+          fiacomAmount: { $multiply: ["$elav", FIACOM_NET_RATIO] },
+          responsabilePercent: "$responsabileDoc.profitSharePercentage",
+          sportelloPercent: "$sportelloDoc.agreedCommission",
+          responsabileName: {
+            $let: {
+              vars: {
+                full: {
+                  $trim: {
+                    input: {
+                      $concat: [
+                        { $ifNull: ["$responsabileDoc.firstName", ""] },
+                        " ",
+                        { $ifNull: ["$responsabileDoc.lastName", ""] },
+                      ],
+                    },
+                  },
+                },
+              },
+              in: {
+                $ifNull: [
+                  "$responsabileDoc.organization",
+                  {
+                    $cond: [
+                      { $gt: [{ $strLenCP: "$$full" }, 0] },
+                      "$$full",
+                      "$responsabileDoc.username",
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+          sportelloName: {
+            $ifNull: ["$sportelloDoc.businessName", "$sportelloDoc.agentName"],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: "$_id", // importKey
+          elav: { $first: "$elav" },
+          fiacomAmount: { $first: "$fiacomAmount" },
+          responsabileDoc: { $first: "$responsabileDoc" },
+          responsabileName: { $first: "$responsabileName" },
+          responsabilePercent: { $first: "$responsabilePercent" },
+          sportelloDoc: { $first: "$sportelloDoc" },
+          sportelloName: { $first: "$sportelloName" },
+          sportelloPercent: { $first: "$sportelloPercent" },
+        },
+      },
+      {
+        $facet: {
+          responsabili: [
+            { $match: { "responsabileDoc._id": { $ne: null } } },
+            {
+              $group: {
+                _id: "$responsabileDoc._id",
+                name: { $first: "$responsabileName" },
+                total: {
+                  $sum: {
+                    $multiply: [
+                      "$fiacomAmount",
+                      { $divide: ["$responsabilePercent", 100] },
+                    ],
+                  },
+                },
+                count: { $sum: 1 },
+              },
+            },
+            { $sort: { total: -1 } },
+          ],
+          sportelli: [
+            { $match: { "sportelloDoc._id": { $ne: null } } },
+            {
+              $group: {
+                _id: "$sportelloDoc._id",
+                name: { $first: "$sportelloName" },
+                total: {
+                  $sum: {
+                    $multiply: [
+                      "$fiacomAmount",
+                      { $divide: ["$sportelloPercent", 100] },
+                    ],
+                  },
+                },
+                count: { $sum: 1 },
+              },
+            },
+            { $sort: { total: -1 } },
+          ],
+        },
+      },
+    ];
+
+    const result = await ContoTransaction.aggregate(pipeline);
+    const payload = result?.[0] || {};
+
+    return res.json({
+      responsabili: payload.responsabili || [],
+      sportelli: payload.sportelli || [],
+    });
+  } catch (err: any) {
+    console.error("Get conto breakdown error:", err);
     return res.status(500).json({ error: "Server error" });
   }
 };

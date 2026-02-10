@@ -222,31 +222,6 @@ const Conto: React.FC = () => {
     return map;
   }, [companies]);
 
-  const resolveCompanyFromTransaction = (t: Transaction) => {
-    if (t.company && typeof t.company !== 'string') {
-      return t.company as Company;
-    }
-    const companyId =
-      typeof t.company === 'string'
-        ? t.company
-        : t.company?._id || '';
-    if (companyId && companiesById.has(companyId)) {
-      return companiesById.get(companyId);
-    }
-    const rawCompanyName =
-      t.companyName ||
-      t.company?.companyName ||
-      t.company?.businessName ||
-      extractCompanyFromDescription(t.description) ||
-      '';
-    const matricola = extractMatricolaFromDescription(t.description);
-    const companyKey = normalizeCompanyKey(rawCompanyName);
-    return (
-      (matricola && companiesByKey.get(normalizeCompanyKey(matricola))) ||
-      (companyKey ? companiesByKey.get(companyKey) : undefined)
-    );
-  };
-
   // Backend returns 3 rows per importKey (fiacom/responsabile/sportello).
   // We aggregate to 1 row for the UI to avoid confusion.
   const displayTx = useMemo(() => {
@@ -529,7 +504,6 @@ const Conto: React.FC = () => {
               position: 'fixed',
               top: responsabiliPos.top,
               left: responsabiliPos.left,
-              transform: 'translateX(-50%)',
               width: Math.min(640, responsabiliPos.width * 1.6),
               maxWidth: '92vw',
               background: '#fff',
@@ -636,7 +610,6 @@ const Conto: React.FC = () => {
               position: 'fixed',
               top: sportelliPos.top,
               left: sportelliPos.left,
-              transform: 'translateX(-50%)',
               width: Math.min(640, sportelliPos.width * 1.6),
               maxWidth: '92vw',
               background: '#fff',

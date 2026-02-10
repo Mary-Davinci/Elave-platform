@@ -801,14 +801,13 @@ useEffect(() => {
                 type="number"
                 id="agreedCommission"
                 name="agreedCommission"
-                value={30}
-                readOnly
+                value={formData.agreedCommission ?? ''}
+                onChange={handleChange}
                 required
                 min="0"
-                step="0.01"
-                placeholder="30"
+                step="1"
+                placeholder="Inserisci la percentuale"
                 disabled={isSubmitting}
-                style={{ background: '#f6f7f9', cursor: 'not-allowed' }}
               />
             </div>
 
@@ -927,5 +926,3 @@ useEffect(() => {
 };
 
 export default SportelloLavoro;
-
-

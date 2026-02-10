@@ -14,7 +14,6 @@ import xlsx from "xlsx";
 import crypto from "crypto";
 
 const FIACOM_NET_RATIO = 0.8;
-const SPORTELLO_PERCENT = 30;
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
 const normalizePercent = (value: unknown, fallback: number) => {
@@ -209,13 +208,20 @@ export const createCompetenzaTransactions: CustomRequestHandler = async (req, re
       0
     );
     const responsabileAmount = round2(fiacomAmount * (responsabilePercent / 100));
-    const sportelloAmount = round2(fiacomAmount * (SPORTELLO_PERCENT / 100));
+    const sportelloDoc = await SportelloLavoro.findOne({ user: sportello._id })
+      .select("_id agreedCommission isActive")
+      .lean<{ _id: mongoose.Types.ObjectId; agreedCommission?: number; isActive?: boolean }>();
+    if (!sportelloDoc || sportelloDoc.isActive === false) {
+      return res.status(400).json({ error: "Sportello lavoro non valido o inattivo" });
+    }
+    const sportelloPercent = normalizePercent(sportelloDoc.agreedCommission, 0);
+    const sportelloAmount = round2(fiacomAmount * (sportelloPercent / 100));
     console.log("[conto] competenza ratios", {
       base,
       fiacomAmount,
       responsabilePercent,
       responsabileAmount,
-      sportelloPercent: SPORTELLO_PERCENT,
+      sportelloPercent,
       sportelloAmount,
     });
 
@@ -555,19 +561,27 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
             errors.push(`Row ${i + 1}: Responsabile territoriale non valido o inattivo`);
             continue;
           }
+          const sportelloDoc = await SportelloLavoro.findById(sportelloId).select(
+            "_id agreedCommission isActive"
+          );
+          if (!sportelloDoc || sportelloDoc.isActive === false) {
+            errors.push(`Row ${i + 1}: Sportello lavoro non valido o inattivo`);
+            continue;
+          }
           const responsabilePercent = normalizePercent(
             responsabileUser.profitSharePercentage,
             0
           );
           const responsabileAmount = round2(fiacomAmount * (responsabilePercent / 100));
-          const sportelloAmount = round2(fiacomAmount * (SPORTELLO_PERCENT / 100));
+          const sportelloPercent = normalizePercent(sportelloDoc.agreedCommission, 0);
+          const sportelloAmount = round2(fiacomAmount * (sportelloPercent / 100));
           console.log("[conto] xlsx ratios", {
             row: i + 1,
             baseAmount,
             fiacomAmount,
             responsabilePercent,
             responsabileAmount,
-            sportelloPercent: SPORTELLO_PERCENT,
+            sportelloPercent,
             sportelloAmount,
           });
 
@@ -840,8 +854,18 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
                   },
                   { $unwind: { path: "$responsabileDoc", preserveNullAndEmptyArrays: true } },
                   {
+                    $lookup: {
+                      from: "sportellolavoros",
+                      localField: "companyDoc.contactInfo.laborConsultantId",
+                      foreignField: "_id",
+                      as: "sportelloDoc",
+                    },
+                  },
+                  { $unwind: { path: "$sportelloDoc", preserveNullAndEmptyArrays: true } },
+                  {
                     $addFields: {
                       responsabilePercent: "$responsabileDoc.profitSharePercentage",
+                      sportelloPercent: "$sportelloDoc.agreedCommission",
                     },
                   },
                   {
@@ -853,7 +877,7 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
                         },
                       },
                       sportelloTotal: {
-                        $sum: { $multiply: ["$elav", SPORTELLO_PERCENT / 100] },
+                        $sum: { $multiply: ["$elav", { $divide: ["$sportelloPercent", 100] }] },
                       },
                     },
                   },

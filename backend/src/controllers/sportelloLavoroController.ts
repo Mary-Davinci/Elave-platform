@@ -366,8 +366,15 @@ export const updateSportelloLavoro: CustomRequestHandler = async (req, res) => {
         if (city !== undefined) sportelloLavoro.city = city;
         if (postalCode !== undefined) sportelloLavoro.postalCode = postalCode;
         if (province !== undefined) sportelloLavoro.province = province;
-        // Sportello lavoro always fixed to 30%
-        if (agreedCommission !== undefined) sportelloLavoro.agreedCommission = 30;
+        if (agreedCommission !== undefined) {
+          const commissionNum = Number(agreedCommission);
+          if (!Number.isFinite(commissionNum) || commissionNum < 0) {
+            return res.status(400).json({
+              error: "Competenze concordate must be a valid number >= 0",
+            });
+          }
+          sportelloLavoro.agreedCommission = commissionNum;
+        }
         if (email !== undefined) sportelloLavoro.email = email;
         if (pec !== undefined) sportelloLavoro.pec = pec;
 

@@ -114,7 +114,16 @@ const UserEdit: React.FC = () => {
   ) => {
     const { name, value, type } = e.target;
     if (type === 'number') {
-      setForm(prev => ({ ...prev, [name]: Number(value) }));
+      const cleaned = String(value).replace(',', '.');
+      if (cleaned.trim() === '') {
+        setForm(prev => ({ ...prev, [name]: undefined }));
+        return;
+      }
+      const parsed = Number(cleaned);
+      setForm(prev => ({
+        ...prev,
+        [name]: Number.isFinite(parsed) ? parsed : prev[name as keyof User],
+      }));
     } else if (name === 'role') {
       const role = value as Role;
       setForm(prev => ({
@@ -138,6 +147,9 @@ const UserEdit: React.FC = () => {
     if (!form.email) return 'Email richiesta';
     if (!form.role) return 'Ruolo richiesto';
     if (typeof form.profitSharePercentage === 'number') {
+      if (!Number.isFinite(form.profitSharePercentage)) {
+        return 'Percentuale profitto non valida';
+      }
       if (form.profitSharePercentage < 0 || form.profitSharePercentage > 100) {
         return 'Percentuale profitto deve essere tra 0 e 100';
       }
@@ -167,7 +179,8 @@ const UserEdit: React.FC = () => {
         organization: form.organization ?? '',
         role: form.role,
         profitSharePercentage:
-          typeof form.profitSharePercentage === 'number'
+          typeof form.profitSharePercentage === 'number' &&
+          Number.isFinite(form.profitSharePercentage)
             ? form.profitSharePercentage
             : undefined,
         isActive: form.isActive !== false, // default true

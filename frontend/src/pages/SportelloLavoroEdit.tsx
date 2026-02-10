@@ -231,9 +231,11 @@ const SportelloLavoroEdit: React.FC = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
+    const parsed =
+      name === 'agreedCommission' ? Math.max(0, parseFloat(value) || 0) : value;
     setFormData((prev) => ({
       ...prev,
-      [name]: name === 'agreedCommission' ? parseFloat(value) || 0 : value,
+      [name]: parsed,
     }));
     if (errors.length) setErrors([]);
     if (successMessage) setSuccessMessage('');
@@ -379,8 +381,8 @@ const SportelloLavoroEdit: React.FC = () => {
     if (!formData.city.trim()) newErrors.push('Città is required');
     if (!formData.postalCode.trim()) newErrors.push('CAP is required');
     if (!formData.province.trim()) newErrors.push('Provincia is required');
-    if (!formData.agreedCommission || formData.agreedCommission <= 0) {
-      newErrors.push('Competenze concordate is required and must be greater than 0');
+    if (formData.agreedCommission == null || Number.isNaN(formData.agreedCommission) || formData.agreedCommission < 0) {
+      newErrors.push('Competenze concordate is required and must be 0 or greater');
     }
     if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.push('Please enter a valid email address');

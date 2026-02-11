@@ -55,7 +55,6 @@ const Conto: React.FC = () => {
   const [sportelliOpen, setSportelliOpen] = useState(false);
   const [responsabiliBreakdown, setResponsabiliBreakdown] = useState<BreakdownRow[]>([]);
   const [sportelliBreakdown, setSportelliBreakdown] = useState<BreakdownRow[]>([]);
-  const [breakdownLoading, setBreakdownLoading] = useState(false);
   const breakdownCacheRef = useRef(
     new Map<string, { data: { responsabili: BreakdownRow[]; sportelli: BreakdownRow[] }; ts: number }>()
   );
@@ -101,7 +100,7 @@ const Conto: React.FC = () => {
       });
   }, [transactions, activeAccount, filters, user?._id]);
 
-  const derivedSummary = useMemo(() => {
+  const derivedSummary: Summary = useMemo(() => {
     const incoming = filteredTx.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0);
     const outgoing = filteredTx.filter((t) => t.amount < 0).reduce((s, t) => s + t.amount, 0);
     return {
@@ -111,11 +110,12 @@ const Conto: React.FC = () => {
       nonRiconciliateTotal: 0,
       responsabileTotal: 0,
       sportelloTotal: 0,
+      totalElav: null,
       updatedAt: new Date().toISOString(),
     };
   }, [filteredTx]);
 
-  const summary = summaryFromApi ?? derivedSummary;
+  const summary: Summary = summaryFromApi ?? derivedSummary;
   const loading = summaryLoading || transactionsLoading;
 
   const onFilterChange = (patch: Partial<ContoFilters>) => setFilters((f) => ({ ...f, ...patch }));
@@ -167,8 +167,10 @@ const Conto: React.FC = () => {
           if (!cancelled) setSummaryLoading(false);
         }
         const sum = await contoService.getSummary(activeAccount, filters, userIdForQuery);
-        summaryCacheRef.current.set(cacheKey, { data: sum, ts: now });
-        writeCached(`conto:summary:${cacheKey}`, sum);
+        if (sum) {
+          summaryCacheRef.current.set(cacheKey, { data: sum, ts: now });
+          writeCached(`conto:summary:${cacheKey}`, sum);
+        }
         if (!cancelled) setSummaryFromApi(sum);
       } catch (e: any) {
         if (!cancelled) setSummaryFromApi(null);
@@ -322,7 +324,6 @@ const Conto: React.FC = () => {
 
   const loadBreakdown = async () => {
     if (activeAccount !== 'proselitismo') return;
-    setBreakdownLoading(true);
     try {
       const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
       const userIdForQuery = isAdmin ? undefined : user?._id;
@@ -336,7 +337,6 @@ const Conto: React.FC = () => {
       if (cached && now - cached.ts < CACHE_TTL_MS) {
         setResponsabiliBreakdown(cached.data.responsabili || []);
         setSportelliBreakdown(cached.data.sportelli || []);
-        setBreakdownLoading(false);
         return;
       }
       const cachedStorage = readCached<{ responsabili: BreakdownRow[]; sportelli: BreakdownRow[] }>(
@@ -346,7 +346,6 @@ const Conto: React.FC = () => {
         breakdownCacheRef.current.set(cacheKey, cachedStorage);
         setResponsabiliBreakdown(cachedStorage.data.responsabili || []);
         setSportelliBreakdown(cachedStorage.data.sportelli || []);
-        setBreakdownLoading(false);
       }
       const data = await contoService.getBreakdown(activeAccount, filters, userIdForQuery);
       const payload = {
@@ -361,7 +360,6 @@ const Conto: React.FC = () => {
       setResponsabiliBreakdown([]);
       setSportelliBreakdown([]);
     } finally {
-      setBreakdownLoading(false);
     }
   };
 

@@ -782,7 +782,7 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
       const responsabileName =
         company?.contractDetails?.territorialManager || responsabileFromCompanyUser;
       const sportelloName =
-        company?.contactInfo?.laborConsultant || sportelloFromId;
+        sportelloFromId || company?.contactInfo?.laborConsultant;
       return {
         ...tx,
         companyName,
@@ -1071,9 +1071,9 @@ export const getNonRiconciliate: CustomRequestHandler = async (req, res) => {
           ? `${company.user.firstName || ""} ${company.user.lastName || ""}`.trim() || company.user.username
           : undefined);
       const sportelloName =
-        company?.contactInfo?.laborConsultant ||
         company?.contactInfo?.laborConsultantId?.businessName ||
-        company?.contactInfo?.laborConsultantId?.agentName;
+        company?.contactInfo?.laborConsultantId?.agentName ||
+        company?.contactInfo?.laborConsultant;
       return {
         ...item,
         companyName,
@@ -1146,9 +1146,15 @@ export const getContoBreakdown: CustomRequestHandler = async (req, res) => {
       },
       { $unwind: { path: "$responsabileDoc", preserveNullAndEmptyArrays: true } },
       {
+        // Some datasets store laborConsultantId as string; normalize to ObjectId for lookup.
+        $addFields: {
+          laborConsultantObjId: "$companyDoc.contactInfo.laborConsultantId",
+        },
+      },
+      {
         $lookup: {
           from: "sportellolavoros",
-          localField: "companyDoc.contactInfo.laborConsultantId",
+          localField: "laborConsultantObjId",
           foreignField: "_id",
           as: "sportelloDoc",
         },
@@ -1162,6 +1168,7 @@ export const getContoBreakdown: CustomRequestHandler = async (req, res) => {
           responsabileName: {
             $let: {
               vars: {
+                org: { $ifNull: ["$responsabileDoc.organization", ""] },
                 full: {
                   $trim: {
                     input: {
@@ -1175,8 +1182,9 @@ export const getContoBreakdown: CustomRequestHandler = async (req, res) => {
                 },
               },
               in: {
-                $ifNull: [
-                  "$responsabileDoc.organization",
+                $cond: [
+                  { $gt: [{ $strLenCP: "$$org" }, 0] },
+                  "$$org",
                   {
                     $cond: [
                       { $gt: [{ $strLenCP: "$$full" }, 0] },
@@ -1188,8 +1196,21 @@ export const getContoBreakdown: CustomRequestHandler = async (req, res) => {
               },
             },
           },
+        },
+      },
+      {
+        $addFields: {
           sportelloName: {
             $ifNull: ["$sportelloDoc.businessName", "$sportelloDoc.agentName"],
+          },
+          sportelloNameKey: {
+            $toLower: {
+              $trim: {
+                input: {
+                  $ifNull: ["$sportelloDoc.businessName", "$sportelloDoc.agentName"],
+                },
+              },
+            },
           },
         },
       },
@@ -1203,7 +1224,9 @@ export const getContoBreakdown: CustomRequestHandler = async (req, res) => {
           responsabilePercent: { $first: "$responsabilePercent" },
           sportelloDoc: { $first: "$sportelloDoc" },
           sportelloName: { $first: "$sportelloName" },
+          sportelloNameKey: { $first: "$sportelloNameKey" },
           sportelloPercent: { $first: "$sportelloPercent" },
+          sportelloUserRole: { $first: "$sportelloUserRole" },
         },
       },
       {
@@ -1230,10 +1253,13 @@ export const getContoBreakdown: CustomRequestHandler = async (req, res) => {
             { $sort: { total: -1 } },
           ],
           sportelli: [
-            { $match: { "sportelloDoc._id": { $ne: null } } },
+            {
+              $match: { "sportelloDoc._id": { $ne: null } },
+            },
             {
               $group: {
-                _id: "$sportelloDoc._id",
+                // Raggruppiamo per nome normalizzato per evitare duplicati (sportelli con stesso nome ma ID diversi).
+                _id: "$sportelloNameKey",
                 name: { $first: "$sportelloName" },
                 rawTotal: { $sum: "$elav" },
                 total: {

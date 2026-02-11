@@ -922,6 +922,10 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
       useRawForFiacom && totals[0]?.fiacom?.[0]?.fiacomTotal != null
         ? Number(totals[0].fiacom[0].fiacomTotal)
         : null;
+    const totalElav =
+      useRawForFiacom && totals[0]?.fiacom?.[0]?.totalElav != null
+        ? Number(totals[0].fiacom[0].totalElav)
+        : null;
     const incoming = useRawForFiacom
       ? Number(totals[0]?.totals?.[0]?.incoming ?? 0)
       : Number(totals[0]?.incoming ?? 0);
@@ -966,6 +970,7 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
       nonRiconciliateTotal,
       responsabileTotal,
       sportelloTotal,
+      totalElav,
       updatedAt: new Date().toISOString(),
     });
   } catch (err: any) {
@@ -1209,6 +1214,7 @@ export const getContoBreakdown: CustomRequestHandler = async (req, res) => {
               $group: {
                 _id: "$responsabileDoc._id",
                 name: { $first: "$responsabileName" },
+                rawTotal: { $sum: "$elav" },
                 total: {
                   $sum: {
                     $multiply: [
@@ -1217,6 +1223,7 @@ export const getContoBreakdown: CustomRequestHandler = async (req, res) => {
                     ],
                   },
                 },
+                fiacomTotal: { $sum: "$fiacomAmount" },
                 count: { $sum: 1 },
               },
             },
@@ -1228,6 +1235,7 @@ export const getContoBreakdown: CustomRequestHandler = async (req, res) => {
               $group: {
                 _id: "$sportelloDoc._id",
                 name: { $first: "$sportelloName" },
+                rawTotal: { $sum: "$elav" },
                 total: {
                   $sum: {
                     $multiply: [
@@ -1236,6 +1244,7 @@ export const getContoBreakdown: CustomRequestHandler = async (req, res) => {
                     ],
                   },
                 },
+                fiacomTotal: { $sum: "$fiacomAmount" },
                 count: { $sum: 1 },
               },
             },

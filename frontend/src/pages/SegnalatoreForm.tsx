@@ -453,18 +453,19 @@ const SegnalatoreForm: React.FC = () => {
                   </span>
                 )}
               </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '12px' }}>
               <input
                 type="file"
                 ref={contractTemplateRef}
                 onChange={(e) => handleTemplateFileChange(e, 'contract')}
                 accept=".pdf,.doc,.docx"
                 style={{ 
-                  marginBottom: '12px', 
                   width: '100%',
-                  padding: '8px',
-                  border: '1px solid #ced4da',
-                  borderRadius: '6px',
-                  fontSize: '14px'
+                  padding: '10px 12px',
+                  border: '1px solid #d0d7de',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  backgroundColor: '#f8fafc'
                 }}
                 disabled={isUploadingTemplate}
               />
@@ -473,16 +474,15 @@ const SegnalatoreForm: React.FC = () => {
                 onClick={() => handleUploadTemplate('contract')}
                 disabled={!contractTemplate || isUploadingTemplate}
                 style={{
-                  backgroundColor: contractTemplate && !isUploadingTemplate ? 'var(--primary-color)' : 'rgb(108, 117, 125)',
+                  backgroundColor: contractTemplate && !isUploadingTemplate ? 'var(--primary-color)' : '#9aa0a6',
                   color: 'white',
-                  padding: '10px 20px',
+                  padding: '10px 18px',
                   border: 'none',
-                  borderRadius: '6px',
+                  borderRadius: '8px',
                   cursor: contractTemplate && !isUploadingTemplate ? 'pointer' : 'not-allowed',
                   fontSize: '14px',
-                  fontWeight: '500',
-                  transition: 'all 0.3s ease',
-                  width: '100%'
+                  fontWeight: '600',
+                  transition: 'all 0.2s ease'
                 }}
               >
                 {isUploadingTemplate ? (
@@ -491,12 +491,12 @@ const SegnalatoreForm: React.FC = () => {
                     Caricamento...
                   </span>
                 ) : (
-                  <span>
-                    <span style={{ marginRight: '8px' }}>📤</span>
+                  <span>                    
                     Carica
                   </span>
                 )}
               </button>
+              </div>
             </div>
           </div>
         </div>
@@ -769,7 +769,7 @@ const SegnalatoreForm: React.FC = () => {
                 placeholder="Inserisci la percentuale"
                 min="0"
                 max="100"
-                step="0.01"
+                step="1"
                 disabled={isSubmitting || !isSportelloLavoro}
               />
             </div>

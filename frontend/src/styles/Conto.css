@@ -54,6 +54,34 @@
   background: #ffffff;
 }
 
+.conto-summaries {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.conto-saldo-card {
+  min-height: 120px;
+  text-align: left;
+  align-items: flex-start;
+}
+
+.conto-saldo-card .project-number {
+  font-size: 24px;
+  margin-bottom: 6px;
+}
+
+.conto-saldo-meta {
+  font-size: 12px;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.conto-saldo-sub {
+  margin-top: 4px;
+  font-weight: 600;
+  color: #253676;
+}
+
 
 .filter-select {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M6 8l4 4 4-4' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");

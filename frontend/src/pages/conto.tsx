@@ -42,7 +42,8 @@ const Conto: React.FC = () => {
   const [imports, setImports] = useState<ContoImportItem[]>([]);
   const [nonRiconciliate, setNonRiconciliate] = useState<NonRiconciliataItem[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [summaryLoading, setSummaryLoading] = useState<boolean>(false);
+  const [transactionsLoading, setTransactionsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [showResponsabiliModal, setShowResponsabiliModal] = useState(false);
   const responsabiliAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -54,6 +55,13 @@ const Conto: React.FC = () => {
   const [sportelliOpen, setSportelliOpen] = useState(false);
   const [responsabiliBreakdown, setResponsabiliBreakdown] = useState<BreakdownRow[]>([]);
   const [sportelliBreakdown, setSportelliBreakdown] = useState<BreakdownRow[]>([]);
+  const [breakdownLoading, setBreakdownLoading] = useState(false);
+  const breakdownCacheRef = useRef(
+    new Map<string, { data: { responsabili: BreakdownRow[]; sportelli: BreakdownRow[] }; ts: number }>()
+  );
+  const summaryCacheRef = useRef(new Map<string, { data: Summary; ts: number }>());
+  const txCacheRef = useRef(new Map<string, { data: Transaction[]; ts: number }>());
+  const CACHE_TTL_MS = 5 * 60_000;
 
   // Local mock fallback
   const mockTx: Transaction[] = [
@@ -108,32 +116,108 @@ const Conto: React.FC = () => {
   }, [filteredTx]);
 
   const summary = summaryFromApi ?? derivedSummary;
+  const loading = summaryLoading || transactionsLoading;
 
   const onFilterChange = (patch: Partial<ContoFilters>) => setFilters((f) => ({ ...f, ...patch }));
 
-  // Fetch data with fallback
+  const readCached = <T,>(key: string) => {
+    try {
+      const raw = sessionStorage.getItem(key);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { data: T; ts: number };
+      if (!parsed?.ts || Date.now() - parsed.ts > CACHE_TTL_MS) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const writeCached = <T,>(key: string, data: T) => {
+    try {
+      sessionStorage.setItem(key, JSON.stringify({ data, ts: Date.now() }));
+    } catch {
+      // ignore cache write errors (quota/private mode)
+    }
+  };
+
+  // Fetch summary first (fast path for the cards)
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
-      setLoading(true);
+      setSummaryLoading(true);
+      try {
+        const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+        const userIdForQuery = isAdmin ? undefined : user?._id;
+        const cacheKey = JSON.stringify({
+          account: activeAccount,
+          filters,
+          userId: userIdForQuery || '',
+        });
+        const cached = summaryCacheRef.current.get(cacheKey);
+        const now = Date.now();
+        if (cached && now - cached.ts < CACHE_TTL_MS) {
+          if (!cancelled) setSummaryFromApi(cached.data);
+          if (!cancelled) setSummaryLoading(false);
+          return;
+        }
+        const cachedStorage = readCached<Summary>(`conto:summary:${cacheKey}`);
+        if (cachedStorage) {
+          summaryCacheRef.current.set(cacheKey, cachedStorage);
+          if (!cancelled) setSummaryFromApi(cachedStorage.data);
+          if (!cancelled) setSummaryLoading(false);
+        }
+        const sum = await contoService.getSummary(activeAccount, filters, userIdForQuery);
+        summaryCacheRef.current.set(cacheKey, { data: sum, ts: now });
+        writeCached(`conto:summary:${cacheKey}`, sum);
+        if (!cancelled) setSummaryFromApi(sum);
+      } catch (e: any) {
+        if (!cancelled) setSummaryFromApi(null);
+      } finally {
+        if (!cancelled) setSummaryLoading(false);
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [activeAccount, filters.from, filters.to, filters.type, filters.status, filters.q]);
+
+  // Fetch transactions (table can load after the cards)
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      setTransactionsLoading(true);
       setError(null);
       try {
         const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
         const userIdForQuery = isAdmin ? undefined : user?._id;
-        const [tx, sum] = await Promise.all([
-          contoService.getTransactions(activeAccount, filters, userIdForQuery),
-          contoService.getSummary(activeAccount, filters, userIdForQuery),
-        ]);
+        const cacheKey = JSON.stringify({
+          account: activeAccount,
+          filters,
+          userId: userIdForQuery || '',
+        });
+        const cached = txCacheRef.current.get(cacheKey);
+        const now = Date.now();
+        if (cached && now - cached.ts < CACHE_TTL_MS) {
+          if (!cancelled) setTransactions(cached.data);
+          if (!cancelled) setTransactionsLoading(false);
+          return;
+        }
+        const cachedStorage = readCached<Transaction[]>(`conto:tx:${cacheKey}`);
+        if (cachedStorage) {
+          txCacheRef.current.set(cacheKey, cachedStorage);
+          if (!cancelled) setTransactions(cachedStorage.data);
+          if (!cancelled) setTransactionsLoading(false);
+        }
+        const tx = await contoService.getTransactions(activeAccount, filters, userIdForQuery);
+        txCacheRef.current.set(cacheKey, { data: tx, ts: now });
+        writeCached(`conto:tx:${cacheKey}`, tx);
         if (!cancelled) setTransactions(tx);
-        if (!cancelled) setSummaryFromApi(sum);
       } catch (e: any) {
         console.warn('getTransactions failed, using mock fallback', e?.message || e);
         const tx = mockTx; // fallback
         if (!cancelled) setTransactions(tx);
-        if (!cancelled) setSummaryFromApi(null);
         setError('Dati non disponibili, mostrati valori di esempio.');
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setTransactionsLoading(false);
       }
     };
     run();
@@ -236,41 +320,74 @@ const Conto: React.FC = () => {
     return Array.from(byKey.values());
   }, [filteredTx, activeAccount]);
 
+  const loadBreakdown = async () => {
+    if (activeAccount !== 'proselitismo') return;
+    setBreakdownLoading(true);
+    try {
+      const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+      const userIdForQuery = isAdmin ? undefined : user?._id;
+      const cacheKey = JSON.stringify({
+        account: activeAccount,
+        filters,
+        userId: userIdForQuery || '',
+      });
+      const cached = breakdownCacheRef.current.get(cacheKey);
+      const now = Date.now();
+      if (cached && now - cached.ts < CACHE_TTL_MS) {
+        setResponsabiliBreakdown(cached.data.responsabili || []);
+        setSportelliBreakdown(cached.data.sportelli || []);
+        setBreakdownLoading(false);
+        return;
+      }
+      const cachedStorage = readCached<{ responsabili: BreakdownRow[]; sportelli: BreakdownRow[] }>(
+        `conto:breakdown:${cacheKey}`
+      );
+      if (cachedStorage) {
+        breakdownCacheRef.current.set(cacheKey, cachedStorage);
+        setResponsabiliBreakdown(cachedStorage.data.responsabili || []);
+        setSportelliBreakdown(cachedStorage.data.sportelli || []);
+        setBreakdownLoading(false);
+      }
+      const data = await contoService.getBreakdown(activeAccount, filters, userIdForQuery);
+      const payload = {
+        responsabili: data.responsabili || [],
+        sportelli: data.sportelli || [],
+      };
+      breakdownCacheRef.current.set(cacheKey, { data: payload, ts: now });
+      writeCached(`conto:breakdown:${cacheKey}`, payload);
+      setResponsabiliBreakdown(payload.responsabili);
+      setSportelliBreakdown(payload.sportelli);
+    } catch {
+      setResponsabiliBreakdown([]);
+      setSportelliBreakdown([]);
+    } finally {
+      setBreakdownLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (activeAccount !== 'proselitismo') {
       setResponsabiliBreakdown([]);
       setSportelliBreakdown([]);
       return;
     }
-    let cancelled = false;
-    const run = async () => {
-      try {
-        const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
-        const userIdForQuery = isAdmin ? undefined : user?._id;
-        const data = await contoService.getBreakdown(activeAccount, filters, userIdForQuery);
-        if (cancelled) return;
-        setResponsabiliBreakdown(data.responsabili || []);
-        setSportelliBreakdown(data.sportelli || []);
-      } catch (e) {
-        if (cancelled) return;
-        setResponsabiliBreakdown([]);
-        setSportelliBreakdown([]);
-      }
-    };
-    run();
-    return () => { cancelled = true; };
-  }, [activeAccount, filters.from, filters.to, filters.type, filters.status, filters.q, user?._id, user?.role]);
+    // Invalidate cached breakdown when filters change
+    setResponsabiliBreakdown([]);
+    setSportelliBreakdown([]);
+  }, [activeAccount, filters.from, filters.to, filters.type, filters.status, filters.q]);
 
   const handleResponsabiliClick = () => {
     setShowSportelliModal(false);
     setShowResponsabiliModal(true);
     setResponsabiliOpen(false);
+    if (!responsabiliBreakdown.length) loadBreakdown();
   };
   const handleCloseResponsabili = () => setShowResponsabiliModal(false);
   const handleSportelliClick = () => {
     setShowResponsabiliModal(false);
     setShowSportelliModal(true);
     setSportelliOpen(false);
+    if (!sportelliBreakdown.length) loadBreakdown();
   };
   const handleCloseSportelli = () => setShowSportelliModal(false);
 
@@ -321,13 +438,28 @@ const Conto: React.FC = () => {
         </div>
       </div>
 
-      <div className="projects-section" style={{ marginBottom: 20 }}>
-        <div className="project-card-dash">
-          <div className="project-number">{formatCurrency(summary.balance)}</div>
-          <div className="project-title">Saldo FIACOM</div>
-        </div>
+      <div className="projects-section conto-summaries" style={{ marginBottom: 20 }}>
+        {/*
+          totalElav can be null if API didn't return it (fallback to derived).
+          In that case, approximate from balance (80%) for display only.
+        */}
+        {(() => {
+          const rawElav =
+            summary.totalElav ??
+            (activeAccount === 'proselitismo' && summary.balance
+              ? summary.balance / 0.8
+              : 0);
+          return (
+            <div className="project-card-dash conto-saldo-card">
+              <div className="conto-saldo-meta">Quota ELAV totale</div>
+              <div className="project-number">{formatCurrency(Number(rawElav))}</div>
+              <div className="conto-saldo-meta">FIACOM (80%)</div>
+              <div className="conto-saldo-sub">{formatCurrency(summary.balance)}</div>
+            </div>
+          );
+        })()}
         <div
-          className="project-card-dash"
+          className="project-card-dash conto-saldo-card"
           ref={responsabiliAnchorRef}
           role="button"
           tabIndex={0}
@@ -342,7 +474,7 @@ const Conto: React.FC = () => {
           <div className="project-title">Saldo Responsabili</div>
         </div>
         <div
-          className="project-card-dash"
+          className="project-card-dash conto-saldo-card"
           ref={sportelliAnchorRef}
           role="button"
           tabIndex={0}
@@ -356,11 +488,11 @@ const Conto: React.FC = () => {
           <div className="project-number">{formatCurrency(summary.sportelloTotal || 0)}</div>
           <div className="project-title">Saldo Sportelli</div>
         </div>
-        <div className="project-card-dash">
+        <div className="project-card-dash conto-saldo-card">
           <div className="project-number">{formatCurrency(summary.nonRiconciliateTotal || 0)}</div>
           <div className="project-title">Quote non riconciliate</div>
         </div>
-        <div className="project-card-dash">
+        <div className="project-card-dash conto-saldo-card">
           <div className="project-number">{formatCurrency(summary.outgoing)}</div>
           <div className="project-title">Uscite</div>
         </div>
@@ -566,7 +698,8 @@ const Conto: React.FC = () => {
                   <tr style={{ textAlign: 'left' }}>
                     <th style={{ padding: '8px', borderBottom: '1px solid #eee' }}>Responsabile</th>
                     <th style={{ padding: '8px', borderBottom: '1px solid #eee' }}>Movimenti</th>
-                    <th style={{ padding: '8px', borderBottom: '1px solid #eee' }}>Totale Quote</th>
+                    <th style={{ padding: '8px', borderBottom: '1px solid #eee' }}>Totale ELAV</th>
+                    <th style={{ padding: '8px', borderBottom: '1px solid #eee' }}>Totale Competenze</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -575,13 +708,16 @@ const Conto: React.FC = () => {
                       <td style={{ padding: '8px' }}>{row.name || '-'}</td>
                       <td style={{ padding: '8px' }}>{row.count ?? 0}</td>
                       <td style={{ padding: '8px', fontWeight: 600 }}>
+                        {formatCurrency(Number.isFinite(row.rawTotal ?? NaN) ? (row.rawTotal as number) : 0)}
+                      </td>
+                      <td style={{ padding: '8px', fontWeight: 600 }}>
                         {formatCurrency(Number.isFinite(row.total) ? row.total : 0)}
                       </td>
                     </tr>
                   ))}
                   {responsabiliBreakdown.length === 0 && (
                     <tr>
-                      <td colSpan={3} style={{ padding: 12, color: '#666' }}>
+                      <td colSpan={4} style={{ padding: 12, color: '#666' }}>
                         Nessuna quota responsabili trovata.
                       </td>
                     </tr>
@@ -672,7 +808,8 @@ const Conto: React.FC = () => {
                   <tr style={{ textAlign: 'left' }}>
                     <th style={{ padding: '8px', borderBottom: '1px solid #eee' }}>Sportello</th>
                     <th style={{ padding: '8px', borderBottom: '1px solid #eee' }}>Movimenti</th>
-                    <th style={{ padding: '8px', borderBottom: '1px solid #eee' }}>Totale Quote</th>
+                    <th style={{ padding: '8px', borderBottom: '1px solid #eee' }}>Totale ELAV</th>
+                    <th style={{ padding: '8px', borderBottom: '1px solid #eee' }}>Totale Competenze</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -681,13 +818,16 @@ const Conto: React.FC = () => {
                       <td style={{ padding: '8px' }}>{row.name || '-'}</td>
                       <td style={{ padding: '8px' }}>{row.count ?? 0}</td>
                       <td style={{ padding: '8px', fontWeight: 600 }}>
+                        {formatCurrency(Number.isFinite(row.rawTotal ?? NaN) ? (row.rawTotal as number) : 0)}
+                      </td>
+                      <td style={{ padding: '8px', fontWeight: 600 }}>
                         {formatCurrency(Number.isFinite(row.total) ? row.total : 0)}
                       </td>
                     </tr>
                   ))}
                   {sportelliBreakdown.length === 0 && (
                     <tr>
-                      <td colSpan={3} style={{ padding: 12, color: '#666' }}>
+                      <td colSpan={4} style={{ padding: 12, color: '#666' }}>
                         Nessuna quota sportelli trovata.
                       </td>
                     </tr>

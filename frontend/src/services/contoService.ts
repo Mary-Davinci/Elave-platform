@@ -45,6 +45,7 @@ export interface Summary {
   nonRiconciliateTotal: number;
   responsabileTotal?: number;
   sportelloTotal?: number;
+  totalElav?: number | null;
   updatedAt: string;
 }
 
@@ -114,6 +115,8 @@ export interface BreakdownRow {
   name?: string;
   total: number;
   count: number;
+  rawTotal?: number;
+  fiacomTotal?: number;
 }
 
 export interface ContoBreakdownResponse {
@@ -157,6 +160,10 @@ export const contoService = {
     const nonRiconciliateTotal = Number(data.nonRiconciliateTotal ?? 0);
     const responsabileTotal = Number(data.responsabileTotal ?? 0);
     const sportelloTotal = Number(data.sportelloTotal ?? 0);
+    const totalElav =
+      data.totalElav === null || data.totalElav === undefined
+        ? null
+        : Number(data.totalElav);
     return {
       balance,
       incoming,
@@ -164,6 +171,7 @@ export const contoService = {
       nonRiconciliateTotal,
       responsabileTotal,
       sportelloTotal,
+      totalElav,
       updatedAt: data.updatedAt ?? new Date().toISOString(),
     };
   },

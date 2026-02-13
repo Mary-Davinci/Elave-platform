@@ -12,7 +12,6 @@ import path from "path";
 import fs from "fs";
 import xlsx from "xlsx";
 import crypto from "crypto";
-
 const FIACOM_NET_RATIO = 0.8;
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
@@ -530,7 +529,26 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
             continue;
           }
 
-          const responsabileId = company.user?.toString();
+          let responsabileId: string | null = null;
+          const territorialManagerName = company.contractDetails?.territorialManager?.trim() || "";
+          if (territorialManagerName) {
+            const managerRegex = new RegExp(`^\\s*${escapeRegex(territorialManagerName)}\\s*$`, "i");
+            const responsabile = await User.findOne({
+              isActive: true,
+              role: "responsabile_territoriale",
+              $or: [
+                { organization: managerRegex },
+                { username: managerRegex },
+                { firstName: managerRegex },
+                { lastName: managerRegex },
+              ],
+            })
+              .select("_id")
+              .lean<{ _id: mongoose.Types.ObjectId }>();
+            if (responsabile) {
+              responsabileId = responsabile._id.toString();
+            }
+          }
           let sportelloId = company.contactInfo?.laborConsultantId?.toString();
           let sportelloDoc: {
             _id: mongoose.Types.ObjectId;
@@ -792,54 +810,174 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
       return res.status(401).json({ error: "User not authenticated" });
     }
 
-    const { account, from, to, type, status, q } = req.query as Record<string, string>;
+    const { account, from, to, type, status, q, page, limit } = req.query as Record<string, string>;
     const userId = getEffectiveUserId(req);
     const query: any = {};
     if (userId) query.user = userId;
     if (account) query.account = account;
     if (type) query.type = type;
     if (status) query.status = status;
-    if (q) query.description = { $regex: q, $options: "i" };
     if (from || to) {
       query.date = {};
       if (from) query.date.$gte = new Date(from);
       if (to) query.date.$lte = new Date(to);
     }
 
-    const transactions = await ContoTransaction.find(query)
-      .sort({ date: -1, createdAt: -1 })
-      .populate({
-        path: "company",
-        select: "businessName companyName user contactInfo.laborConsultantId",
-        populate: [
-          { path: "user", select: "firstName lastName username profitSharePercentage" },
-          { path: "contactInfo.laborConsultantId", select: "businessName agentName agreedCommission" },
-        ],
-      })
-      .populate({ path: "user", select: "firstName lastName username role" })
-      .lean();
+    const pageNum = Math.max(1, Number(page) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(limit) || 25));
+    const skip = (pageNum - 1) * pageSize;
 
-    const enriched = transactions.map((tx: any) => {
-      const company = tx.company;
-      const companyName = company?.companyName || company?.businessName;
-      const responsabileFromCompanyUser = company?.user
-        ? `${company.user.firstName || ""} ${company.user.lastName || ""}`.trim() || company.user.username
-        : undefined;
-      const sportello = company?.contactInfo?.laborConsultantId;
-      const sportelloFromId = sportello?.businessName || sportello?.agentName;
-      const responsabileName =
-        company?.contractDetails?.territorialManager || responsabileFromCompanyUser;
-      const sportelloName =
-        sportelloFromId || company?.contactInfo?.laborConsultant;
-      return {
+    const hasSearch = Boolean(q && q.trim());
+    let enriched: any[] = [];
+    let total = 0;
+
+    if (!hasSearch) {
+      const [transactions, totalCount] = await Promise.all([
+        ContoTransaction.find(query)
+          .sort({ date: -1, createdAt: -1 })
+          .skip(skip)
+          .limit(pageSize)
+          .populate({
+            path: "company",
+            select: "businessName companyName user contactInfo.laborConsultantId",
+            populate: [
+              { path: "user", select: "firstName lastName username profitSharePercentage" },
+              { path: "contactInfo.laborConsultantId", select: "businessName agentName agreedCommission" },
+            ],
+          })
+          .populate({ path: "user", select: "firstName lastName username role" })
+          .lean(),
+        ContoTransaction.countDocuments(query),
+      ]);
+
+      enriched = transactions.map((tx: any) => {
+        const company = tx.company;
+        const companyName = company?.companyName || company?.businessName;
+        const responsabileFromCompanyUser = company?.user
+          ? `${company.user.firstName || ""} ${company.user.lastName || ""}`.trim() || company.user.username
+          : undefined;
+        const sportello = company?.contactInfo?.laborConsultantId;
+        const sportelloFromId = sportello?.businessName || sportello?.agentName;
+        const responsabileName =
+          company?.contractDetails?.territorialManager || responsabileFromCompanyUser;
+        const sportelloName =
+          sportelloFromId || company?.contactInfo?.laborConsultant;
+        return {
+          ...tx,
+          companyName,
+          responsabileName,
+          sportelloName,
+        };
+      });
+      total = totalCount;
+    } else {
+      const regex = new RegExp(escapeRegex(q.trim()), "i");
+      const pipeline: any[] = [
+        { $match: query },
+        {
+          $lookup: {
+            from: "companies",
+            localField: "company",
+            foreignField: "_id",
+            as: "companyDoc",
+          },
+        },
+        { $unwind: { path: "$companyDoc", preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: "users",
+            localField: "companyDoc.user",
+            foreignField: "_id",
+            as: "responsabileDoc",
+          },
+        },
+        { $unwind: { path: "$responsabileDoc", preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: "sportellolavoros",
+            localField: "companyDoc.contactInfo.laborConsultantId",
+            foreignField: "_id",
+            as: "sportelloDoc",
+          },
+        },
+        { $unwind: { path: "$sportelloDoc", preserveNullAndEmptyArrays: true } },
+        {
+          $addFields: {
+            companyName: { $ifNull: ["$companyDoc.companyName", "$companyDoc.businessName"] },
+            responsabileName: {
+              $let: {
+                vars: {
+                  full: {
+                    $trim: {
+                      input: {
+                        $concat: [
+                          { $ifNull: ["$responsabileDoc.firstName", ""] },
+                          " ",
+                          { $ifNull: ["$responsabileDoc.lastName", ""] },
+                        ],
+                      },
+                    },
+                  },
+                },
+                in: {
+                  $ifNull: [
+                    "$responsabileDoc.organization",
+                    {
+                      $cond: [
+                        { $gt: [{ $strLenCP: "$$full" }, 0] },
+                        "$$full",
+                        "$responsabileDoc.username",
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+            sportelloName: {
+              $ifNull: [
+                "$sportelloDoc.businessName",
+                { $ifNull: ["$sportelloDoc.agentName", "$companyDoc.contactInfo.laborConsultant"] },
+              ],
+            },
+          },
+        },
+        {
+          $match: {
+            $or: [
+              { description: { $regex: regex } },
+              { companyName: { $regex: regex } },
+              { responsabileName: { $regex: regex } },
+              { sportelloName: { $regex: regex } },
+            ],
+          },
+        },
+        { $sort: { date: -1, createdAt: -1 } },
+        {
+          $facet: {
+            items: [{ $skip: skip }, { $limit: pageSize }],
+            total: [{ $count: "count" }],
+          },
+        },
+      ];
+
+      const result = await ContoTransaction.aggregate(pipeline);
+      const items = result?.[0]?.items || [];
+      const count = result?.[0]?.total?.[0]?.count ?? 0;
+      enriched = items.map((tx: any) => ({
         ...tx,
-        companyName,
-        responsabileName,
-        sportelloName,
-      };
-    });
+        companyName: tx.companyName,
+        responsabileName: tx.responsabileName,
+        sportelloName: tx.sportelloName,
+      }));
+      total = count;
+    }
 
-    return res.json(enriched);
+    return res.json({
+      transactions: enriched,
+      total,
+      page: pageNum,
+      pageSize,
+    });
   } catch (err: any) {
     console.error("Get conto transactions error:", err);
     return res.status(500).json({ error: "Server error" });
@@ -934,10 +1072,12 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
                       _id: null,
                       responsabileTotal: {
                         $sum: {
+                          // Responsabili calcolati sulla quota ELAV totale
                           $multiply: ["$elav", { $divide: ["$responsabilePercent", 100] }],
                         },
                       },
                       sportelloTotal: {
+                        // Sportelli calcolati sulla quota ELAV totale
                         $sum: { $multiply: ["$elav", { $divide: ["$sportelloPercent", 100] }] },
                       },
                     },
@@ -1050,7 +1190,7 @@ export const getNonRiconciliate: CustomRequestHandler = async (req, res) => {
       return res.status(401).json({ error: "User not authenticated" });
     }
 
-    const { account, from, to, q } = req.query as Record<string, string>;
+    const { account, from, to, q, page, limit } = req.query as Record<string, string>;
     const userId = getEffectiveUserId(req);
     const query: any = {};
     if (userId) query.user = userId;
@@ -1062,17 +1202,26 @@ export const getNonRiconciliate: CustomRequestHandler = async (req, res) => {
       if (to) query.date.$lte = new Date(to);
     }
 
-    const items = await ContoNonRiconciliata.find(query)
-      .sort({ date: -1, createdAt: -1 })
-      .populate({
-        path: "company",
-        select: "businessName companyName user contactInfo.laborConsultantId contactInfo.laborConsultant contractDetails.territorialManager",
-        populate: [
-          { path: "user", select: "firstName lastName username" },
-          { path: "contactInfo.laborConsultantId", select: "businessName agentName" },
-        ],
-      })
-      .lean();
+    const pageNum = Math.max(1, Number(page) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(limit) || 25));
+    const skip = (pageNum - 1) * pageSize;
+
+    const [items, total] = await Promise.all([
+      ContoNonRiconciliata.find(query)
+        .sort({ date: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(pageSize)
+        .populate({
+          path: "company",
+          select: "businessName companyName user contactInfo.laborConsultantId contactInfo.laborConsultant contractDetails.territorialManager",
+          populate: [
+            { path: "user", select: "firstName lastName username" },
+            { path: "contactInfo.laborConsultantId", select: "businessName agentName" },
+          ],
+        })
+        .lean(),
+      ContoNonRiconciliata.countDocuments(query),
+    ]);
 
     const enriched = await Promise.all(items.map(async (item: any) => {
       let company = item.company;
@@ -1130,7 +1279,12 @@ export const getNonRiconciliate: CustomRequestHandler = async (req, res) => {
       };
     }));
 
-    return res.json(enriched);
+    return res.json({
+      items: enriched,
+      total,
+      page: pageNum,
+      pageSize,
+    });
   } catch (err: any) {
     console.error("Get non riconciliate error:", err);
     return res.status(500).json({ error: "Server error" });
@@ -1288,10 +1442,8 @@ export const getContoBreakdown: CustomRequestHandler = async (req, res) => {
                 rawTotal: { $sum: "$elav" },
                 total: {
                   $sum: {
-                    $multiply: [
-                      "$fiacomAmount",
-                      { $divide: ["$responsabilePercent", 100] },
-                    ],
+                    // Responsabili calcolati sulla quota ELAV totale
+                    $multiply: ["$elav", { $divide: ["$responsabilePercent", 100] }],
                   },
                 },
                 fiacomTotal: { $sum: "$fiacomAmount" },
@@ -1312,10 +1464,8 @@ export const getContoBreakdown: CustomRequestHandler = async (req, res) => {
                 rawTotal: { $sum: "$elav" },
                 total: {
                   $sum: {
-                    $multiply: [
-                      "$fiacomAmount",
-                      { $divide: ["$sportelloPercent", 100] },
-                    ],
+                    // Sportelli calcolati sulla quota ELAV totale
+                    $multiply: ["$elav", { $divide: ["$sportelloPercent", 100] }],
                   },
                 },
                 fiacomTotal: { $sum: "$fiacomAmount" },

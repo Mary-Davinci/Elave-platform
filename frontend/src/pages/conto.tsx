@@ -57,12 +57,16 @@ const Conto: React.FC = () => {
   const [sportelliBreakdown, setSportelliBreakdown] = useState<BreakdownRow[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [nonRiconciliatePage, setNonRiconciliatePage] = useState(1);
+  const [transactionsTotal, setTransactionsTotal] = useState<number | null>(null);
+  const [nonRiconciliateTotal, setNonRiconciliateTotal] = useState<number | null>(null);
+  const [serverPagingActive, setServerPagingActive] = useState(false);
   const PAGE_SIZE = 25;
   const breakdownCacheRef = useRef(
     new Map<string, { data: { responsabili: BreakdownRow[]; sportelli: BreakdownRow[] }; ts: number }>()
   );
   const summaryCacheRef = useRef(new Map<string, { data: Summary; ts: number }>());
-  const txCacheRef = useRef(new Map<string, { data: Transaction[]; ts: number }>());
+  const txCacheRef = useRef(new Map<string, { data: Transaction[]; total?: number; ts: number }>());
+  const TX_CACHE_VERSION = 'v3';
   const CACHE_TTL_MS = 5 * 60_000;
 
   // Local mock fallback
@@ -169,7 +173,7 @@ const Conto: React.FC = () => {
       try {
         const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
         const userIdForQuery = isAdmin ? undefined : user?._id;
-        const apiFilters = { ...filters, q: '' };
+        const apiFilters = { ...filters };
         const cacheKey = JSON.stringify({
           account: activeAccount,
           filters: apiFilters,
@@ -213,33 +217,81 @@ const Conto: React.FC = () => {
       try {
         const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
         const userIdForQuery = isAdmin ? undefined : user?._id;
-        const apiFilters = { ...filters, q: '' };
+        const apiFilters = { ...filters };
+        const metaKey = JSON.stringify({
+          account: activeAccount,
+          filters: apiFilters,
+          userId: userIdForQuery || '',
+          v: TX_CACHE_VERSION,
+        });
         const cacheKey = JSON.stringify({
           account: activeAccount,
           filters: apiFilters,
           userId: userIdForQuery || '',
+          page: currentPage,
+          limit: PAGE_SIZE,
+          v: TX_CACHE_VERSION,
         });
+        const totalMeta = readCached<{ total?: number | string }>(`conto:tx:meta:${metaKey}`);
+        if (totalMeta?.data?.total !== undefined && totalMeta?.data?.total !== null) {
+          const metaTotal = Number(totalMeta.data.total);
+          if (Number.isFinite(metaTotal)) setTransactionsTotal(metaTotal);
+        }
         const cached = txCacheRef.current.get(cacheKey);
         const now = Date.now();
         if (cached && now - cached.ts < CACHE_TTL_MS) {
-          if (!cancelled) setTransactions(cached.data);
+          if (!cancelled) {
+            setTransactions(cached.data);
+            if (typeof cached.total === 'number') setTransactionsTotal(cached.total);
+            setServerPagingActive(true);
+          }
           if (!cancelled) setTransactionsLoading(false);
-          return;
         }
-        const cachedStorage = readCached<Transaction[]>(`conto:tx:${cacheKey}`);
+        const cachedStorage = readCached<{ transactions: Transaction[]; total?: number | string }>(
+          `conto:tx:${cacheKey}`
+        );
         if (cachedStorage) {
-          txCacheRef.current.set(cacheKey, cachedStorage);
-          if (!cancelled) setTransactions(cachedStorage.data);
+          const txCached = cachedStorage.data?.transactions ?? [];
+          const totalCachedRaw = cachedStorage.data?.total;
+          const totalCached =
+            totalCachedRaw === undefined || totalCachedRaw === null
+              ? undefined
+              : Number(totalCachedRaw);
+          txCacheRef.current.set(cacheKey, { data: txCached, total: totalCached, ts: cachedStorage.ts });
+          if (!cancelled) {
+            setTransactions(txCached);
+            if (Number.isFinite(totalCached)) setTransactionsTotal(totalCached as number);
+            setServerPagingActive(true);
+          }
           if (!cancelled) setTransactionsLoading(false);
         }
-        const tx = await contoService.getTransactions(activeAccount, apiFilters, userIdForQuery);
-        txCacheRef.current.set(cacheKey, { data: tx, ts: now });
-        writeCached(`conto:tx:${cacheKey}`, tx);
-        if (!cancelled) setTransactions(tx);
+        const res = await contoService.getTransactions(
+          activeAccount,
+          apiFilters,
+          userIdForQuery,
+          currentPage,
+          PAGE_SIZE
+        );
+        const tx = res.transactions || [];
+        txCacheRef.current.set(cacheKey, { data: tx, total: res.total, ts: now });
+        writeCached(`conto:tx:${cacheKey}`, { transactions: tx, total: res.total });
+          if (!cancelled) {
+            setTransactions(tx);
+            const totalValue =
+              res.total === undefined || res.total === null ? undefined : Number(res.total);
+            if (Number.isFinite(totalValue)) setTransactionsTotal(totalValue as number);
+            setServerPagingActive(true);
+          }
+          if (res.total !== undefined && res.total !== null) {
+            writeCached(`conto:tx:meta:${metaKey}`, { total: res.total });
+          }
       } catch (e: any) {
         console.warn('getTransactions failed, using mock fallback', e?.message || e);
         const tx = mockTx; // fallback
-        if (!cancelled) setTransactions(tx);
+        if (!cancelled) {
+          setTransactions(tx);
+          setServerPagingActive(false);
+        }
         setError('Dati non disponibili, mostrati valori di esempio.');
       } finally {
         if (!cancelled) setTransactionsLoading(false);
@@ -247,7 +299,7 @@ const Conto: React.FC = () => {
     };
     run();
     return () => { cancelled = true; };
-  }, [activeAccount, filters.from, filters.to, filters.type, filters.status, filters.q]);
+  }, [activeAccount, filters.from, filters.to, filters.type, filters.status, filters.q, currentPage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -255,16 +307,25 @@ const Conto: React.FC = () => {
       try {
         const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
         const userIdForQuery = isAdmin ? undefined : user?._id;
-        const apiFilters = { ...filters, q: '' };
-        const data = await getNonRiconciliate(activeAccount, apiFilters, userIdForQuery);
-        if (!cancelled) setNonRiconciliate(data);
+        const apiFilters = { ...filters };
+        const res = await getNonRiconciliate(
+          activeAccount,
+          apiFilters,
+          userIdForQuery,
+          nonRiconciliatePage,
+          PAGE_SIZE
+        );
+        if (!cancelled) {
+          setNonRiconciliate(res.items || []);
+          if (typeof res.total === 'number') setNonRiconciliateTotal(res.total);
+        }
       } catch (e) {
         if (!cancelled) setNonRiconciliate([]);
       }
     };
     run();
     return () => { cancelled = true; };
-  }, [activeAccount, filters.from, filters.to, filters.q, user?._id, user?.role]);
+  }, [activeAccount, filters.from, filters.to, filters.q, user?._id, user?.role, nonRiconciliatePage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -332,10 +393,12 @@ const Conto: React.FC = () => {
     return map;
   }, [companies]);
 
-  // Backend returns 3 rows per importKey (fiacom/responsabile/sportello).
-  // We aggregate to 1 row for the UI to avoid confusion.
+  const isServerPaged = serverPagingActive || transactionsTotal !== null;
+  // Backend may return 3 rows per importKey (fiacom/responsabile/sportello).
+  // We aggregate to 1 row for the UI only when NOT using server-side pagination.
   const displayTx = useMemo(() => {
     if (activeAccount !== 'proselitismo') return filteredTx;
+    if (isServerPaged) return filteredTx;
     const byKey = new Map<string, Transaction>();
     filteredTx.forEach((t, index) => {
       const fallbackKey = t.importKey || t._id || `${t.date}-${index}`;
@@ -344,21 +407,27 @@ const Conto: React.FC = () => {
       }
     });
     return Array.from(byKey.values());
-  }, [filteredTx, activeAccount]);
+  }, [filteredTx, activeAccount, isServerPaged]);
 
   useEffect(() => {
     setCurrentPage(1);
+    setTransactionsTotal(null);
   }, [activeAccount, filters.from, filters.to, filters.type, filters.status, filters.q]);
 
   useEffect(() => {
     setNonRiconciliatePage(1);
+    setNonRiconciliateTotal(null);
   }, [activeAccount, filters.from, filters.to, filters.q]);
 
-  const totalPages = Math.max(1, Math.ceil(displayTx.length / PAGE_SIZE));
-  const pagedTx = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return displayTx.slice(start, start + PAGE_SIZE);
-  }, [displayTx, currentPage]);
+  const totalForPaging =
+    transactionsTotal ??
+    (isServerPaged
+      ? PAGE_SIZE + 1
+      : displayTx.length >= PAGE_SIZE
+        ? PAGE_SIZE + 1
+        : displayTx.length);
+  const totalPages = Math.max(1, Math.ceil((totalForPaging || 0) / PAGE_SIZE));
+  const pagedTx = useMemo(() => displayTx, [displayTx]);
 
   const pageNumbers = useMemo(() => {
     const maxButtons = 5;
@@ -369,11 +438,14 @@ const Conto: React.FC = () => {
     return pages;
   }, [currentPage, totalPages]);
 
-  const nonRiconciliateTotalPages = Math.max(1, Math.ceil(nonRiconciliate.length / PAGE_SIZE));
-  const pagedNonRiconciliate = useMemo(() => {
-    const start = (nonRiconciliatePage - 1) * PAGE_SIZE;
-    return nonRiconciliate.slice(start, start + PAGE_SIZE);
-  }, [nonRiconciliate, nonRiconciliatePage]);
+  const nonRiconciliateTotalForPaging =
+    nonRiconciliateTotal ??
+    (nonRiconciliate.length >= PAGE_SIZE ? PAGE_SIZE + 1 : nonRiconciliate.length);
+  const nonRiconciliateTotalPages = Math.max(
+    1,
+    Math.ceil((nonRiconciliateTotalForPaging || 0) / PAGE_SIZE)
+  );
+  const pagedNonRiconciliate = useMemo(() => nonRiconciliate, [nonRiconciliate]);
 
   const nonRiconciliatePageNumbers = useMemo(() => {
     const maxButtons = 5;
@@ -677,7 +749,7 @@ const Conto: React.FC = () => {
             </tbody>
           </table>
         </div>
-        {displayTx.length > PAGE_SIZE && (
+        {totalPages > 1 && (
           <div style={{ display: 'flex', justifyContent: 'center', gap: 8, padding: '16px 0' }}>
             <button
               type="button"
@@ -986,7 +1058,7 @@ const Conto: React.FC = () => {
             </tbody>
           </table>
         </div>
-        {nonRiconciliate.length > PAGE_SIZE && (
+        {nonRiconciliateTotalPages > 1 && (
           <div style={{ display: 'flex', justifyContent: 'center', gap: 8, padding: '16px 0' }}>
             <button
               type="button"

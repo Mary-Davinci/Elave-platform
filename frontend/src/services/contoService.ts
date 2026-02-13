@@ -125,7 +125,13 @@ export interface ContoBreakdownResponse {
 }
 
 export const contoService = {
-  async getTransactions(account: AccountType, filters: ContoFilters, userId?: string): Promise<Transaction[]> {
+  async getTransactions(
+    account: AccountType,
+    filters: ContoFilters,
+    userId?: string,
+    page?: number,
+    limit?: number
+  ): Promise<{ transactions: Transaction[]; total?: number; page?: number; pageSize?: number }> {
     const params: Record<string, string> = { account };
     if (filters.from) params.from = filters.from;
     if (filters.to) params.to = filters.to;
@@ -133,12 +139,23 @@ export const contoService = {
     if (filters.status) params.status = filters.status;
     if (filters.q) params.q = filters.q;
     if (userId) params.userId = userId;
+    if (page) params.page = String(page);
+    if (limit) params.limit = String(limit);
 
     const res = await api.get('/api/conto/transactions', { params });
     // Be forgiving with response shape
-    if (Array.isArray(res.data)) return res.data as Transaction[];
-    if (Array.isArray(res.data?.transactions)) return res.data.transactions as Transaction[];
-    return [];
+    if (Array.isArray(res.data)) {
+      return { transactions: res.data as Transaction[] };
+    }
+    if (Array.isArray(res.data?.transactions)) {
+      return {
+        transactions: res.data.transactions as Transaction[],
+        total: res.data.total,
+        page: res.data.page,
+        pageSize: res.data.pageSize,
+      };
+    }
+    return { transactions: [] };
   },
 
   async getSummary(account: AccountType, filters: ContoFilters, userId?: string): Promise<Summary | null> {
@@ -220,16 +237,27 @@ export const getContoImports = async (): Promise<ContoImportItem[]> => {
 export const getNonRiconciliate = async (
   account: AccountType,
   filters: ContoFilters,
-  userId?: string
-): Promise<NonRiconciliataItem[]> => {
+  userId?: string,
+  page?: number,
+  limit?: number
+): Promise<{ items: NonRiconciliataItem[]; total?: number; page?: number; pageSize?: number }> => {
   const params: Record<string, string> = { account };
   if (filters.from) params.from = filters.from;
   if (filters.to) params.to = filters.to;
   if (filters.q) params.q = filters.q;
   if (userId) params.userId = userId;
+  if (page) params.page = String(page);
+  if (limit) params.limit = String(limit);
   const res = await api.get('/api/conto/non-riconciliate', { params });
-  if (Array.isArray(res.data)) return res.data as NonRiconciliataItem[];
-  if (Array.isArray(res.data?.items)) return res.data.items as NonRiconciliataItem[];
-  return [];
+  if (Array.isArray(res.data)) return { items: res.data as NonRiconciliataItem[] };
+  if (Array.isArray(res.data?.items)) {
+    return {
+      items: res.data.items as NonRiconciliataItem[],
+      total: res.data.total,
+      page: res.data.page,
+      pageSize: res.data.pageSize,
+    };
+  }
+  return { items: [] };
 };
 

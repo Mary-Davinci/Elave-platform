@@ -55,6 +55,9 @@ const Conto: React.FC = () => {
   const [sportelliOpen, setSportelliOpen] = useState(false);
   const [responsabiliBreakdown, setResponsabiliBreakdown] = useState<BreakdownRow[]>([]);
   const [sportelliBreakdown, setSportelliBreakdown] = useState<BreakdownRow[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [nonRiconciliatePage, setNonRiconciliatePage] = useState(1);
+  const PAGE_SIZE = 25;
   const breakdownCacheRef = useRef(
     new Map<string, { data: { responsabili: BreakdownRow[]; sportelli: BreakdownRow[] }; ts: number }>()
   );
@@ -86,13 +89,31 @@ const Conto: React.FC = () => {
 
     if (!hasUserInfo && !isAdmin) return [];
 
+    const qTerm = (filters.q || '').toString().trim().toLowerCase();
+
     return transactions
       .filter((t) => t.account === activeAccount)
       .filter((t) => (filters.type ? t.type === filters.type : true))
       .filter((t) => (filters.status ? t.status === filters.status : true))
       .filter((t) => (filters.from ? new Date(t.date) >= new Date(filters.from) : true))
       .filter((t) => (filters.to ? new Date(t.date) <= new Date(filters.to) : true))
-      .filter((t) => (filters.q ? t.description.toLowerCase().includes((filters.q as string).toLowerCase()) : true))
+      .filter((t) => {
+        if (!qTerm) return true;
+        const description = (t.description || '').toLowerCase();
+        const companyName =
+          (t.companyName ||
+            t.company?.companyName ||
+            t.company?.businessName ||
+            '')?.toLowerCase() || '';
+        const responsabile = (t.responsabileName || '').toLowerCase();
+        const sportello = (t.sportelloName || '').toLowerCase();
+        return (
+          description.includes(qTerm) ||
+          companyName.includes(qTerm) ||
+          responsabile.includes(qTerm) ||
+          sportello.includes(qTerm)
+        );
+      })
       .filter((t) => {
         if (isAdmin) return true;
         if (!myUserId) return false;
@@ -148,9 +169,10 @@ const Conto: React.FC = () => {
       try {
         const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
         const userIdForQuery = isAdmin ? undefined : user?._id;
+        const apiFilters = { ...filters, q: '' };
         const cacheKey = JSON.stringify({
           account: activeAccount,
-          filters,
+          filters: apiFilters,
           userId: userIdForQuery || '',
         });
         const cached = summaryCacheRef.current.get(cacheKey);
@@ -166,7 +188,7 @@ const Conto: React.FC = () => {
           if (!cancelled) setSummaryFromApi(cachedStorage.data);
           if (!cancelled) setSummaryLoading(false);
         }
-        const sum = await contoService.getSummary(activeAccount, filters, userIdForQuery);
+        const sum = await contoService.getSummary(activeAccount, apiFilters, userIdForQuery);
         if (sum) {
           summaryCacheRef.current.set(cacheKey, { data: sum, ts: now });
           writeCached(`conto:summary:${cacheKey}`, sum);
@@ -191,9 +213,10 @@ const Conto: React.FC = () => {
       try {
         const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
         const userIdForQuery = isAdmin ? undefined : user?._id;
+        const apiFilters = { ...filters, q: '' };
         const cacheKey = JSON.stringify({
           account: activeAccount,
-          filters,
+          filters: apiFilters,
           userId: userIdForQuery || '',
         });
         const cached = txCacheRef.current.get(cacheKey);
@@ -209,7 +232,7 @@ const Conto: React.FC = () => {
           if (!cancelled) setTransactions(cachedStorage.data);
           if (!cancelled) setTransactionsLoading(false);
         }
-        const tx = await contoService.getTransactions(activeAccount, filters, userIdForQuery);
+        const tx = await contoService.getTransactions(activeAccount, apiFilters, userIdForQuery);
         txCacheRef.current.set(cacheKey, { data: tx, ts: now });
         writeCached(`conto:tx:${cacheKey}`, tx);
         if (!cancelled) setTransactions(tx);
@@ -232,7 +255,8 @@ const Conto: React.FC = () => {
       try {
         const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
         const userIdForQuery = isAdmin ? undefined : user?._id;
-        const data = await getNonRiconciliate(activeAccount, filters, userIdForQuery);
+        const apiFilters = { ...filters, q: '' };
+        const data = await getNonRiconciliate(activeAccount, apiFilters, userIdForQuery);
         if (!cancelled) setNonRiconciliate(data);
       } catch (e) {
         if (!cancelled) setNonRiconciliate([]);
@@ -321,6 +345,44 @@ const Conto: React.FC = () => {
     });
     return Array.from(byKey.values());
   }, [filteredTx, activeAccount]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeAccount, filters.from, filters.to, filters.type, filters.status, filters.q]);
+
+  useEffect(() => {
+    setNonRiconciliatePage(1);
+  }, [activeAccount, filters.from, filters.to, filters.q]);
+
+  const totalPages = Math.max(1, Math.ceil(displayTx.length / PAGE_SIZE));
+  const pagedTx = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return displayTx.slice(start, start + PAGE_SIZE);
+  }, [displayTx, currentPage]);
+
+  const pageNumbers = useMemo(() => {
+    const maxButtons = 5;
+    const pages: number[] = [];
+    const start = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+    const end = Math.min(totalPages, start + maxButtons - 1);
+    for (let i = start; i <= end; i += 1) pages.push(i);
+    return pages;
+  }, [currentPage, totalPages]);
+
+  const nonRiconciliateTotalPages = Math.max(1, Math.ceil(nonRiconciliate.length / PAGE_SIZE));
+  const pagedNonRiconciliate = useMemo(() => {
+    const start = (nonRiconciliatePage - 1) * PAGE_SIZE;
+    return nonRiconciliate.slice(start, start + PAGE_SIZE);
+  }, [nonRiconciliate, nonRiconciliatePage]);
+
+  const nonRiconciliatePageNumbers = useMemo(() => {
+    const maxButtons = 5;
+    const pages: number[] = [];
+    const start = Math.max(1, nonRiconciliatePage - Math.floor(maxButtons / 2));
+    const end = Math.min(nonRiconciliateTotalPages, start + maxButtons - 1);
+    for (let i = start; i <= end; i += 1) pages.push(i);
+    return pages;
+  }, [nonRiconciliatePage, nonRiconciliateTotalPages]);
 
   const loadBreakdown = async () => {
     if (activeAccount !== 'proselitismo') return;
@@ -564,7 +626,7 @@ const Conto: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {displayTx.map((t, index) => {
+              {pagedTx.map((t, index) => {
                 const rawCompanyName =
                   t.companyName ||
                   t.company?.companyName ||
@@ -615,6 +677,60 @@ const Conto: React.FC = () => {
             </tbody>
           </table>
         </div>
+        {displayTx.length > PAGE_SIZE && (
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 8, padding: '16px 0' }}>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              style={{
+                border: '1px solid #e2e8f0',
+                background: currentPage === 1 ? '#f8fafc' : '#fff',
+                color: '#1f2937',
+                padding: '6px 10px',
+                borderRadius: 8,
+                cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                fontWeight: 600,
+              }}
+            >
+              Prev
+            </button>
+            {pageNumbers.map((page) => (
+              <button
+                key={page}
+                type="button"
+                onClick={() => setCurrentPage(page)}
+                style={{
+                  border: page === currentPage ? '1px solid #2563eb' : '1px solid #e2e8f0',
+                  background: page === currentPage ? '#2563eb' : '#fff',
+                  color: page === currentPage ? '#fff' : '#1f2937',
+                  padding: '6px 10px',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                }}
+              >
+                {page}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              style={{
+                border: '1px solid #e2e8f0',
+                background: currentPage >= totalPages ? '#f8fafc' : '#fff',
+                color: '#1f2937',
+                padding: '6px 10px',
+                borderRadius: 8,
+                cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer',
+                fontWeight: 600,
+              }}
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
 
       {activeAccount === 'proselitismo' && showResponsabiliModal && responsabiliPos && (
@@ -851,7 +967,7 @@ const Conto: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {nonRiconciliate.map((t) => (
+              {pagedNonRiconciliate.map((t) => (
                 <tr key={t._id} style={{ borderBottom: '1px solid #f1f1f1' }}>
                   <td style={{ padding: '8px' }}>{new Date(t.date).toLocaleDateString('it-IT')}</td>
                   <td style={{ padding: '8px' }}>{t.companyName || '-'}</td>
@@ -870,6 +986,60 @@ const Conto: React.FC = () => {
             </tbody>
           </table>
         </div>
+        {nonRiconciliate.length > PAGE_SIZE && (
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 8, padding: '16px 0' }}>
+            <button
+              type="button"
+              onClick={() => setNonRiconciliatePage((p) => Math.max(1, p - 1))}
+              disabled={nonRiconciliatePage === 1}
+              style={{
+                border: '1px solid #e2e8f0',
+                background: nonRiconciliatePage === 1 ? '#f8fafc' : '#fff',
+                color: '#1f2937',
+                padding: '6px 10px',
+                borderRadius: 8,
+                cursor: nonRiconciliatePage === 1 ? 'not-allowed' : 'pointer',
+                fontWeight: 600,
+              }}
+            >
+              Prev
+            </button>
+            {nonRiconciliatePageNumbers.map((page) => (
+              <button
+                key={page}
+                type="button"
+                onClick={() => setNonRiconciliatePage(page)}
+                style={{
+                  border: page === nonRiconciliatePage ? '1px solid #2563eb' : '1px solid #e2e8f0',
+                  background: page === nonRiconciliatePage ? '#2563eb' : '#fff',
+                  color: page === nonRiconciliatePage ? '#fff' : '#1f2937',
+                  padding: '6px 10px',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                }}
+              >
+                {page}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setNonRiconciliatePage((p) => Math.min(nonRiconciliateTotalPages, p + 1))}
+              disabled={nonRiconciliatePage >= nonRiconciliateTotalPages}
+              style={{
+                border: '1px solid #e2e8f0',
+                background: nonRiconciliatePage >= nonRiconciliateTotalPages ? '#f8fafc' : '#fff',
+                color: '#1f2937',
+                padding: '6px 10px',
+                borderRadius: 8,
+                cursor: nonRiconciliatePage >= nonRiconciliateTotalPages ? 'not-allowed' : 'pointer',
+                fontWeight: 600,
+              }}
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="utility-section" style={{ marginTop: 20 }}>

@@ -532,33 +532,75 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
 
           const responsabileId = company.user?.toString();
           let sportelloId = company.contactInfo?.laborConsultantId?.toString();
+          let sportelloDoc: {
+            _id: mongoose.Types.ObjectId;
+            businessName?: string;
+            agentName?: string;
+            agreedCommission?: number;
+            isActive?: boolean;
+          } | null = null;
+          const consultantName = company.contactInfo?.laborConsultant?.trim() || "";
 
           if (!responsabileId) {
             errors.push(`Row ${i + 1}: Responsabile territoriale non associato`);
             continue;
           }
-          if (!sportelloId) {
-            const consultantName = company.contactInfo?.laborConsultant?.trim();
-            if (consultantName) {
-              const consultantRegex = new RegExp(`^\\s*${escapeRegex(consultantName)}\\s*$`, "i");
-              const sportello = await SportelloLavoro.findOne({
-                isActive: true,
-                $or: [{ businessName: consultantRegex }, { agentName: consultantRegex }],
-              })
-                .select("_id")
-                .lean<{ _id: mongoose.Types.ObjectId }>();
-              if (sportello) {
-                sportelloId = sportello._id.toString();
-                await Company.updateOne(
-                  { _id: company._id },
-                  {
-                    $set: {
-                      "contactInfo.laborConsultantId": sportello._id,
-                      ...(company.contactInfo?.laborConsultant ? {} : { "contactInfo.laborConsultant": consultantName }),
-                    },
-                  }
-                );
-              }
+          if (sportelloId) {
+            sportelloDoc = await SportelloLavoro.findById(sportelloId)
+              .select("_id businessName agentName agreedCommission isActive")
+              .lean<{
+                _id: mongoose.Types.ObjectId;
+                businessName?: string;
+                agentName?: string;
+                agreedCommission?: number;
+                isActive?: boolean;
+              }>();
+            if (!sportelloDoc || sportelloDoc.isActive === false) {
+              sportelloDoc = null;
+              sportelloId = "";
+            }
+          }
+          if (!sportelloDoc && consultantName) {
+            const consultantRegex = new RegExp(`^\\s*${escapeRegex(consultantName)}\\s*$`, "i");
+            sportelloDoc = await SportelloLavoro.findOne({
+              isActive: true,
+              $or: [{ businessName: consultantRegex }, { agentName: consultantRegex }],
+            })
+              .select("_id businessName agentName agreedCommission isActive")
+              .lean<{
+                _id: mongoose.Types.ObjectId;
+                businessName?: string;
+                agentName?: string;
+                agreedCommission?: number;
+                isActive?: boolean;
+              }>();
+            if (sportelloDoc) {
+              sportelloId = sportelloDoc._id.toString();
+            }
+          }
+          if (sportelloDoc) {
+            const normalizedName = (sportelloDoc.businessName || sportelloDoc.agentName || consultantName).trim();
+            const currentName = consultantName.trim();
+            if (normalizedName && normalizedName !== currentName) {
+              await Company.updateOne(
+                { _id: company._id },
+                {
+                  $set: {
+                    "contactInfo.laborConsultantId": sportelloDoc._id,
+                    "contactInfo.laborConsultant": normalizedName,
+                  },
+                }
+              );
+            } else if (!sportelloId) {
+              await Company.updateOne(
+                { _id: company._id },
+                {
+                  $set: {
+                    "contactInfo.laborConsultantId": sportelloDoc._id,
+                    ...(currentName ? {} : { "contactInfo.laborConsultant": normalizedName }),
+                  },
+                }
+              );
             }
           }
           if (!sportelloId) {
@@ -574,9 +616,15 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
             errors.push(`Row ${i + 1}: Responsabile territoriale non valido o inattivo`);
             continue;
           }
-          const sportelloDoc = await SportelloLavoro.findById(sportelloId).select(
-            "_id agreedCommission isActive"
-          );
+          if (!sportelloDoc) {
+            sportelloDoc = await SportelloLavoro.findById(sportelloId)
+              .select("_id agreedCommission isActive")
+              .lean<{
+                _id: mongoose.Types.ObjectId;
+                agreedCommission?: number;
+                isActive?: boolean;
+              }>();
+          }
           if (!sportelloDoc || sportelloDoc.isActive === false) {
             errors.push(`Row ${i + 1}: Sportello lavoro non valido o inattivo`);
             continue;

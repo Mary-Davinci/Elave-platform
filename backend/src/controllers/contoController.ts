@@ -810,11 +810,50 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
       return res.status(401).json({ error: "User not authenticated" });
     }
 
-    const { account, from, to, type, status, q, page, limit } = req.query as Record<string, string>;
+    const { account, from, to, type, status, q, page, limit, lite } = req.query as Record<string, string>;
+    const isLite = String(lite || "").toLowerCase() === "1" || String(lite || "").toLowerCase() === "true";
     const userId = getEffectiveUserId(req);
+    const isResponsabile = req.user.role === "responsabile_territoriale";
+    const isResponsabileScope = isResponsabile && account === "proselitismo";
+    let responsabileCompanyIds: mongoose.Types.ObjectId[] = [];
+
+    if (isResponsabileScope) {
+      const responsabileDoc = await User.findById(req.user._id)
+        .select("organization firstName lastName username")
+        .lean<{ organization?: string; firstName?: string; lastName?: string; username?: string }>();
+
+      const names: string[] = [];
+      const org = responsabileDoc?.organization?.trim();
+      if (org) names.push(org);
+      const full = `${responsabileDoc?.firstName || ""} ${responsabileDoc?.lastName || ""}`.trim();
+      if (full) names.push(full);
+      const username = responsabileDoc?.username?.trim();
+      if (username) names.push(username);
+
+      const companyNameMatchers = names.map((value) => ({
+        "contractDetails.territorialManager": new RegExp(`^\\s*${escapeRegex(value)}\\s*$`, "i"),
+      }));
+
+      const companies = await Company.find({
+        $or: [
+          { user: new mongoose.Types.ObjectId(req.user._id) },
+          ...companyNameMatchers,
+        ],
+      })
+        .select("_id")
+        .lean<Array<{ _id: mongoose.Types.ObjectId }>>();
+
+      responsabileCompanyIds = companies.map((c: { _id: mongoose.Types.ObjectId }) => c._id);
+    }
+
     const query: any = {};
-    if (userId) query.user = userId;
+    if (userId && !isResponsabileScope) query.user = userId;
     if (account) query.account = account;
+    if (isResponsabileScope) {
+      query.company = {
+        $in: responsabileCompanyIds.length ? responsabileCompanyIds : [],
+      };
+    }
     if (type) query.type = type;
     if (status) query.status = status;
     if (from || to) {
@@ -828,149 +867,63 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
     const skip = (pageNum - 1) * pageSize;
 
     const hasSearch = Boolean(q && q.trim());
-    let enriched: any[] = [];
-    let total = 0;
-
-    if (!hasSearch) {
-      const [transactions, totalCount] = await Promise.all([
-        ContoTransaction.find(query)
-          .sort({ date: -1, createdAt: -1 })
-          .skip(skip)
-          .limit(pageSize)
-          .populate({
-            path: "company",
-            select: "businessName companyName user contactInfo.laborConsultantId",
-            populate: [
-              { path: "user", select: "firstName lastName username profitSharePercentage" },
-              { path: "contactInfo.laborConsultantId", select: "businessName agentName agreedCommission" },
-            ],
-          })
-          .populate({ path: "user", select: "firstName lastName username role" })
-          .lean(),
-        ContoTransaction.countDocuments(query),
-      ]);
-
-      enriched = transactions.map((tx: any) => {
-        const company = tx.company;
-        const companyName = company?.companyName || company?.businessName;
-        const responsabileFromCompanyUser = company?.user
-          ? `${company.user.firstName || ""} ${company.user.lastName || ""}`.trim() || company.user.username
-          : undefined;
-        const sportello = company?.contactInfo?.laborConsultantId;
-        const sportelloFromId = sportello?.businessName || sportello?.agentName;
-        const responsabileName =
-          company?.contractDetails?.territorialManager || responsabileFromCompanyUser;
-        const sportelloName =
-          sportelloFromId || company?.contactInfo?.laborConsultant;
-        return {
-          ...tx,
-          companyName,
-          responsabileName,
-          sportelloName,
-        };
-      });
-      total = totalCount;
-    } else {
+    if (hasSearch) {
       const regex = new RegExp(escapeRegex(q.trim()), "i");
-      const pipeline: any[] = [
-        { $match: query },
-        {
-          $lookup: {
-            from: "companies",
-            localField: "company",
-            foreignField: "_id",
-            as: "companyDoc",
-          },
-        },
-        { $unwind: { path: "$companyDoc", preserveNullAndEmptyArrays: true } },
-        {
-          $lookup: {
-            from: "users",
-            localField: "companyDoc.user",
-            foreignField: "_id",
-            as: "responsabileDoc",
-          },
-        },
-        { $unwind: { path: "$responsabileDoc", preserveNullAndEmptyArrays: true } },
-        {
-          $lookup: {
-            from: "sportellolavoros",
-            localField: "companyDoc.contactInfo.laborConsultantId",
-            foreignField: "_id",
-            as: "sportelloDoc",
-          },
-        },
-        { $unwind: { path: "$sportelloDoc", preserveNullAndEmptyArrays: true } },
-        {
-          $addFields: {
-            companyName: { $ifNull: ["$companyDoc.companyName", "$companyDoc.businessName"] },
-            responsabileName: {
-              $let: {
-                vars: {
-                  full: {
-                    $trim: {
-                      input: {
-                        $concat: [
-                          { $ifNull: ["$responsabileDoc.firstName", ""] },
-                          " ",
-                          { $ifNull: ["$responsabileDoc.lastName", ""] },
-                        ],
-                      },
-                    },
-                  },
-                },
-                in: {
-                  $ifNull: [
-                    "$responsabileDoc.organization",
-                    {
-                      $cond: [
-                        { $gt: [{ $strLenCP: "$$full" }, 0] },
-                        "$$full",
-                        "$responsabileDoc.username",
-                      ],
-                    },
-                  ],
-                },
-              },
-            },
-            sportelloName: {
-              $ifNull: [
-                "$sportelloDoc.businessName",
-                { $ifNull: ["$sportelloDoc.agentName", "$companyDoc.contactInfo.laborConsultant"] },
-              ],
-            },
-          },
-        },
-        {
-          $match: {
-            $or: [
-              { description: { $regex: regex } },
-              { companyName: { $regex: regex } },
-              { responsabileName: { $regex: regex } },
-              { sportelloName: { $regex: regex } },
-            ],
-          },
-        },
-        { $sort: { date: -1, createdAt: -1 } },
-        {
-          $facet: {
-            items: [{ $skip: skip }, { $limit: pageSize }],
-            total: [{ $count: "count" }],
-          },
-        },
+      query.$or = [
+        { description: { $regex: regex } },
+        { importKey: { $regex: regex } },
+        { companyName: { $regex: regex } },
+        { responsabileName: { $regex: regex } },
+        { sportelloName: { $regex: regex } },
       ];
-
-      const result = await ContoTransaction.aggregate(pipeline);
-      const items = result?.[0]?.items || [];
-      const count = result?.[0]?.total?.[0]?.count ?? 0;
-      enriched = items.map((tx: any) => ({
-        ...tx,
-        companyName: tx.companyName,
-        responsabileName: tx.responsabileName,
-        sportelloName: tx.sportelloName,
-      }));
-      total = count;
     }
+
+    const txQuery = ContoTransaction.find(query)
+      .sort({ date: -1, createdAt: -1, _id: -1 })
+      .skip(skip)
+      .limit(pageSize);
+
+    if (!isLite) {
+      txQuery
+        .populate({
+          path: "company",
+          select: "businessName companyName user contactInfo.laborConsultantId contactInfo.laborConsultant contractDetails.territorialManager",
+          populate: [
+            { path: "user", select: "firstName lastName username profitSharePercentage" },
+            { path: "contactInfo.laborConsultantId", select: "businessName agentName agreedCommission" },
+          ],
+        })
+        .populate({ path: "user", select: "firstName lastName username role" });
+    }
+
+    const [transactions, total] = await Promise.all([
+      txQuery.lean(),
+      ContoTransaction.countDocuments(query),
+    ]);
+
+    const enriched = transactions.map((tx: any) => {
+      const company = tx.company;
+      const companyName = tx.companyName || company?.companyName || company?.businessName;
+      const responsabileFromCompanyUser = company?.user
+        ? `${company.user.firstName || ""} ${company.user.lastName || ""}`.trim() || company.user.username
+        : undefined;
+      const sportello = company?.contactInfo?.laborConsultantId;
+      const sportelloFromId = sportello?.businessName || sportello?.agentName;
+      const sportelloRaw = company?.contactInfo?.laborConsultant;
+      const sportelloFromRaw =
+        typeof sportelloRaw === "string"
+          ? sportelloRaw
+          : sportelloRaw?.businessName || sportelloRaw?.agentName || "";
+      const responsabileName =
+        tx.responsabileName || company?.contractDetails?.territorialManager || responsabileFromCompanyUser;
+      const sportelloName = tx.sportelloName || sportelloFromId || sportelloFromRaw;
+      return {
+        ...tx,
+        companyName,
+        responsabileName,
+        sportelloName,
+      };
+    });
 
     return res.json({
       transactions: enriched,
@@ -992,8 +945,46 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
 
     const { account, from, to, type, status, q } = req.query as Record<string, string>;
     const userId = getEffectiveUserId(req);
+    const isResponsabile = req.user.role === "responsabile_territoriale";
+    const isResponsabileScope = isResponsabile && account === "proselitismo";
+    const responsabileObjectId = isResponsabile ? new mongoose.Types.ObjectId(req.user._id) : null;
+    let responsabileMatch: any = null;
+    let responsabileCompanyIds: mongoose.Types.ObjectId[] | null = null;
+    let responsabileNames: string[] = [];
+    if (isResponsabileScope) {
+      const responsabileDoc = await User.findById(req.user._id)
+        .select("organization firstName lastName username")
+        .lean<{ organization?: string; firstName?: string; lastName?: string; username?: string }>();
+      const org = responsabileDoc?.organization?.trim();
+      if (org) responsabileNames.push(org);
+      const full = `${responsabileDoc?.firstName || ""} ${responsabileDoc?.lastName || ""}`.trim();
+      if (full) responsabileNames.push(full);
+      const username = responsabileDoc?.username?.trim();
+      if (username) responsabileNames.push(username);
+      const nameMatchers = responsabileNames.map((value) => ({
+        "companyDoc.contractDetails.territorialManager": new RegExp(`^\\s*${escapeRegex(value)}\\s*$`, "i"),
+      }));
+      responsabileMatch = {
+        $or: [
+          { "companyDoc.user": responsabileObjectId },
+          ...nameMatchers,
+        ],
+      };
+      const companyNameMatchers = responsabileNames.map((value) => ({
+        "contractDetails.territorialManager": new RegExp(`^\\s*${escapeRegex(value)}\\s*$`, "i"),
+      }));
+      const companies = await Company.find({
+        $or: [
+          { user: responsabileObjectId },
+          ...companyNameMatchers,
+        ],
+      })
+        .select("_id")
+        .lean<Array<{ _id: mongoose.Types.ObjectId }>>();
+      responsabileCompanyIds = companies.map((c: { _id: mongoose.Types.ObjectId }) => c._id);
+    }
     const match: any = {};
-    if (userId) {
+    if (userId && !isResponsabileScope) {
       match.user = new mongoose.Types.ObjectId(userId);
     }
     if (account) match.account = account;
@@ -1016,7 +1007,21 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
               $facet: {
                 fiacom: [
                   { $match: { type: "entrata", rawAmount: { $gt: 0 }, importKey: { $exists: true, $ne: "" } } },
-                  { $group: { _id: "$importKey", elav: { $first: "$rawAmount" } } },
+                  { $group: { _id: "$importKey", elav: { $first: "$rawAmount" }, company: { $first: "$company" } } },
+                  ...(isResponsabileScope
+                    ? [
+                        {
+                          $lookup: {
+                            from: "companies",
+                            localField: "company",
+                            foreignField: "_id",
+                            as: "companyDoc",
+                          },
+                        },
+                        { $unwind: { path: "$companyDoc", preserveNullAndEmptyArrays: true } },
+                        { $match: responsabileMatch },
+                      ]
+                    : []),
                   {
                     $group: {
                       _id: null,
@@ -1043,6 +1048,7 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
                     },
                   },
                   { $unwind: { path: "$companyDoc", preserveNullAndEmptyArrays: true } },
+                  ...(isResponsabileScope ? [{ $match: responsabileMatch }] : []),
                   {
                     $lookup: {
                       from: "users",
@@ -1084,6 +1090,9 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
                   },
                 ],
                 totals: [
+                  ...(isResponsabileScope
+                    ? [{ $match: { user: responsabileObjectId } }]
+                    : []),
                   {
                     $group: {
                       _id: null,
@@ -1128,28 +1137,136 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
       ? Number(totals[0]?.competenze?.[0]?.sportelloTotal ?? 0)
       : 0;
 
-    const matchNonRiconciliate: any = {};
-    if (userId) {
-      matchNonRiconciliate.user = new mongoose.Types.ObjectId(userId);
-    }
-    if (account) matchNonRiconciliate.account = account;
-    if (q) matchNonRiconciliate.description = { $regex: q, $options: "i" };
-    if (from || to) {
-      matchNonRiconciliate.date = {};
-      if (from) matchNonRiconciliate.date.$gte = new Date(from);
-      if (to) matchNonRiconciliate.date.$lte = new Date(to);
-    }
+    let nonRiconciliateTotal = 0;
+    if (isResponsabileScope) {
+      const matchNonRiconciliate: any = {};
+      if (account) matchNonRiconciliate.account = account;
+      if (q) {
+        matchNonRiconciliate.$or = [
+          { description: { $regex: q, $options: "i" } },
+          { importKey: { $regex: q, $options: "i" } },
+        ];
+      }
+      if (from || to) {
+        matchNonRiconciliate.date = {};
+        if (from) matchNonRiconciliate.date.$gte = new Date(from);
+        if (to) matchNonRiconciliate.date.$lte = new Date(to);
+      }
 
-    const nonRiconciliateTotals = await ContoNonRiconciliata.aggregate([
-      { $match: matchNonRiconciliate },
-      {
-        $group: {
-          _id: null,
-          total: { $sum: "$amount" },
+      const items = await ContoNonRiconciliata.find(matchNonRiconciliate)
+        .populate({
+          path: "company",
+          select: "businessName companyName user contactInfo.laborConsultantId contactInfo.laborConsultant contractDetails.territorialManager",
+          populate: [
+            { path: "user", select: "firstName lastName username" },
+            { path: "contactInfo.laborConsultantId", select: "businessName agentName" },
+          ],
+        })
+        .lean();
+
+      const normalizeName = (value: string) => {
+        let cleaned = value
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]/g, "");
+        const suffixes = ["srls", "srl", "sas", "snc", "spa"];
+        for (const suffix of suffixes) {
+          if (cleaned.endsWith(suffix)) {
+            cleaned = cleaned.slice(0, -suffix.length);
+          }
+        }
+        return cleaned.trim();
+      };
+      const normalizedResponsabili = responsabileNames
+        .map((value) => normalizeName(value))
+        .filter(Boolean);
+
+      const matchesResponsabile = (company?: any, fallbackName?: string) => {
+        const fallbackNormalized = normalizeName(String(fallbackName || ""));
+        if (fallbackNormalized) {
+          if (normalizedResponsabili.some((candidate) => candidate && fallbackNormalized.includes(candidate))) {
+            return true;
+          }
+        }
+        if (!company) return false;
+        if (responsabileObjectId && company.user && String(company.user._id || company.user) === String(responsabileObjectId)) {
+          return true;
+        }
+        const manager = normalizeName(String(company.contractDetails?.territorialManager || ""));
+        if (!manager) return false;
+        return normalizedResponsabili.some((candidate) => candidate && manager.includes(candidate));
+      };
+
+      const enriched = await Promise.all(items.map(async (item: any) => {
+        let company = item.company;
+        if (!company && item.description) {
+          const matricolaMatch = String(item.description).match(/Matricola:\s*([0-9A-Za-z]+)/i);
+          const nameMatch = String(item.description).match(/Azienda:\s*([^|]+)/i);
+          const matricolaToken = matricolaMatch ? matricolaMatch[1].trim() : "";
+          const nameToken = nameMatch ? nameMatch[1].trim() : "";
+
+          if (matricolaToken) {
+            const matricolaRegex = new RegExp(
+              `(^|\\s)${escapeRegex(matricolaToken)}(\\s|$)`,
+              "i"
+            );
+            company = await Company.findOne({
+              $or: [
+                { inpsCode: matricolaToken },
+                { matricola: matricolaToken },
+                { inpsCode: matricolaRegex },
+                { matricola: matricolaRegex },
+              ],
+            })
+              .populate("user", "firstName lastName username")
+              .lean();
+          }
+
+          if (!company && nameToken) {
+            const nameRegex = new RegExp(`^\\s*${escapeRegex(nameToken)}\\s*$`, "i");
+            company = await Company.findOne({
+              $or: [{ businessName: nameRegex }, { companyName: nameRegex }],
+            })
+              .populate("user", "firstName lastName username")
+              .lean();
+          }
+        }
+        return { ...item, company };
+      }));
+
+      nonRiconciliateTotal = enriched
+        .filter((item) => matchesResponsabile(item.company, item.responsabileName))
+        .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    } else {
+      const matchNonRiconciliate: any = {};
+      if (userId) {
+        matchNonRiconciliate.user = new mongoose.Types.ObjectId(userId);
+      }
+      if (account) matchNonRiconciliate.account = account;
+      if (q) {
+        matchNonRiconciliate.$or = [
+          { description: { $regex: q, $options: "i" } },
+          { importKey: { $regex: q, $options: "i" } },
+        ];
+      }
+      if (from || to) {
+        matchNonRiconciliate.date = {};
+        if (from) matchNonRiconciliate.date.$gte = new Date(from);
+        if (to) matchNonRiconciliate.date.$lte = new Date(to);
+      }
+
+      const nonRiconciliateTotals = await ContoNonRiconciliata.aggregate([
+        { $match: matchNonRiconciliate },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: "$amount" },
+          },
         },
-      },
-    ]);
-    const nonRiconciliateTotal = nonRiconciliateTotals[0]?.total ?? 0;
+      ]);
+      nonRiconciliateTotal = nonRiconciliateTotals[0]?.total ?? 0;
+    }
 
     return res.json({
       balance,
@@ -1192,10 +1309,30 @@ export const getNonRiconciliate: CustomRequestHandler = async (req, res) => {
 
     const { account, from, to, q, page, limit } = req.query as Record<string, string>;
     const userId = getEffectiveUserId(req);
+    const isResponsabile = req.user.role === "responsabile_territoriale";
+    const isResponsabileScope = isResponsabile && account === "proselitismo";
+    let responsabileNames: string[] = [];
+    if (isResponsabileScope) {
+      const responsabileDoc = await User.findById(req.user._id)
+        .select("organization firstName lastName username")
+        .lean<{ organization?: string; firstName?: string; lastName?: string; username?: string }>();
+      const org = responsabileDoc?.organization?.trim();
+      if (org) responsabileNames.push(org);
+      const full = `${responsabileDoc?.firstName || ""} ${responsabileDoc?.lastName || ""}`.trim();
+      if (full) responsabileNames.push(full);
+      const username = responsabileDoc?.username?.trim();
+      if (username) responsabileNames.push(username);
+    }
     const query: any = {};
-    if (userId) query.user = userId;
+    if (userId && !isResponsabileScope) query.user = userId;
     if (account) query.account = account;
-    if (q) query.description = { $regex: q, $options: "i" };
+    const qTerm = (q || "").trim().toLowerCase();
+    if (q && !isResponsabileScope) {
+      query.$or = [
+        { description: { $regex: q, $options: "i" } },
+        { importKey: { $regex: q, $options: "i" } },
+      ];
+    }
     if (from || to) {
       query.date = {};
       if (from) query.date.$gte = new Date(from);
@@ -1206,24 +1343,53 @@ export const getNonRiconciliate: CustomRequestHandler = async (req, res) => {
     const pageSize = Math.min(100, Math.max(1, Number(limit) || 25));
     const skip = (pageNum - 1) * pageSize;
 
-    const [items, total] = await Promise.all([
-      ContoNonRiconciliata.find(query)
-        .sort({ date: -1, createdAt: -1 })
-        .skip(skip)
-        .limit(pageSize)
-        .populate({
-          path: "company",
-          select: "businessName companyName user contactInfo.laborConsultantId contactInfo.laborConsultant contractDetails.territorialManager",
-          populate: [
-            { path: "user", select: "firstName lastName username" },
-            { path: "contactInfo.laborConsultantId", select: "businessName agentName" },
-          ],
-        })
-        .lean(),
-      ContoNonRiconciliata.countDocuments(query),
-    ]);
+    const rawItems = await ContoNonRiconciliata.find(query)
+      .sort({ date: -1, createdAt: -1, _id: -1 })
+      .populate({
+        path: "company",
+        select: "businessName companyName user contactInfo.laborConsultantId contactInfo.laborConsultant contractDetails.territorialManager",
+        populate: [
+          { path: "user", select: "firstName lastName username" },
+          { path: "contactInfo.laborConsultantId", select: "businessName agentName" },
+        ],
+      })
+      .lean();
 
-    const enriched = await Promise.all(items.map(async (item: any) => {
+    const normalizeName = (value: string) => {
+      let cleaned = value
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]/g, "");
+      const suffixes = ["srls", "srl", "sas", "snc", "spa"];
+      for (const suffix of suffixes) {
+        if (cleaned.endsWith(suffix)) {
+          cleaned = cleaned.slice(0, -suffix.length);
+        }
+      }
+      return cleaned.trim();
+    };
+    const normalizedResponsabili = responsabileNames
+      .map((value) => normalizeName(value))
+      .filter(Boolean);
+    const responsabileObjectId = isResponsabileScope ? new mongoose.Types.ObjectId(req.user._id) : null;
+    const matchesResponsabile = (company?: any, fallbackName?: string) => {
+      const fallbackNormalized = normalizeName(String(fallbackName || ""));
+      if (fallbackNormalized) {
+        if (normalizedResponsabili.some((candidate) => candidate && fallbackNormalized.includes(candidate))) {
+          return true;
+        }
+      }
+      if (!company) return false;
+      if (responsabileObjectId && company.user && String(company.user._id || company.user) === String(responsabileObjectId)) {
+        return true;
+      }
+      const manager = normalizeName(String(company.contractDetails?.territorialManager || ""));
+      if (!manager) return false;
+      return normalizedResponsabili.some((candidate) => candidate && manager.includes(candidate));
+    };
+
+    const enrichedAll = await Promise.all(rawItems.map(async (item: any) => {
       let company = item.company;
 
       if (!company && item.description) {
@@ -1279,8 +1445,28 @@ export const getNonRiconciliate: CustomRequestHandler = async (req, res) => {
       };
     }));
 
+    const filteredByRole = isResponsabileScope
+      ? enrichedAll.filter((item) => matchesResponsabile(item.company, item.responsabileName))
+      : enrichedAll;
+    const filtered = qTerm
+      ? filteredByRole.filter((item: any) => {
+          const fields = [
+            item.description,
+            item.importKey,
+            item.companyName,
+            item.responsabileName,
+            item.sportelloName,
+          ]
+            .filter(Boolean)
+            .map((value: any) => String(value).toLowerCase());
+          return fields.some((value: string) => value.includes(qTerm));
+        })
+      : filteredByRole;
+    const total = filtered.length;
+    const items = filtered.slice(skip, skip + pageSize);
+
     return res.json({
-      items: enriched,
+      items,
       total,
       page: pageNum,
       pageSize,
@@ -1299,8 +1485,33 @@ export const getContoBreakdown: CustomRequestHandler = async (req, res) => {
 
     const { account, from, to, type, status, q } = req.query as Record<string, string>;
     const userId = getEffectiveUserId(req);
+    const isResponsabile = req.user.role === "responsabile_territoriale";
+    const isResponsabileScope = isResponsabile && account === "proselitismo";
+    const responsabileObjectId = isResponsabile ? new mongoose.Types.ObjectId(req.user._id) : null;
+    let responsabileMatch: any = null;
+    if (isResponsabileScope) {
+      const responsabileDoc = await User.findById(req.user._id)
+        .select("organization firstName lastName username")
+        .lean<{ organization?: string; firstName?: string; lastName?: string; username?: string }>();
+      const names: string[] = [];
+      const org = responsabileDoc?.organization?.trim();
+      if (org) names.push(org);
+      const full = `${responsabileDoc?.firstName || ""} ${responsabileDoc?.lastName || ""}`.trim();
+      if (full) names.push(full);
+      const username = responsabileDoc?.username?.trim();
+      if (username) names.push(username);
+      const nameMatchers = names.map((value) => ({
+        "companyDoc.contractDetails.territorialManager": new RegExp(`^\\s*${escapeRegex(value)}\\s*$`, "i"),
+      }));
+      responsabileMatch = {
+        $or: [
+          { "companyDoc.user": responsabileObjectId },
+          ...nameMatchers,
+        ],
+      };
+    }
     const match: any = {};
-    if (userId) {
+    if (userId && !isResponsabileScope) {
       match.user = new mongoose.Types.ObjectId(userId);
     }
     if (account) match.account = account;
@@ -1338,6 +1549,7 @@ export const getContoBreakdown: CustomRequestHandler = async (req, res) => {
         },
       },
       { $unwind: { path: "$companyDoc", preserveNullAndEmptyArrays: true } },
+      ...(isResponsabileScope ? [{ $match: responsabileMatch }] : []),
       {
         $lookup: {
           from: "users",

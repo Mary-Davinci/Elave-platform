@@ -32,6 +32,9 @@ const extractMatricolaFromDescription = (value: string) => {
 
 const Conto: React.FC = () => {
   const { user } = useAuth();
+  const isSportello = user?.role === 'sportello_lavoro';
+  const isResponsabile = user?.role === 'responsabile_territoriale';
+  const isRestrictedView = isSportello || isResponsabile;
   const params = useParams<{ tab?: string }>();
   const navigate = useNavigate();
   const initialTab = (params.tab === 'servizi' || params.tab === 'proselitismo') ? (params.tab as AccountType) : 'proselitismo';
@@ -60,13 +63,18 @@ const Conto: React.FC = () => {
   const [transactionsTotal, setTransactionsTotal] = useState<number | null>(null);
   const [nonRiconciliateTotal, setNonRiconciliateTotal] = useState<number | null>(null);
   const [serverPagingActive, setServerPagingActive] = useState(false);
+  const [debouncedQ, setDebouncedQ] = useState((filters.q || '').toString());
   const PAGE_SIZE = 25;
   const breakdownCacheRef = useRef(
     new Map<string, { data: { responsabili: BreakdownRow[]; sportelli: BreakdownRow[] }; ts: number }>()
   );
   const summaryCacheRef = useRef(new Map<string, { data: Summary; ts: number }>());
   const txCacheRef = useRef(new Map<string, { data: Transaction[]; total?: number; ts: number }>());
+  const nonRicCacheRef = useRef(
+    new Map<string, { data: NonRiconciliataItem[]; total?: number; ts: number }>()
+  );
   const TX_CACHE_VERSION = 'v3';
+  const NON_RIC_CACHE_VERSION = 'v1';
   const CACHE_TTL_MS = 5 * 60_000;
 
   // Local mock fallback
@@ -102,6 +110,7 @@ const Conto: React.FC = () => {
       .filter((t) => (filters.from ? new Date(t.date) >= new Date(filters.from) : true))
       .filter((t) => (filters.to ? new Date(t.date) <= new Date(filters.to) : true))
       .filter((t) => {
+        if (serverPagingActive) return true;
         if (!qTerm) return true;
         const description = (t.description || '').toLowerCase();
         const companyName =
@@ -123,7 +132,7 @@ const Conto: React.FC = () => {
         if (!myUserId) return false;
         return getTxUserId(t) === myUserId;
       });
-  }, [transactions, activeAccount, filters, user?._id]);
+  }, [transactions, activeAccount, filters, user?._id, serverPagingActive]);
 
   const derivedSummary: Summary = useMemo(() => {
     const incoming = filteredTx.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0);
@@ -144,6 +153,13 @@ const Conto: React.FC = () => {
   const loading = summaryLoading || transactionsLoading;
 
   const onFilterChange = (patch: Partial<ContoFilters>) => setFilters((f) => ({ ...f, ...patch }));
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQ((filters.q || '').toString());
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [filters.q]);
 
   const readCached = <T,>(key: string) => {
     try {
@@ -168,12 +184,13 @@ const Conto: React.FC = () => {
   // Fetch summary first (fast path for the cards)
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     const run = async () => {
       setSummaryLoading(true);
       try {
         const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
         const userIdForQuery = isAdmin ? undefined : user?._id;
-        const apiFilters = { ...filters };
+        const apiFilters = { ...filters, q: '' };
         const cacheKey = JSON.stringify({
           account: activeAccount,
           filters: apiFilters,
@@ -192,32 +209,37 @@ const Conto: React.FC = () => {
           if (!cancelled) setSummaryFromApi(cachedStorage.data);
           if (!cancelled) setSummaryLoading(false);
         }
-        const sum = await contoService.getSummary(activeAccount, apiFilters, userIdForQuery);
+        const sum = await contoService.getSummary(activeAccount, apiFilters, userIdForQuery, controller.signal);
         if (sum) {
           summaryCacheRef.current.set(cacheKey, { data: sum, ts: now });
           writeCached(`conto:summary:${cacheKey}`, sum);
         }
         if (!cancelled) setSummaryFromApi(sum);
       } catch (e: any) {
+        if (e?.name === 'CanceledError' || e?.code === 'ERR_CANCELED') return;
         if (!cancelled) setSummaryFromApi(null);
       } finally {
         if (!cancelled) setSummaryLoading(false);
       }
     };
     run();
-    return () => { cancelled = true; };
-  }, [activeAccount, filters.from, filters.to, filters.type, filters.status, filters.q]);
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [activeAccount, filters.from, filters.to, filters.type, filters.status]);
 
   // Fetch transactions (table can load after the cards)
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     const run = async () => {
       setTransactionsLoading(true);
       setError(null);
       try {
         const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
         const userIdForQuery = isAdmin ? undefined : user?._id;
-        const apiFilters = { ...filters };
+        const apiFilters = { ...filters, q: debouncedQ };
         const metaKey = JSON.stringify({
           account: activeAccount,
           filters: apiFilters,
@@ -270,7 +292,9 @@ const Conto: React.FC = () => {
           apiFilters,
           userIdForQuery,
           currentPage,
-          PAGE_SIZE
+          PAGE_SIZE,
+          controller.signal,
+          true
         );
         const tx = res.transactions || [];
         txCacheRef.current.set(cacheKey, { data: tx, total: res.total, ts: now });
@@ -285,7 +309,52 @@ const Conto: React.FC = () => {
           if (res.total !== undefined && res.total !== null) {
             writeCached(`conto:tx:meta:${metaKey}`, { total: res.total });
           }
+
+          // Prefetch next page for snappier pagination navigation.
+          if ((currentPage === 1) && Number(res.total || 0) > PAGE_SIZE) {
+            const nextPage = 2;
+            const nextCacheKey = JSON.stringify({
+              account: activeAccount,
+              filters: apiFilters,
+              userId: userIdForQuery || '',
+              page: nextPage,
+              limit: PAGE_SIZE,
+              v: TX_CACHE_VERSION,
+            });
+            const inMem = txCacheRef.current.get(nextCacheKey);
+            const inStorage = readCached<{ transactions: Transaction[]; total?: number | string }>(
+              `conto:tx:${nextCacheKey}`
+            );
+            if (!inMem && !inStorage) {
+              contoService
+                .getTransactions(
+                  activeAccount,
+                  apiFilters,
+                  userIdForQuery,
+                  nextPage,
+                  PAGE_SIZE,
+                  undefined,
+                  true
+                )
+                .then((nextRes) => {
+                  const nextTx = nextRes.transactions || [];
+                  txCacheRef.current.set(nextCacheKey, {
+                    data: nextTx,
+                    total: nextRes.total,
+                    ts: Date.now(),
+                  });
+                  writeCached(`conto:tx:${nextCacheKey}`, {
+                    transactions: nextTx,
+                    total: nextRes.total,
+                  });
+                })
+                .catch(() => {
+                  // ignore prefetch errors
+                });
+            }
+          }
       } catch (e: any) {
+        if (e?.name === 'CanceledError' || e?.code === 'ERR_CANCELED') return;
         console.warn('getTransactions failed, using mock fallback', e?.message || e);
         const tx = mockTx; // fallback
         if (!cancelled) {
@@ -298,34 +367,83 @@ const Conto: React.FC = () => {
       }
     };
     run();
-    return () => { cancelled = true; };
-  }, [activeAccount, filters.from, filters.to, filters.type, filters.status, filters.q, currentPage]);
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [activeAccount, filters.from, filters.to, filters.type, filters.status, debouncedQ, currentPage]);
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     const run = async () => {
       try {
         const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
         const userIdForQuery = isAdmin ? undefined : user?._id;
-        const apiFilters = { ...filters };
+        const apiFilters = { ...filters, q: debouncedQ };
+        const cacheKey = JSON.stringify({
+          account: activeAccount,
+          filters: apiFilters,
+          userId: userIdForQuery || '',
+          page: nonRiconciliatePage,
+          limit: PAGE_SIZE,
+          v: NON_RIC_CACHE_VERSION,
+        });
+        const cached = nonRicCacheRef.current.get(cacheKey);
+        const now = Date.now();
+        if (cached && now - cached.ts < CACHE_TTL_MS) {
+          if (!cancelled) {
+            setNonRiconciliate(cached.data);
+            if (typeof cached.total === 'number') setNonRiconciliateTotal(cached.total);
+          }
+        }
+        const cachedStorage = readCached<{ items: NonRiconciliataItem[]; total?: number | string }>(
+          `conto:nonric:${cacheKey}`
+        );
+        if (cachedStorage) {
+          const itemsCached = cachedStorage.data?.items ?? [];
+          const totalCachedRaw = cachedStorage.data?.total;
+          const totalCached =
+            totalCachedRaw === undefined || totalCachedRaw === null
+              ? undefined
+              : Number(totalCachedRaw);
+          nonRicCacheRef.current.set(cacheKey, { data: itemsCached, total: totalCached, ts: cachedStorage.ts });
+          if (!cancelled) {
+            setNonRiconciliate(itemsCached);
+            if (Number.isFinite(totalCached)) setNonRiconciliateTotal(totalCached as number);
+          }
+        }
         const res = await getNonRiconciliate(
           activeAccount,
           apiFilters,
           userIdForQuery,
           nonRiconciliatePage,
-          PAGE_SIZE
+          PAGE_SIZE,
+          controller.signal
         );
+        nonRicCacheRef.current.set(cacheKey, {
+          data: res.items || [],
+          total: typeof res.total === 'number' ? res.total : undefined,
+          ts: now,
+        });
+        writeCached(`conto:nonric:${cacheKey}`, { items: res.items || [], total: res.total });
         if (!cancelled) {
           setNonRiconciliate(res.items || []);
           if (typeof res.total === 'number') setNonRiconciliateTotal(res.total);
         }
       } catch (e) {
+        // Ignore aborted requests while typing.
+        const err: any = e;
+        if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return;
         if (!cancelled) setNonRiconciliate([]);
       }
     };
     run();
-    return () => { cancelled = true; };
-  }, [activeAccount, filters.from, filters.to, filters.q, user?._id, user?.role, nonRiconciliatePage]);
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [activeAccount, filters.from, filters.to, debouncedQ, user?._id, user?.role, nonRiconciliatePage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -412,20 +530,26 @@ const Conto: React.FC = () => {
   useEffect(() => {
     setCurrentPage(1);
     setTransactionsTotal(null);
-  }, [activeAccount, filters.from, filters.to, filters.type, filters.status, filters.q]);
+  }, [activeAccount, filters.from, filters.to, filters.type, filters.status, debouncedQ]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+    setTransactionsTotal(null);
+  }, [filters.q]);
 
   useEffect(() => {
     setNonRiconciliatePage(1);
     setNonRiconciliateTotal(null);
-  }, [activeAccount, filters.from, filters.to, filters.q]);
+  }, [activeAccount, filters.from, filters.to, debouncedQ]);
+
+  useEffect(() => {
+    setNonRiconciliatePage(1);
+    setNonRiconciliateTotal(null);
+  }, [filters.q]);
 
   const totalForPaging =
     transactionsTotal ??
-    (isServerPaged
-      ? PAGE_SIZE + 1
-      : displayTx.length >= PAGE_SIZE
-        ? PAGE_SIZE + 1
-        : displayTx.length);
+    (isServerPaged ? 0 : displayTx.length);
   const totalPages = Math.max(1, Math.ceil((totalForPaging || 0) / PAGE_SIZE));
   const pagedTx = useMemo(() => displayTx, [displayTx]);
 
@@ -440,7 +564,7 @@ const Conto: React.FC = () => {
 
   const nonRiconciliateTotalForPaging =
     nonRiconciliateTotal ??
-    (nonRiconciliate.length >= PAGE_SIZE ? PAGE_SIZE + 1 : nonRiconciliate.length);
+    nonRiconciliate.length;
   const nonRiconciliateTotalPages = Math.max(
     1,
     Math.ceil((nonRiconciliateTotalForPaging || 0) / PAGE_SIZE)
@@ -571,63 +695,98 @@ const Conto: React.FC = () => {
       </div>
 
       <div className="projects-section conto-summaries" style={{ marginBottom: 20 }}>
-        {/*
-          totalElav can be null if API didn't return it (fallback to derived).
-          In that case, approximate from balance (80%) for display only.
-        */}
-        {(() => {
-          const rawElav =
-            summary.totalElav ??
-            (activeAccount === 'proselitismo' && summary.balance
-              ? summary.balance / 0.8
-              : 0);
-          return (
+        {isSportello ? (
+          <div className="project-card-dash conto-saldo-card">
+            <div className="project-number">{formatCurrency(summary.balance || 0)}</div>
+            <div className="project-title">Saldo Sportello</div>
+          </div>
+        ) : isResponsabile ? (
+          <>
             <div className="project-card-dash conto-saldo-card">
-              <div className="conto-saldo-meta">Quota ELAV totale</div>
-              <div className="project-number">{formatCurrency(Number(rawElav))}</div>
-              <div className="conto-saldo-meta">FIACOM (80%)</div>
-              <div className="conto-saldo-sub">{formatCurrency(summary.balance)}</div>
+              <div className="project-number">{formatCurrency(summary.responsabileTotal || 0)}</div>
+              <div className="project-title">Saldo Responsabile</div>
             </div>
-          );
-        })()}
-        <div
-          className="project-card-dash conto-saldo-card"
-          ref={responsabiliAnchorRef}
-          role="button"
-          tabIndex={0}
-          onClick={handleResponsabiliClick}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') handleResponsabiliClick();
-          }}
-          title="Vedi dettaglio quote responsabili"
-          style={{ cursor: 'pointer' }}
-        >
-          <div className="project-number">{formatCurrency(summary.responsabileTotal || 0)}</div>
-          <div className="project-title">Saldo Responsabili</div>
-        </div>
-        <div
-          className="project-card-dash conto-saldo-card"
-          ref={sportelliAnchorRef}
-          role="button"
-          tabIndex={0}
-          onClick={handleSportelliClick}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') handleSportelliClick();
-          }}
-          title="Vedi dettaglio quote sportelli"
-          style={{ cursor: 'pointer' }}
-        >
-          <div className="project-number">{formatCurrency(summary.sportelloTotal || 0)}</div>
-          <div className="project-title">Saldo Sportelli</div>
-        </div>
-        <div className="project-card-dash conto-saldo-card">
-          <div className="project-number">{formatCurrency(summary.nonRiconciliateTotal || 0)}</div>
-          <div className="project-title">Quote non riconciliate</div>
-        </div>
-        <div className="project-card-dash conto-saldo-card">
-          <div className="project-number">{formatCurrency(summary.outgoing)}</div>
-          <div className="project-title">Uscite</div>
-        </div>
+            <div
+              className="project-card-dash conto-saldo-card"
+              ref={sportelliAnchorRef}
+              role="button"
+              tabIndex={0}
+              onClick={handleSportelliClick}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') handleSportelliClick();
+              }}
+              title="Vedi dettaglio quote sportelli"
+              style={{ cursor: 'pointer' }}
+            >
+              <div className="project-number">{formatCurrency(summary.sportelloTotal || 0)}</div>
+              <div className="project-title">Saldo Sportelli</div>
+            </div>
+            <div className="project-card-dash conto-saldo-card">
+              <div className="project-number">{formatCurrency(summary.nonRiconciliateTotal || 0)}</div>
+              <div className="project-title">Quote non riconciliate</div>
+            </div>
+          </>
+        ) : (
+          <>
+            {/*
+              totalElav can be null if API didn't return it (fallback to derived).
+              In that case, approximate from balance (80%) for display only.
+            */}
+            {(() => {
+              const rawElav =
+                summary.totalElav ??
+                (activeAccount === 'proselitismo' && summary.balance
+                  ? summary.balance / 0.8
+                  : 0);
+              return (
+                <div className="project-card-dash conto-saldo-card">
+                  <div className="conto-saldo-meta">Quota ELAV totale</div>
+                  <div className="project-number">{formatCurrency(Number(rawElav))}</div>
+                  <div className="conto-saldo-meta">FIACOM (80%)</div>
+                  <div className="conto-saldo-sub">{formatCurrency(summary.balance)}</div>
+                </div>
+              );
+            })()}
+            <div
+              className="project-card-dash conto-saldo-card"
+              ref={responsabiliAnchorRef}
+              role="button"
+              tabIndex={0}
+              onClick={handleResponsabiliClick}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') handleResponsabiliClick();
+              }}
+              title="Vedi dettaglio quote responsabili"
+              style={{ cursor: 'pointer' }}
+            >
+              <div className="project-number">{formatCurrency(summary.responsabileTotal || 0)}</div>
+              <div className="project-title">Saldo Responsabili</div>
+            </div>
+            <div
+              className="project-card-dash conto-saldo-card"
+              ref={sportelliAnchorRef}
+              role="button"
+              tabIndex={0}
+              onClick={handleSportelliClick}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') handleSportelliClick();
+              }}
+              title="Vedi dettaglio quote sportelli"
+              style={{ cursor: 'pointer' }}
+            >
+              <div className="project-number">{formatCurrency(summary.sportelloTotal || 0)}</div>
+              <div className="project-title">Saldo Sportelli</div>
+            </div>
+            <div className="project-card-dash conto-saldo-card">
+              <div className="project-number">{formatCurrency(summary.nonRiconciliateTotal || 0)}</div>
+              <div className="project-title">Quote non riconciliate</div>
+            </div>
+            <div className="project-card-dash conto-saldo-card">
+              <div className="project-number">{formatCurrency(summary.outgoing)}</div>
+              <div className="project-title">Uscite</div>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="utility-section" style={{ marginBottom: 20 }}>
@@ -805,7 +964,7 @@ const Conto: React.FC = () => {
         )}
       </div>
 
-      {activeAccount === 'proselitismo' && showResponsabiliModal && responsabiliPos && (
+      {!isRestrictedView && activeAccount === 'proselitismo' && showResponsabiliModal && responsabiliPos && (
         <div
           role="dialog"
           aria-modal="false"
@@ -1025,130 +1184,134 @@ const Conto: React.FC = () => {
         </div>
       )}
 
-      <div className="utility-section" style={{ marginTop: 20 }}>
-        <div className="section-header">Quote non riconciliate</div>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ textAlign: 'left' }}>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Data</th>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Aziende</th>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Responsabile Territoriale</th>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Sportello Lavoro</th>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Quota non riconciliata</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pagedNonRiconciliate.map((t) => (
-                <tr key={t._id} style={{ borderBottom: '1px solid #f1f1f1' }}>
-                  <td style={{ padding: '8px' }}>{new Date(t.date).toLocaleDateString('it-IT')}</td>
-                  <td style={{ padding: '8px' }}>{t.companyName || '-'}</td>
-                  <td style={{ padding: '8px' }}>{t.responsabileName || '-'}</td>
-                  <td style={{ padding: '8px' }}>{t.sportelloName || '-'}</td>
-                  <td style={{ padding: '8px', color: '#e67e22', fontWeight: 600 }}>
-                    {formatCurrency(t.amount)}
-                  </td>
+      {!isSportello && activeAccount === 'proselitismo' && (
+        <div className="utility-section" style={{ marginTop: 20 }}>
+          <div className="section-header">Quote non riconciliate</div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ textAlign: 'left' }}>
+                  <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Data</th>
+                  <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Aziende</th>
+                  <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Responsabile Territoriale</th>
+                  <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Sportello Lavoro</th>
+                  <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Quota non riconciliata</th>
                 </tr>
-              ))}
-              {nonRiconciliate.length === 0 && (
-                <tr>
-                  <td colSpan={5} style={{ padding: 16, color: '#666' }}>Nessuna quota non riconciliata.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        {nonRiconciliateTotalPages > 1 && (
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 8, padding: '16px 0' }}>
-            <button
-              type="button"
-              onClick={() => setNonRiconciliatePage((p) => Math.max(1, p - 1))}
-              disabled={nonRiconciliatePage === 1}
-              style={{
-                border: '1px solid #e2e8f0',
-                background: nonRiconciliatePage === 1 ? '#f8fafc' : '#fff',
-                color: '#1f2937',
-                padding: '6px 10px',
-                borderRadius: 8,
-                cursor: nonRiconciliatePage === 1 ? 'not-allowed' : 'pointer',
-                fontWeight: 600,
-              }}
-            >
-              Prev
-            </button>
-            {nonRiconciliatePageNumbers.map((page) => (
+              </thead>
+              <tbody>
+                {pagedNonRiconciliate.map((t) => (
+                  <tr key={t._id} style={{ borderBottom: '1px solid #f1f1f1' }}>
+                    <td style={{ padding: '8px' }}>{new Date(t.date).toLocaleDateString('it-IT')}</td>
+                    <td style={{ padding: '8px' }}>{t.companyName || '-'}</td>
+                    <td style={{ padding: '8px' }}>{t.responsabileName || '-'}</td>
+                    <td style={{ padding: '8px' }}>{t.sportelloName || '-'}</td>
+                    <td style={{ padding: '8px', color: '#e67e22', fontWeight: 600 }}>
+                      {formatCurrency(t.amount)}
+                    </td>
+                  </tr>
+                ))}
+                {nonRiconciliate.length === 0 && (
+                  <tr>
+                    <td colSpan={5} style={{ padding: 16, color: '#666' }}>Nessuna quota non riconciliata.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          {nonRiconciliateTotalPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 8, padding: '16px 0' }}>
               <button
-                key={page}
                 type="button"
-                onClick={() => setNonRiconciliatePage(page)}
+                onClick={() => setNonRiconciliatePage((p) => Math.max(1, p - 1))}
+                disabled={nonRiconciliatePage === 1}
                 style={{
-                  border: page === nonRiconciliatePage ? '1px solid #2563eb' : '1px solid #e2e8f0',
-                  background: page === nonRiconciliatePage ? '#2563eb' : '#fff',
-                  color: page === nonRiconciliatePage ? '#fff' : '#1f2937',
+                  border: '1px solid #e2e8f0',
+                  background: nonRiconciliatePage === 1 ? '#f8fafc' : '#fff',
+                  color: '#1f2937',
                   padding: '6px 10px',
                   borderRadius: 8,
-                  cursor: 'pointer',
+                  cursor: nonRiconciliatePage === 1 ? 'not-allowed' : 'pointer',
                   fontWeight: 600,
                 }}
               >
-                {page}
+                Prev
               </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setNonRiconciliatePage((p) => Math.min(nonRiconciliateTotalPages, p + 1))}
-              disabled={nonRiconciliatePage >= nonRiconciliateTotalPages}
-              style={{
-                border: '1px solid #e2e8f0',
-                background: nonRiconciliatePage >= nonRiconciliateTotalPages ? '#f8fafc' : '#fff',
-                color: '#1f2937',
-                padding: '6px 10px',
-                borderRadius: 8,
-                cursor: nonRiconciliatePage >= nonRiconciliateTotalPages ? 'not-allowed' : 'pointer',
-                fontWeight: 600,
-              }}
-            >
-              Next
-            </button>
-          </div>
-        )}
-      </div>
-
-      <div className="utility-section" style={{ marginTop: 20 }}>
-        <div className="section-header">Registro flussi</div>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ textAlign: 'left' }}>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Data</th>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Orario</th>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Nome file</th>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Chiave univoca</th>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Righe</th>
-              </tr>
-            </thead>
-            <tbody>
-              {imports.map((item) => {
-                const date = new Date(item.createdAt);
-                return (
-                  <tr key={item._id} style={{ borderBottom: '1px solid #f1f1f1' }}>
-                    <td style={{ padding: '8px' }}>{date.toLocaleDateString('it-IT')}</td>
-                    <td style={{ padding: '8px' }}>{date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</td>
-                    <td style={{ padding: '8px' }}>{item.originalName}</td>
-                    <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: 12 }}>{item.fileHash}</td>
-                    <td style={{ padding: '8px' }}>{item.rowCount}</td>
-                  </tr>
-                );
-              })}
-              {imports.length === 0 && (
-                <tr>
-                  <td colSpan={5} style={{ padding: 16, color: '#666' }}>Nessun file flussi caricato.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+              {nonRiconciliatePageNumbers.map((page) => (
+                <button
+                  key={page}
+                  type="button"
+                  onClick={() => setNonRiconciliatePage(page)}
+                  style={{
+                    border: page === nonRiconciliatePage ? '1px solid #2563eb' : '1px solid #e2e8f0',
+                    background: page === nonRiconciliatePage ? '#2563eb' : '#fff',
+                    color: page === nonRiconciliatePage ? '#fff' : '#1f2937',
+                    padding: '6px 10px',
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setNonRiconciliatePage((p) => Math.min(nonRiconciliateTotalPages, p + 1))}
+                disabled={nonRiconciliatePage >= nonRiconciliateTotalPages}
+                style={{
+                  border: '1px solid #e2e8f0',
+                  background: nonRiconciliatePage >= nonRiconciliateTotalPages ? '#f8fafc' : '#fff',
+                  color: '#1f2937',
+                  padding: '6px 10px',
+                  borderRadius: 8,
+                  cursor: nonRiconciliatePage >= nonRiconciliateTotalPages ? 'not-allowed' : 'pointer',
+                  fontWeight: 600,
+                }}
+              >
+                Next
+              </button>
+            </div>
+          )}
         </div>
-      </div>
+      )}
+
+      {!isSportello && (
+        <div className="utility-section" style={{ marginTop: 20 }}>
+          <div className="section-header">Registro flussi</div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ textAlign: 'left' }}>
+                  <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Data</th>
+                  <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Orario</th>
+                  <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Nome file</th>
+                  <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Chiave univoca</th>
+                  <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Righe</th>
+                </tr>
+              </thead>
+              <tbody>
+                {imports.map((item) => {
+                  const date = new Date(item.createdAt);
+                  return (
+                    <tr key={item._id} style={{ borderBottom: '1px solid #f1f1f1' }}>
+                      <td style={{ padding: '8px' }}>{date.toLocaleDateString('it-IT')}</td>
+                      <td style={{ padding: '8px' }}>{date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</td>
+                      <td style={{ padding: '8px' }}>{item.originalName}</td>
+                      <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: 12 }}>{item.fileHash}</td>
+                      <td style={{ padding: '8px' }}>{item.rowCount}</td>
+                    </tr>
+                  );
+                })}
+                {imports.length === 0 && (
+                  <tr>
+                    <td colSpan={5} style={{ padding: 16, color: '#666' }}>Nessun file flussi caricato.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -130,7 +130,9 @@ export const contoService = {
     filters: ContoFilters,
     userId?: string,
     page?: number,
-    limit?: number
+    limit?: number,
+    signal?: AbortSignal,
+    lite?: boolean
   ): Promise<{ transactions: Transaction[]; total?: number; page?: number; pageSize?: number }> {
     const params: Record<string, string> = { account };
     if (filters.from) params.from = filters.from;
@@ -141,8 +143,9 @@ export const contoService = {
     if (userId) params.userId = userId;
     if (page) params.page = String(page);
     if (limit) params.limit = String(limit);
+    if (lite) params.lite = "1";
 
-    const res = await api.get('/api/conto/transactions', { params });
+    const res = await api.get('/api/conto/transactions', { params, signal });
     // Be forgiving with response shape
     if (Array.isArray(res.data)) {
       return { transactions: res.data as Transaction[] };
@@ -158,7 +161,7 @@ export const contoService = {
     return { transactions: [] };
   },
 
-  async getSummary(account: AccountType, filters: ContoFilters, userId?: string): Promise<Summary | null> {
+  async getSummary(account: AccountType, filters: ContoFilters, userId?: string, signal?: AbortSignal): Promise<Summary | null> {
     const params: Record<string, string> = { account };
     if (filters.from) params.from = filters.from;
     if (filters.to) params.to = filters.to;
@@ -167,7 +170,7 @@ export const contoService = {
     if (filters.q) params.q = filters.q;
     if (userId) params.userId = userId;
 
-    const res = await api.get('/api/conto/summary', { params });
+    const res = await api.get('/api/conto/summary', { params, signal });
     const data = res.data;
     if (!data) return null;
     // Normalize
@@ -239,7 +242,8 @@ export const getNonRiconciliate = async (
   filters: ContoFilters,
   userId?: string,
   page?: number,
-  limit?: number
+  limit?: number,
+  signal?: AbortSignal
 ): Promise<{ items: NonRiconciliataItem[]; total?: number; page?: number; pageSize?: number }> => {
   const params: Record<string, string> = { account };
   if (filters.from) params.from = filters.from;
@@ -248,7 +252,7 @@ export const getNonRiconciliate = async (
   if (userId) params.userId = userId;
   if (page) params.page = String(page);
   if (limit) params.limit = String(limit);
-  const res = await api.get('/api/conto/non-riconciliate', { params });
+  const res = await api.get('/api/conto/non-riconciliate', { params, signal });
   if (Array.isArray(res.data)) return { items: res.data as NonRiconciliataItem[] };
   if (Array.isArray(res.data?.items)) {
     return {

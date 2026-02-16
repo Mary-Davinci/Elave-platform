@@ -58,4 +58,10 @@ const ContoTransactionSchema = new Schema<IContoTransaction>(
   { timestamps: true }
 );
 
+// Query patterns used by conto filters (account/date/type/status + pagination sort)
+ContoTransactionSchema.index({ account: 1, date: -1, createdAt: -1 });
+ContoTransactionSchema.index({ account: 1, type: 1, status: 1, date: -1, createdAt: -1 });
+ContoTransactionSchema.index({ account: 1, user: 1, date: -1, createdAt: -1 });
+ContoTransactionSchema.index({ account: 1, company: 1, date: -1, createdAt: -1 });
+
 export default mongoose.model<IContoTransaction>("ContoTransaction", ContoTransactionSchema);

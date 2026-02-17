@@ -226,18 +226,48 @@ const UploadConto: React.FC = () => {
               <tbody>
                 {previewData.preview.map((row) => {
                   const status = row.errors && row.errors.length > 0 ? 'Errore' : 'OK';
+                  const hasErrors = !!(row.errors && row.errors.length > 0);
+                  const tooltip = hasErrors ? row.errors!.join(' | ') : undefined;
                   return (
-                    <tr key={`${row.rowNumber}-${row.data?.matricolaInps || row.data?.ragioneSociale}`}>
+                    <tr
+                      key={`${row.rowNumber}-${row.data?.matricolaInps || row.data?.ragioneSociale}`}
+                      style={hasErrors ? { backgroundColor: '#fff5f5' } : undefined}
+                    >
                       <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.rowNumber}</td>
                       <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.mese || '-'}</td>
                       <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.anno || '-'}</td>
                       <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.matricolaInps || '-'}</td>
-                      <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.ragioneSociale || '-'}</td>
+                      <td
+                        title={tooltip}
+                        style={{
+                          padding: '8px',
+                          borderBottom: '1px solid #f1f5f9',
+                          color: hasErrors ? '#c53030' : undefined,
+                          textDecoration: hasErrors ? 'underline' : undefined,
+                          textDecorationColor: hasErrors ? '#e53e3e' : undefined,
+                          textDecorationThickness: hasErrors ? '2px' : undefined,
+                          cursor: hasErrors ? 'help' : undefined,
+                          fontWeight: hasErrors ? 600 : undefined,
+                        }}
+                      >
+                        {row.data?.ragioneSociale || '-'}
+                      </td>
                       <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.nonRiconciliata ?? '-'}</td>
                       <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.quotaRiconciliata ?? '-'}</td>
                       <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.fondoSanitario ?? '-'}</td>
                       <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.quotaFiacom ?? '-'}</td>
-                      <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{status}</td>
+                      <td
+                        title={tooltip}
+                        style={{
+                          padding: '8px',
+                          borderBottom: '1px solid #f1f5f9',
+                          color: hasErrors ? '#c53030' : undefined,
+                          fontWeight: hasErrors ? 700 : undefined,
+                          cursor: hasErrors ? 'help' : undefined,
+                        }}
+                      >
+                        {status}
+                      </td>
                     </tr>
                   );
                 })}

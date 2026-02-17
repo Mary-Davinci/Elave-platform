@@ -374,10 +374,12 @@ export const previewContoFromExcel: CustomRequestHandler = async (req, res) => {
         const preview: any[] = [];
         const nonRiconciliate: any[] = [];
 
-        rows.slice(1).forEach((row, idx) => {
-          if (isRowEmpty(row)) return;
+        for (let idx = 0; idx < rows.slice(1).length; idx += 1) {
+          const row = rows[idx + 1];
+          if (isRowEmpty(row)) continue;
           const data = buildRowData(row, headerIndexes);
           const errors: string[] = [];
+          const rowNumber = idx + 2;
           const baseAmount = parseNumber(data.quotaFiacom);
           const nonRec = parseNumber(data.nonRiconciliata);
 
@@ -385,17 +387,118 @@ export const previewContoFromExcel: CustomRequestHandler = async (req, res) => {
             errors.push("Matricola INPS o Ragione Sociale mancante");
           }
 
+          if (baseAmount && baseAmount > 0 && (data.matricolaInps || data.ragioneSociale)) {
+            const nameRegex = data.ragioneSociale
+              ? new RegExp(`^\\s*${escapeRegex(data.ragioneSociale)}\\s*$`, "i")
+              : null;
+            let company = null as any;
+
+            if (data.matricolaInps) {
+              const matricolaToken = String(data.matricolaInps).trim();
+              const matricolaRegex = new RegExp(`(^|\\s)${escapeRegex(matricolaToken)}(\\s|$)`, "i");
+              company = await Company.findOne({
+                $or: [
+                  { inpsCode: data.matricolaInps },
+                  { matricola: data.matricolaInps },
+                  { inpsCode: matricolaRegex },
+                  { matricola: matricolaRegex },
+                ],
+              }).select("_id user companyName businessName contractDetails.territorialManager contactInfo.laborConsultantId contactInfo.laborConsultant");
+            }
+
+            if (!company && nameRegex) {
+              const matches = await Company.find({
+                $or: [{ businessName: nameRegex }, { companyName: nameRegex }],
+              })
+                .select("_id user companyName businessName contractDetails.territorialManager contactInfo.laborConsultantId contactInfo.laborConsultant")
+                .limit(2);
+              if (matches.length > 1) {
+                errors.push("Azienda ambigua (stesso nome, matricola diversa). Usa la matricola.");
+              } else {
+                company = matches[0] || null;
+              }
+            }
+
+            if (!company) {
+              errors.push("Azienda non trovata");
+            } else {
+              let responsabileId: string | null = null;
+              const territorialManagerName = company.contractDetails?.territorialManager?.trim() || "";
+              if (territorialManagerName) {
+                const managerRegex = new RegExp(`^\\s*${escapeRegex(territorialManagerName)}\\s*$`, "i");
+                const responsabile = await User.findOne({
+                  isActive: true,
+                  role: "responsabile_territoriale",
+                  $or: [
+                    { organization: managerRegex },
+                    { username: managerRegex },
+                    { firstName: managerRegex },
+                    { lastName: managerRegex },
+                  ],
+                })
+                  .select("_id")
+                  .lean<{ _id: mongoose.Types.ObjectId }>();
+                if (responsabile) responsabileId = responsabile._id.toString();
+              }
+              if (!responsabileId && company.user) {
+                const responsabileByCompanyUser = await User.findOne({
+                  _id: company.user,
+                  isActive: true,
+                  role: "responsabile_territoriale",
+                })
+                  .select("_id")
+                  .lean<{ _id: mongoose.Types.ObjectId }>();
+                if (responsabileByCompanyUser) responsabileId = responsabileByCompanyUser._id.toString();
+              }
+              if (!responsabileId) {
+                errors.push("Responsabile territoriale non associato");
+              }
+
+              let sportelloId = company.contactInfo?.laborConsultantId?.toString();
+              const consultantName = company.contactInfo?.laborConsultant?.trim() || "";
+              let sportelloDoc = null as {
+                _id: mongoose.Types.ObjectId;
+                isActive?: boolean;
+              } | null;
+
+              if (sportelloId) {
+                sportelloDoc = await SportelloLavoro.findById(sportelloId)
+                  .select("_id isActive")
+                  .lean<{ _id: mongoose.Types.ObjectId; isActive?: boolean }>();
+                if (!sportelloDoc || sportelloDoc.isActive === false) {
+                  sportelloDoc = null;
+                  sportelloId = "";
+                }
+              }
+              if (!sportelloDoc && consultantName) {
+                const consultantRegex = new RegExp(`^\\s*${escapeRegex(consultantName)}\\s*$`, "i");
+                sportelloDoc = await SportelloLavoro.findOne({
+                  isActive: true,
+                  $or: [{ businessName: consultantRegex }, { agentName: consultantRegex }],
+                })
+                  .select("_id isActive")
+                  .lean<{ _id: mongoose.Types.ObjectId; isActive?: boolean }>();
+                if (sportelloDoc) {
+                  sportelloId = sportelloDoc._id.toString();
+                }
+              }
+              if (!sportelloId) {
+                errors.push("Sportello lavoro non associato");
+              }
+            }
+          }
+
           if (!baseAmount || baseAmount <= 0) {
             if (nonRec && nonRec > 0) {
-              nonRiconciliate.push({ rowNumber: idx + 2, data, errors });
+              nonRiconciliate.push({ rowNumber, data, errors });
             } else {
               errors.push("Quota FIACOM mancante o non valida");
-              preview.push({ rowNumber: idx + 2, data, errors });
+              preview.push({ rowNumber, data, errors });
             }
           } else {
-            preview.push({ rowNumber: idx + 2, data, errors });
+            preview.push({ rowNumber, data, errors });
           }
-        });
+        }
 
         fs.unlinkSync(file.path);
         return res.json({

@@ -164,6 +164,48 @@ const getEffectiveUserId = (req: Request) => {
   return req.user._id?.toString() || null;
 };
 
+const getSportelloScopedCompanyIds = async (userId: mongoose.Types.ObjectId | string) => {
+  const userDoc = await User.findById(userId)
+    .select("organization firstName lastName username")
+    .lean<{ organization?: string; firstName?: string; lastName?: string; username?: string }>();
+
+  const sportelloDoc = await SportelloLavoro.findOne({ user: userId })
+    .select("_id businessName agentName")
+    .lean<{ _id: mongoose.Types.ObjectId; businessName?: string; agentName?: string }>();
+
+  const names = [
+    sportelloDoc?.businessName,
+    sportelloDoc?.agentName,
+    userDoc?.organization,
+    `${userDoc?.firstName || ""} ${userDoc?.lastName || ""}`.trim(),
+    userDoc?.username,
+  ]
+    .map((v) => String(v || "").trim())
+    .filter(Boolean);
+
+  if (!sportelloDoc?._id && names.length === 0) return [];
+
+  const nameMatchers = names.flatMap((value) => {
+    const regex = new RegExp(`^\\s*${escapeRegex(value)}\\s*$`, "i");
+    return [
+      { "contactInfo.laborConsultant": regex },
+      { "contactInfo.laborConsultant.businessName": regex },
+      { "contactInfo.laborConsultant.agentName": regex },
+    ];
+  });
+
+  const companies = await Company.find({
+    $or: [
+      ...(sportelloDoc?._id ? [{ "contactInfo.laborConsultantId": sportelloDoc._id }] : []),
+      ...nameMatchers,
+    ],
+  })
+    .select("_id")
+    .lean<Array<{ _id: mongoose.Types.ObjectId }>>();
+
+  return companies.map((c: { _id: mongoose.Types.ObjectId }) => c._id);
+};
+
 export const createCompetenzaTransactions: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
@@ -498,7 +540,7 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
                 { inpsCode: matricolaRegex },
                 { matricola: matricolaRegex },
               ],
-            }).select("_id user companyName businessName contactInfo.laborConsultantId contactInfo.laborConsultant");
+            }).select("_id user companyName businessName contractDetails.territorialManager contactInfo.laborConsultantId contactInfo.laborConsultant");
             if (company) {
               console.log("[conto-upload] matched by matricola", {
                 row: i + 1,
@@ -513,7 +555,7 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
             const matches = await Company.find({
               $or: [{ businessName: nameRegex }, { companyName: nameRegex }],
             })
-              .select("_id user companyName businessName contactInfo.laborConsultantId contactInfo.laborConsultant")
+              .select("_id user companyName businessName contractDetails.territorialManager contactInfo.laborConsultantId contactInfo.laborConsultant")
               .limit(2);
 
             if (matches.length > 1) {
@@ -549,6 +591,20 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
               responsabileId = responsabile._id.toString();
             }
           }
+          // Fallback: if contractual manager name is missing/unresolved, use company.user
+          // when that user is an active responsabile territoriale.
+          if (!responsabileId && company.user) {
+            const responsabileByCompanyUser = await User.findOne({
+              _id: company.user,
+              isActive: true,
+              role: "responsabile_territoriale",
+            })
+              .select("_id")
+              .lean<{ _id: mongoose.Types.ObjectId }>();
+            if (responsabileByCompanyUser) {
+              responsabileId = responsabileByCompanyUser._id.toString();
+            }
+          }
           let sportelloId = company.contactInfo?.laborConsultantId?.toString();
           let sportelloDoc: {
             _id: mongoose.Types.ObjectId;
@@ -560,7 +616,10 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
           const consultantName = company.contactInfo?.laborConsultant?.trim() || "";
 
           if (!responsabileId) {
-            errors.push(`Row ${i + 1}: Responsabile territoriale non associato`);
+            errors.push(
+              `Row ${i + 1} (${data.matricolaInps || "-"} | ${data.ragioneSociale || "-"})` +
+                `: Responsabile territoriale non associato`
+            );
             continue;
           }
           if (sportelloId) {
@@ -810,12 +869,15 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
       return res.status(401).json({ error: "User not authenticated" });
     }
 
-    const { account, from, to, type, status, q, page, limit, lite } = req.query as Record<string, string>;
+    const { account, from, to, type, status, q, company, responsabile, sportello, page, limit, lite } =
+      req.query as Record<string, string>;
     const isLite = String(lite || "").toLowerCase() === "1" || String(lite || "").toLowerCase() === "true";
     const userId = getEffectiveUserId(req);
     const isResponsabile = req.user.role === "responsabile_territoriale";
     const isResponsabileScope = isResponsabile && account === "proselitismo";
+    const isSportelloScope = req.user.role === "sportello_lavoro";
     let responsabileCompanyIds: mongoose.Types.ObjectId[] = [];
+    let sportelloCompanyIds: mongoose.Types.ObjectId[] = [];
 
     if (isResponsabileScope) {
       const responsabileDoc = await User.findById(req.user._id)
@@ -846,13 +908,29 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
       responsabileCompanyIds = companies.map((c: { _id: mongoose.Types.ObjectId }) => c._id);
     }
 
+    if (isSportelloScope) {
+      sportelloCompanyIds = await getSportelloScopedCompanyIds(req.user._id);
+    }
+
     const query: any = {};
-    if (userId && !isResponsabileScope) query.user = userId;
+    if (userId && !isResponsabileScope && !isSportelloScope) query.user = userId;
     if (account) query.account = account;
     if (isResponsabileScope) {
       query.company = {
         $in: responsabileCompanyIds.length ? responsabileCompanyIds : [],
       };
+    }
+    if (isSportelloScope) {
+      query.company = {
+        $in: sportelloCompanyIds.length ? sportelloCompanyIds : [],
+      };
+      query.$or = sportelloCompanyIds.length
+        ? [
+            { user: new mongoose.Types.ObjectId(req.user._id) },
+            { company: { $in: sportelloCompanyIds } },
+          ]
+        : [{ user: new mongoose.Types.ObjectId(req.user._id) }];
+      delete query.company;
     }
     if (type) query.type = type;
     if (status) query.status = status;
@@ -862,6 +940,17 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
       if (to) query.date.$lte = new Date(to);
     }
 
+    const extraClauses: any[] = [];
+    if (company?.trim()) {
+      extraClauses.push({ companyName: { $regex: new RegExp(escapeRegex(company.trim()), "i") } });
+    }
+    if (responsabile?.trim()) {
+      extraClauses.push({ responsabileName: { $regex: new RegExp(escapeRegex(responsabile.trim()), "i") } });
+    }
+    if (sportello?.trim()) {
+      extraClauses.push({ sportelloName: { $regex: new RegExp(escapeRegex(sportello.trim()), "i") } });
+    }
+
     const pageNum = Math.max(1, Number(page) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(limit) || 25));
     const skip = (pageNum - 1) * pageSize;
@@ -869,13 +958,31 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
     const hasSearch = Boolean(q && q.trim());
     if (hasSearch) {
       const regex = new RegExp(escapeRegex(q.trim()), "i");
-      query.$or = [
+      const searchOr = [
         { description: { $regex: regex } },
         { importKey: { $regex: regex } },
         { companyName: { $regex: regex } },
         { responsabileName: { $regex: regex } },
         { sportelloName: { $regex: regex } },
       ];
+      if (Array.isArray(query.$or)) {
+        const roleOr = query.$or;
+        delete query.$or;
+        query.$and = [{ $or: roleOr }, { $or: searchOr }];
+      } else {
+        query.$or = searchOr;
+      }
+    }
+    if (extraClauses.length > 0) {
+      if (Array.isArray(query.$and)) {
+        query.$and.push(...extraClauses);
+      } else if (Array.isArray(query.$or)) {
+        const roleOr = query.$or;
+        delete query.$or;
+        query.$and = [{ $or: roleOr }, ...extraClauses];
+      } else {
+        query.$and = [...extraClauses];
+      }
     }
 
     let transactions: any[] = [];
@@ -1059,7 +1166,9 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
     const userId = getEffectiveUserId(req);
     const isResponsabile = req.user.role === "responsabile_territoriale";
     const isResponsabileScope = isResponsabile && account === "proselitismo";
+    const isSportelloScope = req.user.role === "sportello_lavoro";
     const responsabileObjectId = isResponsabile ? new mongoose.Types.ObjectId(req.user._id) : null;
+    let sportelloCompanyIds: mongoose.Types.ObjectId[] = [];
     let responsabileMatch: any = null;
     let responsabileCompanyIds: mongoose.Types.ObjectId[] | null = null;
     let responsabileNames: string[] = [];
@@ -1095,11 +1204,22 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
         .lean<Array<{ _id: mongoose.Types.ObjectId }>>();
       responsabileCompanyIds = companies.map((c: { _id: mongoose.Types.ObjectId }) => c._id);
     }
+    if (isSportelloScope) {
+      sportelloCompanyIds = await getSportelloScopedCompanyIds(req.user._id);
+    }
     const match: any = {};
-    if (userId && !isResponsabileScope) {
+    if (userId && !isResponsabileScope && !isSportelloScope) {
       match.user = new mongoose.Types.ObjectId(userId);
     }
     if (account) match.account = account;
+    if (isSportelloScope) {
+      match.$or = sportelloCompanyIds.length
+        ? [
+            { user: new mongoose.Types.ObjectId(req.user._id) },
+            { company: { $in: sportelloCompanyIds } },
+          ]
+        : [{ user: new mongoose.Types.ObjectId(req.user._id) }];
+    }
     if (type) match.type = type;
     if (status) match.status = status;
     if (q) match.description = { $regex: q, $options: "i" };
@@ -1204,7 +1324,9 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
                 totals: [
                   ...(isResponsabileScope
                     ? [{ $match: { user: responsabileObjectId } }]
-                    : []),
+                    : isSportelloScope
+                      ? [{ $match: { user: new mongoose.Types.ObjectId(req.user._id) } }]
+                      : []),
                   {
                     $group: {
                       _id: null,
@@ -1241,13 +1363,17 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
     const outgoing = useRawForFiacom
       ? Number(totals[0]?.totals?.[0]?.outgoing ?? 0)
       : Number(totals[0]?.outgoing ?? 0);
-    const balance = fiacomTotal != null ? fiacomTotal - outgoing : incoming - outgoing;
     const responsabileTotal = useRawForFiacom
       ? Number(totals[0]?.competenze?.[0]?.responsabileTotal ?? 0)
       : 0;
     const sportelloTotal = useRawForFiacom
       ? Number(totals[0]?.competenze?.[0]?.sportelloTotal ?? 0)
       : 0;
+    const balance = isSportelloScope
+      ? sportelloTotal
+      : fiacomTotal != null
+        ? fiacomTotal - outgoing
+        : incoming - outgoing;
 
     let nonRiconciliateTotal = 0;
     if (isResponsabileScope) {
@@ -1419,10 +1545,12 @@ export const getNonRiconciliate: CustomRequestHandler = async (req, res) => {
       return res.status(401).json({ error: "User not authenticated" });
     }
 
-    const { account, from, to, q, page, limit } = req.query as Record<string, string>;
+    const { account, from, to, q, company, responsabile, sportello, page, limit } = req.query as Record<string, string>;
     const userId = getEffectiveUserId(req);
     const isResponsabile = req.user.role === "responsabile_territoriale";
     const isResponsabileScope = isResponsabile && account === "proselitismo";
+    const isSportelloScope = req.user.role === "sportello_lavoro";
+    let sportelloCompanyIds: mongoose.Types.ObjectId[] = [];
     let responsabileNames: string[] = [];
     if (isResponsabileScope) {
       const responsabileDoc = await User.findById(req.user._id)
@@ -1435,15 +1563,33 @@ export const getNonRiconciliate: CustomRequestHandler = async (req, res) => {
       const username = responsabileDoc?.username?.trim();
       if (username) responsabileNames.push(username);
     }
+    if (isSportelloScope) {
+      sportelloCompanyIds = await getSportelloScopedCompanyIds(req.user._id);
+    }
     const query: any = {};
-    if (userId && !isResponsabileScope) query.user = userId;
+    if (userId && !isResponsabileScope && !isSportelloScope) query.user = userId;
     if (account) query.account = account;
+    if (isSportelloScope) {
+      query.$or = sportelloCompanyIds.length
+        ? [
+            { user: new mongoose.Types.ObjectId(req.user._id) },
+            { company: { $in: sportelloCompanyIds } },
+          ]
+        : [{ user: new mongoose.Types.ObjectId(req.user._id) }];
+    }
     const qTerm = (q || "").trim().toLowerCase();
     if (q && !isResponsabileScope) {
-      query.$or = [
+      const textOr = [
         { description: { $regex: q, $options: "i" } },
         { importKey: { $regex: q, $options: "i" } },
       ];
+      if (Array.isArray(query.$or)) {
+        const roleOr = query.$or;
+        delete query.$or;
+        query.$and = [{ $or: roleOr }, { $or: textOr }];
+      } else {
+        query.$or = textOr;
+      }
     }
     if (from || to) {
       query.date = {};
@@ -1560,8 +1706,20 @@ export const getNonRiconciliate: CustomRequestHandler = async (req, res) => {
     const filteredByRole = isResponsabileScope
       ? enrichedAll.filter((item) => matchesResponsabile(item.company, item.responsabileName))
       : enrichedAll;
+    const companyTerm = (company || "").trim().toLowerCase();
+    const responsabileTerm = (responsabile || "").trim().toLowerCase();
+    const sportelloTerm = (sportello || "").trim().toLowerCase();
+    const filteredByStructuredSearch = filteredByRole.filter((item: any) => {
+      const companyValue = String(item.companyName || "").toLowerCase();
+      const responsabileValue = String(item.responsabileName || "").toLowerCase();
+      const sportelloValue = String(item.sportelloName || "").toLowerCase();
+      if (companyTerm && !companyValue.includes(companyTerm)) return false;
+      if (responsabileTerm && !responsabileValue.includes(responsabileTerm)) return false;
+      if (sportelloTerm && !sportelloValue.includes(sportelloTerm)) return false;
+      return true;
+    });
     const filtered = qTerm
-      ? filteredByRole.filter((item: any) => {
+      ? filteredByStructuredSearch.filter((item: any) => {
           const fields = [
             item.description,
             item.importKey,
@@ -1573,7 +1731,7 @@ export const getNonRiconciliate: CustomRequestHandler = async (req, res) => {
             .map((value: any) => String(value).toLowerCase());
           return fields.some((value: string) => value.includes(qTerm));
         })
-      : filteredByRole;
+      : filteredByStructuredSearch;
     const total = filtered.length;
     const items = filtered.slice(skip, skip + pageSize);
 
@@ -1599,7 +1757,9 @@ export const getContoBreakdown: CustomRequestHandler = async (req, res) => {
     const userId = getEffectiveUserId(req);
     const isResponsabile = req.user.role === "responsabile_territoriale";
     const isResponsabileScope = isResponsabile && account === "proselitismo";
+    const isSportelloScope = req.user.role === "sportello_lavoro";
     const responsabileObjectId = isResponsabile ? new mongoose.Types.ObjectId(req.user._id) : null;
+    let sportelloCompanyIds: mongoose.Types.ObjectId[] = [];
     let responsabileMatch: any = null;
     if (isResponsabileScope) {
       const responsabileDoc = await User.findById(req.user._id)
@@ -1622,11 +1782,22 @@ export const getContoBreakdown: CustomRequestHandler = async (req, res) => {
         ],
       };
     }
+    if (isSportelloScope) {
+      sportelloCompanyIds = await getSportelloScopedCompanyIds(req.user._id);
+    }
     const match: any = {};
-    if (userId && !isResponsabileScope) {
+    if (userId && !isResponsabileScope && !isSportelloScope) {
       match.user = new mongoose.Types.ObjectId(userId);
     }
     if (account) match.account = account;
+    if (isSportelloScope) {
+      match.$or = sportelloCompanyIds.length
+        ? [
+            { user: new mongoose.Types.ObjectId(req.user._id) },
+            { company: { $in: sportelloCompanyIds } },
+          ]
+        : [{ user: new mongoose.Types.ObjectId(req.user._id) }];
+    }
     if (type) match.type = type;
     if (status) match.status = status;
     if (q) match.description = { $regex: q, $options: "i" };

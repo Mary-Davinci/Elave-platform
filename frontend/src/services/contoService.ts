@@ -10,6 +10,9 @@ export interface ContoFilters {
   type?: '' | TransactionType;
   status?: '' | TransactionStatus;
   q?: string;
+  company?: string;
+  responsabile?: string;
+  sportello?: string;
 }
 
 export interface Transaction {
@@ -140,6 +143,9 @@ export const contoService = {
     if (filters.type) params.type = filters.type;
     if (filters.status) params.status = filters.status;
     if (filters.q) params.q = filters.q;
+    if (filters.company) params.company = filters.company;
+    if (filters.responsabile) params.responsabile = filters.responsabile;
+    if (filters.sportello) params.sportello = filters.sportello;
     if (userId) params.userId = userId;
     if (page) params.page = String(page);
     if (limit) params.limit = String(limit);
@@ -168,6 +174,9 @@ export const contoService = {
     if (filters.type) params.type = filters.type;
     if (filters.status) params.status = filters.status;
     if (filters.q) params.q = filters.q;
+    if (filters.company) params.company = filters.company;
+    if (filters.responsabile) params.responsabile = filters.responsabile;
+    if (filters.sportello) params.sportello = filters.sportello;
     if (userId) params.userId = userId;
 
     const res = await api.get('/api/conto/summary', { params, signal });
@@ -203,6 +212,9 @@ export const contoService = {
     if (filters.type) params.type = filters.type;
     if (filters.status) params.status = filters.status;
     if (filters.q) params.q = filters.q;
+    if (filters.company) params.company = filters.company;
+    if (filters.responsabile) params.responsabile = filters.responsabile;
+    if (filters.sportello) params.sportello = filters.sportello;
     if (userId) params.userId = userId;
 
     const res = await api.get('/api/conto/breakdown', { params });
@@ -249,6 +261,9 @@ export const getNonRiconciliate = async (
   if (filters.from) params.from = filters.from;
   if (filters.to) params.to = filters.to;
   if (filters.q) params.q = filters.q;
+  if (filters.company) params.company = filters.company;
+  if (filters.responsabile) params.responsabile = filters.responsabile;
+  if (filters.sportello) params.sportello = filters.sportello;
   if (userId) params.userId = userId;
   if (page) params.page = String(page);
   if (limit) params.limit = String(limit);

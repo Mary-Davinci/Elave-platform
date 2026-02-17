@@ -64,6 +64,9 @@ const Conto: React.FC = () => {
   const [nonRiconciliateTotal, setNonRiconciliateTotal] = useState<number | null>(null);
   const [serverPagingActive, setServerPagingActive] = useState(false);
   const [debouncedQ, setDebouncedQ] = useState((filters.q || '').toString());
+  const [debouncedCompany, setDebouncedCompany] = useState((filters.company || '').toString());
+  const [debouncedResponsabile, setDebouncedResponsabile] = useState((filters.responsabile || '').toString());
+  const [debouncedSportello, setDebouncedSportello] = useState((filters.sportello || '').toString());
   const PAGE_SIZE = 25;
   const breakdownCacheRef = useRef(
     new Map<string, { data: { responsabili: BreakdownRow[]; sportelli: BreakdownRow[] }; ts: number }>()
@@ -99,7 +102,7 @@ const Conto: React.FC = () => {
     const myUserId = user?._id || '';
     const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
-    if (!hasUserInfo && !isAdmin) return [];
+    if (!hasUserInfo && !isAdmin && !isRestrictedView) return [];
 
     const qTerm = (filters.q || '').toString().trim().toLowerCase();
 
@@ -128,11 +131,11 @@ const Conto: React.FC = () => {
         );
       })
       .filter((t) => {
-        if (isAdmin) return true;
+        if (isAdmin || isRestrictedView) return true;
         if (!myUserId) return false;
         return getTxUserId(t) === myUserId;
       });
-  }, [transactions, activeAccount, filters, user?._id, serverPagingActive]);
+  }, [transactions, activeAccount, filters, user?._id, serverPagingActive, isRestrictedView, user?.role]);
 
   const derivedSummary: Summary = useMemo(() => {
     const incoming = filteredTx.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0);
@@ -160,6 +163,15 @@ const Conto: React.FC = () => {
     }, 600);
     return () => clearTimeout(timer);
   }, [filters.q]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedCompany((filters.company || '').toString());
+      setDebouncedResponsabile((filters.responsabile || '').toString());
+      setDebouncedSportello((filters.sportello || '').toString());
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [filters.company, filters.responsabile, filters.sportello]);
 
   const readCached = <T,>(key: string) => {
     try {
@@ -190,7 +202,13 @@ const Conto: React.FC = () => {
       try {
         const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
         const userIdForQuery = isAdmin ? undefined : user?._id;
-        const apiFilters = { ...filters, q: '' };
+        const apiFilters = {
+          ...filters,
+          q: activeAccount === 'proselitismo' ? '' : debouncedQ,
+          company: activeAccount === 'proselitismo' ? debouncedCompany : '',
+          responsabile: activeAccount === 'proselitismo' ? debouncedResponsabile : '',
+          sportello: activeAccount === 'proselitismo' ? debouncedSportello : '',
+        };
         const cacheKey = JSON.stringify({
           account: activeAccount,
           filters: apiFilters,
@@ -227,7 +245,7 @@ const Conto: React.FC = () => {
       cancelled = true;
       controller.abort();
     };
-  }, [activeAccount, filters.from, filters.to, filters.type, filters.status]);
+  }, [activeAccount, filters.from, filters.to, filters.type, filters.status, debouncedQ, debouncedCompany, debouncedResponsabile, debouncedSportello]);
 
   // Fetch transactions (table can load after the cards)
   useEffect(() => {
@@ -239,7 +257,13 @@ const Conto: React.FC = () => {
       try {
         const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
         const userIdForQuery = isAdmin ? undefined : user?._id;
-        const apiFilters = { ...filters, q: debouncedQ };
+        const apiFilters = {
+          ...filters,
+          q: activeAccount === 'proselitismo' ? '' : debouncedQ,
+          company: activeAccount === 'proselitismo' ? debouncedCompany : '',
+          responsabile: activeAccount === 'proselitismo' ? debouncedResponsabile : '',
+          sportello: activeAccount === 'proselitismo' ? debouncedSportello : '',
+        };
         const metaKey = JSON.stringify({
           account: activeAccount,
           filters: apiFilters,
@@ -371,7 +395,7 @@ const Conto: React.FC = () => {
       cancelled = true;
       controller.abort();
     };
-  }, [activeAccount, filters.from, filters.to, filters.type, filters.status, debouncedQ, currentPage]);
+  }, [activeAccount, filters.from, filters.to, filters.type, filters.status, debouncedQ, debouncedCompany, debouncedResponsabile, debouncedSportello, currentPage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -380,7 +404,13 @@ const Conto: React.FC = () => {
       try {
         const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
         const userIdForQuery = isAdmin ? undefined : user?._id;
-        const apiFilters = { ...filters, q: debouncedQ };
+        const apiFilters = {
+          ...filters,
+          q: activeAccount === 'proselitismo' ? '' : debouncedQ,
+          company: activeAccount === 'proselitismo' ? debouncedCompany : '',
+          responsabile: activeAccount === 'proselitismo' ? debouncedResponsabile : '',
+          sportello: activeAccount === 'proselitismo' ? debouncedSportello : '',
+        };
         const cacheKey = JSON.stringify({
           account: activeAccount,
           filters: apiFilters,
@@ -443,7 +473,7 @@ const Conto: React.FC = () => {
       cancelled = true;
       controller.abort();
     };
-  }, [activeAccount, filters.from, filters.to, debouncedQ, user?._id, user?.role, nonRiconciliatePage]);
+  }, [activeAccount, filters.from, filters.to, debouncedQ, debouncedCompany, debouncedResponsabile, debouncedSportello, user?._id, user?.role, nonRiconciliatePage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -530,22 +560,22 @@ const Conto: React.FC = () => {
   useEffect(() => {
     setCurrentPage(1);
     setTransactionsTotal(null);
-  }, [activeAccount, filters.from, filters.to, filters.type, filters.status, debouncedQ]);
+  }, [activeAccount, filters.from, filters.to, filters.type, filters.status, debouncedQ, debouncedCompany, debouncedResponsabile, debouncedSportello]);
 
   useEffect(() => {
     setCurrentPage(1);
     setTransactionsTotal(null);
-  }, [filters.q]);
+  }, [filters.q, filters.company, filters.responsabile, filters.sportello]);
 
   useEffect(() => {
     setNonRiconciliatePage(1);
     setNonRiconciliateTotal(null);
-  }, [activeAccount, filters.from, filters.to, debouncedQ]);
+  }, [activeAccount, filters.from, filters.to, debouncedQ, debouncedCompany, debouncedResponsabile, debouncedSportello]);
 
   useEffect(() => {
     setNonRiconciliatePage(1);
     setNonRiconciliateTotal(null);
-  }, [filters.q]);
+  }, [filters.q, filters.company, filters.responsabile, filters.sportello]);
 
   const totalForPaging =
     transactionsTotal ??
@@ -696,10 +726,16 @@ const Conto: React.FC = () => {
 
       <div className="projects-section conto-summaries" style={{ marginBottom: 20 }}>
         {isSportello ? (
-          <div className="project-card-dash conto-saldo-card">
-            <div className="project-number">{formatCurrency(summary.balance || 0)}</div>
-            <div className="project-title">Saldo Sportello</div>
-          </div>
+          <>
+            <div className="project-card-dash conto-saldo-card">
+              <div className="project-number">{formatCurrency(summary.balance || 0)}</div>
+              <div className="project-title">Saldo Sportello</div>
+            </div>
+            <div className="project-card-dash conto-saldo-card">
+              <div className="project-number">{formatCurrency(summary.nonRiconciliateTotal || 0)}</div>
+              <div className="project-title">Quote non riconciliate</div>
+            </div>
+          </>
         ) : isResponsabile ? (
           <>
             <div className="project-card-dash conto-saldo-card">
@@ -810,33 +846,70 @@ const Conto: React.FC = () => {
               onChange={(e) => onFilterChange({ to: e.target.value })}
             />
           </div>
-          <div className="filter-field">
-            <label className="filter-label">Tipo</label>
-            <select className="filter-select" value={filters.type} onChange={(e) => onFilterChange({ type: e.target.value as TransactionType | '' })}>
-              <option value="">Tutti</option>
-              <option value="entrata">Entrata</option>
-              <option value="uscita">Uscita</option>
-            </select>
-          </div>
-          <div className="filter-field">
-            <label className="filter-label">Stato</label>
-            <select className="filter-select" value={filters.status} onChange={(e) => onFilterChange({ status: e.target.value as TransactionStatus | '' })}>
-              <option value="">Tutti</option>
-              <option value="completata">Completata</option>
-              <option value="in_attesa">In attesa</option>
-              <option value="annullata">Annullata</option>
-            </select>
-          </div>
-          <div className="filter-field">
-            <label className="filter-label">Ricerca</label>
-            <input
-              className="filter-input"
-              type="text"
-              placeholder="Descrizione..."
-              value={filters.q || ''}
-              onChange={(e) => onFilterChange({ q: e.target.value })}
-            />
-          </div>
+          {activeAccount === 'proselitismo' ? (
+            <>
+              <div className="filter-field">
+                <label className="filter-label">Azienda</label>
+                <input
+                  className="filter-input"
+                  type="text"
+                  placeholder="Nome azienda..."
+                  value={filters.company || ''}
+                  onChange={(e) => onFilterChange({ company: e.target.value })}
+                />
+              </div>
+              <div className="filter-field">
+                <label className="filter-label">Responsabile</label>
+                <input
+                  className="filter-input"
+                  type="text"
+                  placeholder="Responsabile territoriale..."
+                  value={filters.responsabile || ''}
+                  onChange={(e) => onFilterChange({ responsabile: e.target.value })}
+                />
+              </div>
+              <div className="filter-field">
+                <label className="filter-label">Sportello Lavoro</label>
+                <input
+                  className="filter-input"
+                  type="text"
+                  placeholder="Sportello lavoro..."
+                  value={filters.sportello || ''}
+                  onChange={(e) => onFilterChange({ sportello: e.target.value })}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="filter-field">
+                <label className="filter-label">Tipo</label>
+                <select className="filter-select" value={filters.type} onChange={(e) => onFilterChange({ type: e.target.value as TransactionType | '' })}>
+                  <option value="">Tutti</option>
+                  <option value="entrata">Entrata</option>
+                  <option value="uscita">Uscita</option>
+                </select>
+              </div>
+              <div className="filter-field">
+                <label className="filter-label">Stato</label>
+                <select className="filter-select" value={filters.status} onChange={(e) => onFilterChange({ status: e.target.value as TransactionStatus | '' })}>
+                  <option value="">Tutti</option>
+                  <option value="completata">Completata</option>
+                  <option value="in_attesa">In attesa</option>
+                  <option value="annullata">Annullata</option>
+                </select>
+              </div>
+              <div className="filter-field">
+                <label className="filter-label">Ricerca</label>
+                <input
+                  className="filter-input"
+                  type="text"
+                  placeholder="Descrizione..."
+                  value={filters.q || ''}
+                  onChange={(e) => onFilterChange({ q: e.target.value })}
+                />
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -1184,7 +1257,7 @@ const Conto: React.FC = () => {
         </div>
       )}
 
-      {!isSportello && activeAccount === 'proselitismo' && (
+      {activeAccount === 'proselitismo' && (
         <div className="utility-section" style={{ marginTop: 20 }}>
           <div className="section-header">Quote non riconciliate</div>
           <div style={{ overflowX: 'auto' }}>

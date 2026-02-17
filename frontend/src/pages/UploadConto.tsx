@@ -62,6 +62,15 @@ const UploadConto: React.FC = () => {
       const formData = new FormData();
       formData.append('file', selectedFile);
       const result = await uploadContoFromExcel(formData);
+      const buildDetails = (payload?: { errors?: string[]; duplicates?: Array<{ rowNumber: number; reason: string }> }) => {
+        if (!payload) return '';
+        const errorLines = (payload.errors || []).slice(0, 10);
+        const dupLines = (payload.duplicates || []).slice(0, 10).map((d) => `Riga ${d.rowNumber}: ${d.reason}`);
+        const parts: string[] = [];
+        if (errorLines.length) parts.push(`Errori:\n- ${errorLines.join('\n- ')}`);
+        if (dupLines.length) parts.push(`Duplicati:\n- ${dupLines.join('\n- ')}`);
+        return parts.length ? `\n\n${parts.join('\n\n')}` : '';
+      };
       if (result?.requiresConfirmation) {
         const dupLines = (result.duplicates || [])
           .slice(0, 15)
@@ -82,11 +91,11 @@ const UploadConto: React.FC = () => {
         }
         formData.append('confirmDuplicates', 'true');
         const confirmed = await uploadContoFromExcel(formData);
-        alert(confirmed?.message || 'Import completato con successo.');
+        alert((confirmed?.message || 'Import completato con successo.') + buildDetails(confirmed));
         navigate('/conto');
         return;
       }
-      alert(result?.message || 'Import completato con successo.');
+      alert((result?.message || 'Import completato con successo.') + buildDetails(result));
       navigate('/conto');
     } catch (err: any) {
       setError(err?.message || 'Si è verificato un errore durante il caricamento');

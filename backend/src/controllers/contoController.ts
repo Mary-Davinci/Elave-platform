@@ -878,28 +878,140 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
       ];
     }
 
-    const txQuery = ContoTransaction.find(query)
-      .sort({ date: -1, createdAt: -1, _id: -1 })
-      .skip(skip)
-      .limit(pageSize);
+    let transactions: any[] = [];
+    let total = 0;
 
-    if (!isLite) {
-      txQuery
-        .populate({
-          path: "company",
-          select: "businessName companyName user contactInfo.laborConsultantId contactInfo.laborConsultant contractDetails.territorialManager",
-          populate: [
-            { path: "user", select: "firstName lastName username profitSharePercentage" },
-            { path: "contactInfo.laborConsultantId", select: "businessName agentName agreedCommission" },
-          ],
-        })
-        .populate({ path: "user", select: "firstName lastName username role" });
+    if (isLite && account === "proselitismo") {
+      const shouldPreferRequesterRow =
+        req.user.role !== "admin" && req.user.role !== "super_admin";
+      const requesterObjectId = new mongoose.Types.ObjectId(req.user._id);
+      const pipeline: any[] = [
+        { $match: query },
+        {
+          $addFields: {
+            dedupeKey: { $ifNull: ["$importKey", { $toString: "$_id" }] },
+            ...(shouldPreferRequesterRow
+              ? {
+                  dedupePriority: {
+                    $cond: [{ $eq: ["$user", requesterObjectId] }, 0, 1],
+                  },
+                }
+              : {}),
+          },
+        },
+        { $sort: { ...(shouldPreferRequesterRow ? { dedupePriority: 1 } : {}), date: -1, createdAt: -1, _id: -1 } },
+        { $group: { _id: "$dedupeKey", doc: { $first: "$$ROOT" } } },
+        { $replaceRoot: { newRoot: "$doc" } },
+        { $sort: { date: -1, createdAt: -1, _id: -1 } },
+        {
+          $facet: {
+            items: [
+              { $skip: skip },
+              { $limit: pageSize },
+              {
+                $lookup: {
+                  from: "companies",
+                  localField: "company",
+                  foreignField: "_id",
+                  as: "companyDoc",
+                },
+              },
+              { $unwind: { path: "$companyDoc", preserveNullAndEmptyArrays: true } },
+              {
+                $lookup: {
+                  from: "users",
+                  localField: "companyDoc.user",
+                  foreignField: "_id",
+                  as: "responsabileDoc",
+                },
+              },
+              { $unwind: { path: "$responsabileDoc", preserveNullAndEmptyArrays: true } },
+              {
+                $lookup: {
+                  from: "sportellolavoros",
+                  localField: "companyDoc.contactInfo.laborConsultantId",
+                  foreignField: "_id",
+                  as: "sportelloDoc",
+                },
+              },
+              { $unwind: { path: "$sportelloDoc", preserveNullAndEmptyArrays: true } },
+              {
+                $addFields: {
+                  companyName: { $ifNull: ["$companyDoc.companyName", "$companyDoc.businessName"] },
+                  responsabileName: {
+                    $ifNull: [
+                      "$companyDoc.contractDetails.territorialManager",
+                      {
+                        $trim: {
+                          input: {
+                            $concat: [
+                              { $ifNull: ["$responsabileDoc.firstName", ""] },
+                              " ",
+                              { $ifNull: ["$responsabileDoc.lastName", ""] },
+                            ],
+                          },
+                        },
+                      },
+                    ],
+                  },
+                  sportelloName: {
+                    $ifNull: [
+                      "$sportelloDoc.businessName",
+                      {
+                        $ifNull: [
+                          "$sportelloDoc.agentName",
+                          {
+                            $ifNull: [
+                              "$companyDoc.contactInfo.laborConsultant.businessName",
+                              {
+                                $ifNull: [
+                                  "$companyDoc.contactInfo.laborConsultant.agentName",
+                                  "$companyDoc.contactInfo.laborConsultant",
+                                ],
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                },
+              },
+            ],
+            total: [{ $count: "count" }],
+          },
+        },
+      ];
+
+      const result = await ContoTransaction.aggregate(pipeline);
+      transactions = result?.[0]?.items || [];
+      total = Number(result?.[0]?.total?.[0]?.count || 0);
+    } else {
+      const txQuery = ContoTransaction.find(query)
+        .sort({ date: -1, createdAt: -1, _id: -1 })
+        .skip(skip)
+        .limit(pageSize);
+
+      if (!isLite) {
+        txQuery
+          .populate({
+            path: "company",
+            select: "businessName companyName user contactInfo.laborConsultantId contactInfo.laborConsultant contractDetails.territorialManager",
+            populate: [
+              { path: "user", select: "firstName lastName username profitSharePercentage" },
+              { path: "contactInfo.laborConsultantId", select: "businessName agentName agreedCommission" },
+            ],
+          })
+          .populate({ path: "user", select: "firstName lastName username role" });
+      }
+
+      const result = await Promise.all([
+        txQuery.lean(),
+        ContoTransaction.countDocuments(query),
+      ]);
+      transactions = result[0] as any[];
+      total = Number(result[1] || 0);
     }
-
-    const [transactions, total] = await Promise.all([
-      txQuery.lean(),
-      ContoTransaction.countDocuments(query),
-    ]);
 
     const enriched = transactions.map((tx: any) => {
       const company = tx.company;

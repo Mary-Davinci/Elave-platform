@@ -9,8 +9,10 @@ import xlsx from 'xlsx';
 import { IUser } from "../models/User";
 import { NotificationService } from "../models/notificationService";
 import User from "../models/User";
+import Company from "../models/Company";
 
 const isPrivileged = (role: string) => role === 'admin' || role === 'super_admin';
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 interface MulterFiles {
   [fieldname: string]: Express.Multer.File[];
@@ -331,7 +333,8 @@ export const updateSportelloLavoro: CustomRequestHandler = async (req, res) => {
         province,
         agreedCommission,
         email,
-        pec
+        pec,
+        syncRelated
       } = req.body as any;
 
       const sportelloLavoro = await SportelloLavoro.findById(id);
@@ -355,6 +358,8 @@ export const updateSportelloLavoro: CustomRequestHandler = async (req, res) => {
       }
 
       try {
+        const previousBusinessName = sportelloLavoro.businessName;
+        const previousAgentName = sportelloLavoro.agentName;
         const files = req.files as MulterFiles | undefined;
         const signedContractFile = files?.signedContractFile?.[0];
         const legalDocumentFile = files?.legalDocumentFile?.[0];
@@ -398,6 +403,37 @@ export const updateSportelloLavoro: CustomRequestHandler = async (req, res) => {
         }
 
         await sportelloLavoro.save();
+
+        // Keep companies aligned with edited sportello identity.
+        const shouldSyncRelated =
+          String(syncRelated ?? "true").toLowerCase() !== "false" &&
+          String(syncRelated ?? "true").toLowerCase() !== "0";
+        if (shouldSyncRelated) {
+          const newDisplayName =
+            (sportelloLavoro.businessName || "").trim() ||
+            (sportelloLavoro.agentName || "").trim();
+          const previousNames = [previousBusinessName, previousAgentName]
+            .map((v) => String(v || "").trim())
+            .filter(Boolean);
+          const previousNameMatchers = previousNames.map((name) => ({
+            "contactInfo.laborConsultant": new RegExp(`^\\s*${escapeRegex(name)}\\s*$`, "i"),
+          }));
+          await Company.updateMany(
+            {
+              $or: [
+                { "contactInfo.laborConsultantId": sportelloLavoro._id },
+                ...previousNameMatchers,
+              ],
+            },
+            {
+              $set: {
+                "contactInfo.laborConsultantId": sportelloLavoro._id,
+                ...(newDisplayName ? { "contactInfo.laborConsultant": newDisplayName } : {}),
+              },
+            }
+          );
+        }
+
         return res.json(sportelloLavoro);
       } catch (updateError: any) {
         console.error("Update sportello lavoro error:", updateError);

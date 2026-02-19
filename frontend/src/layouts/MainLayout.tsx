@@ -216,10 +216,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     <span>Elenco</span>
                   </div>
                   {isAdmin && (
-                    <div className="dropdown-item" onClick={() => handleNavigation('/conto/upload')}>
+                    <div className="dropdown-item" onClick={() => handleNavigation('/conto/upload?account=proselitismo')}>
                       <i className="dropdown-icon">📤</i>
-                      <span>Upload XLSX</span>
+                      <span>Upload Proselitismo</span>
                     </div>
+                
                   )}
                 </div>
               )}

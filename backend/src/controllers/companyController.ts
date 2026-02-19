@@ -15,6 +15,15 @@ const isPrivileged = (role: string) => role === 'admin' || role === 'super_admin
 const COMPANY_ANAGRAFICA_COUNTER_ID = "companyNumeroAnagrafica";
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const buildExactRegex = (value: string) => new RegExp(`^\\s*${escapeRegex(value)}\\s*$`, "i");
+const normalizeEntityName = (value: string) =>
+  String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\b(srls?|s p a|spa|s a s|sas|snc|s n c|s a p a|sapa)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
 const resolveResponsabileByTerritorialManager = async (territorialManager?: string) => {
   const raw = (territorialManager || "").trim();
@@ -52,6 +61,76 @@ const resolveResponsabileByTerritorialManager = async (territorialManager?: stri
       })),
     });
   }
+  const normalizedRaw = normalizeEntityName(raw);
+  if (!normalizedRaw) return null;
+  const allActive = await User.find({
+    role: "responsabile_territoriale",
+    isActive: { $ne: false },
+  }).select("_id firstName lastName username organization");
+  const fuzzy = allActive.filter((c) => {
+    const organization = normalizeEntityName(c.organization || "");
+    const username = normalizeEntityName(c.username || "");
+    const fullName = normalizeEntityName(`${c.firstName || ""} ${c.lastName || ""}`);
+    return organization === normalizedRaw || username === normalizedRaw || fullName === normalizedRaw;
+  });
+  if (fuzzy.length === 1) return fuzzy[0];
+  if (fuzzy.length > 1) {
+    console.warn("[company] responsabile fuzzy ambiguo", {
+      territorialManager: raw,
+      normalized: normalizedRaw,
+      candidates: fuzzy.map((c) => ({
+        id: c._id?.toString(),
+        organization: c.organization,
+        username: c.username,
+        firstName: c.firstName,
+        lastName: c.lastName,
+      })),
+    });
+  }
+  return null;
+};
+
+const resolveSportelloByName = async (sportelloName?: string) => {
+  const raw = (sportelloName || "").trim();
+  if (!raw) return null;
+  const exact = buildExactRegex(raw);
+  const candidates = await SportelloLavoro.find({
+    isActive: { $ne: false },
+    $or: [{ businessName: exact }, { agentName: exact }],
+  }).select("_id businessName agentName");
+  if (candidates.length === 1) return candidates[0];
+  if (candidates.length > 1) {
+    console.warn("[company] sportello ambiguo", {
+      sportelloName: raw,
+      candidates: candidates.map((c) => ({
+        id: c._id?.toString(),
+        businessName: c.businessName,
+        agentName: c.agentName,
+      })),
+    });
+  }
+  const normalizedRaw = normalizeEntityName(raw);
+  if (!normalizedRaw) return null;
+  const allSportelli = await SportelloLavoro.find({
+    isActive: { $ne: false },
+  }).select("_id businessName agentName");
+  const fuzzy = allSportelli.filter((s) => {
+    const business = normalizeEntityName(s.businessName || "");
+    const agent = normalizeEntityName(s.agentName || "");
+    return business === normalizedRaw || agent === normalizedRaw;
+  });
+  if (fuzzy.length === 1) return fuzzy[0];
+  if (fuzzy.length > 1) {
+    console.warn("[company] sportello fuzzy ambiguo", {
+      sportelloName: raw,
+      normalized: normalizedRaw,
+      candidates: fuzzy.map((s) => ({
+        id: s._id?.toString(),
+        businessName: s.businessName,
+        agentName: s.agentName,
+      })),
+    });
+  }
   return null;
 };
 
@@ -60,6 +139,53 @@ const normalizeNumeroAnagrafica = (value: unknown): string | undefined => {
   const normalized = String(value).trim();
   return normalized.length ? normalized : undefined;
 };
+
+const normalizeText = (value: unknown): string => String(value ?? "").trim();
+
+const normalizeObjectId = (value: unknown): string => {
+  if (!value) return "";
+  return String((value as any)?._id || value).trim();
+};
+
+const buildComparableCompanyPayload = (payload: any) => ({
+  businessName: normalizeText(payload?.businessName),
+  companyName: normalizeText(payload?.companyName),
+  vatNumber: normalizeText(payload?.vatNumber),
+  fiscalCode: normalizeText(payload?.fiscalCode),
+  matricola: normalizeText(payload?.matricola),
+  inpsCode: normalizeText(payload?.inpsCode),
+  numeroAnagrafica: normalizeText(payload?.numeroAnagrafica),
+  address: {
+    street: normalizeText(payload?.address?.street),
+    city: normalizeText(payload?.address?.city),
+    postalCode: normalizeText(payload?.address?.postalCode),
+    province: normalizeText(payload?.address?.province),
+    country: normalizeText(payload?.address?.country),
+  },
+  contactInfo: {
+    phoneNumber: normalizeText(payload?.contactInfo?.phoneNumber),
+    mobile: normalizeText(payload?.contactInfo?.mobile),
+    email: normalizeText(payload?.contactInfo?.email),
+    pec: normalizeText(payload?.contactInfo?.pec),
+    referent: normalizeText(payload?.contactInfo?.referent),
+    laborConsultant: normalizeText(payload?.contactInfo?.laborConsultant),
+    laborConsultantId: normalizeObjectId(payload?.contactInfo?.laborConsultantId),
+  },
+  contractDetails: {
+    contractType: normalizeText(payload?.contractDetails?.contractType),
+    ccnlType: normalizeText(payload?.contractDetails?.ccnlType),
+    bilateralEntity: normalizeText(payload?.contractDetails?.bilateralEntity),
+    hasFondoSani: Boolean(payload?.contractDetails?.hasFondoSani),
+    useEbapPayment: Boolean(payload?.contractDetails?.useEbapPayment),
+    territorialManager: normalizeText(payload?.contractDetails?.territorialManager),
+  },
+  industry: normalizeText(payload?.industry),
+  employees: Number(payload?.employees || 0),
+  signaler: normalizeText(payload?.signaler),
+  actuator: normalizeText(payload?.actuator),
+  isActive: Boolean(payload?.isActive),
+  user: normalizeObjectId(payload?.user),
+});
 
 const ensureAnagraficaCounterAtLeast = async (value: string) => {
   const numericValue = Number(value);
@@ -600,6 +726,8 @@ export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) =
       }
 
       try {
+        const upsertExistingValue = String(req.query?.upsertExisting ?? "1").toLowerCase();
+        const upsertExisting = upsertExistingValue !== "0" && upsertExistingValue !== "false";
         console.log("File uploaded successfully:", req.file.path);
         
         const workbook = xlsx.readFile(req.file.path);
@@ -650,6 +778,9 @@ export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) =
 
         
         const companies: any[] = [];
+        let createdCount = 0;
+        let updatedCount = 0;
+        let skippedCount = 0;
         const errors: string[] = [];
         const previewRows: any[] = [];
         const isPreview = String(req.query?.preview || '').toLowerCase() === '1' ||
@@ -695,6 +826,17 @@ export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) =
             console.log(`Processing row ${index + 1}:`, JSON.stringify(row));
             
 
+            const activeRaw = pick(row, ['Attivo', 'Active']);
+            const activeNormalized = String(activeRaw ?? '').trim().toLowerCase();
+            let parsedIsActive: boolean | undefined;
+            if (activeNormalized !== '') {
+              if (['si', 'yes', 'true', '1', 'active', 'attivo'].includes(activeNormalized)) {
+                parsedIsActive = true;
+              } else if (['no', 'false', '0', 'inactive', 'inattivo'].includes(activeNormalized)) {
+                parsedIsActive = false;
+              }
+            }
+
             const companyData: any = {
               businessName: pick(row, ['Ragione Sociale', 'Ragione sociale', 'Azienda']) || '',
               companyName: pick(row, ['Azienda', 'Ragione Sociale', 'Ragione sociale']) || '',
@@ -716,7 +858,7 @@ export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) =
                 email: pick(row, ['Email', 'E-mail', 'Mail']) || '',
                 pec: pick(row, ['PEC', 'Pec']) || '',
                 referent: pick(row, ['Referente', 'Referent']) || '',
-                laborConsultant: pick(row, ['Responsabile Sportello', 'Sportello Lavoro', 'Consulente del Lavoro', 'Consulente del lavoro']) || ''
+                laborConsultant: ''
               },
               contractDetails: {
                 contractType: pick(row, ['Tipologia contratto', 'Tipologia Contratto']) || '',
@@ -730,19 +872,48 @@ export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) =
               employees: parseInt(String(pick(row, ['Dipendenti', 'Dipendenti/Numero', 'Employees']) || '0')) || 0,
               signaler: pick(row, ['Segnalatore', 'Procacciatore']) || '',
               actuator: pick(row, ['Attuatore', 'Actuator']) || '',
-              isActive: row['Attivo'] === 'si' || row['Attivo'] === 'yes' || row['Attivo'] === true || 
-                        row['Active'] === 'si' || row['Active'] === 'yes' || row['Active'] === true || true,
+              isActive: parsedIsActive,
               user: req.user?._id
             };
+
+            const sportelloCandidates = [
+              pick(row, ['Responsabile Sportello', 'Sportello', 'Sportello di riferimento', 'Agente di riferimento']),
+              pick(row, ['Sportello Lavoro', 'Consulente del Lavoro', 'Consulente del lavoro']),
+            ]
+              .map((value) => String(value || '').trim())
+              .filter((value, idx, arr) => value && arr.indexOf(value) === idx);
+            if (sportelloCandidates.length > 0) {
+              companyData.contactInfo.laborConsultant = sportelloCandidates[0];
+            }
+
+            const normalizedTerritorialManager = String(companyData.contractDetails?.territorialManager || '')
+              .trim()
+              .toLowerCase();
+            const normalizedLaborConsultant = String(companyData.contactInfo?.laborConsultant || '')
+              .trim()
+              .toLowerCase();
+            if (
+              normalizedLaborConsultant &&
+              normalizedTerritorialManager &&
+              normalizedLaborConsultant === normalizedTerritorialManager
+            ) {
+              const explicitSportello =
+                pick(row, ['Responsabile Sportello', 'Sportello', 'Sportello di riferimento', 'Agente di riferimento']) || '';
+              const normalizedExplicitSportello = String(explicitSportello).trim().toLowerCase();
+              if (normalizedExplicitSportello && normalizedExplicitSportello !== normalizedTerritorialManager) {
+                companyData.contactInfo.laborConsultant = explicitSportello;
+              }
+            }
 
             if (!companyData.matricola && companyData.inpsCode) {
               companyData.matricola = companyData.inpsCode;
             }
 
-            const rowErrors: string[] = [];
+            let rowErrors: string[] = [];
             if (!companyData.businessName) rowErrors.push("Ragione Sociale is required");
 
             const normalizedNumeroAnagrafica = normalizeNumeroAnagrafica(companyData.numeroAnagrafica);
+            const hasNumeroAnagraficaFromFile = !!normalizedNumeroAnagrafica;
             if (!normalizedNumeroAnagrafica) {
               if (isPreview) {
                 previewCounter += 1;
@@ -781,6 +952,37 @@ export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) =
               }
             }
 
+            if (sportelloCandidates.length > 0) {
+              let resolvedSportello: any = null;
+              let rawSportelloName = '';
+              for (const candidate of sportelloCandidates) {
+                const resolved = await resolveSportelloByName(candidate);
+                if (resolved) {
+                  resolvedSportello = resolved;
+                  rawSportelloName = candidate;
+                  break;
+                }
+              }
+              if (!resolvedSportello) {
+                rowErrors.push(
+                  `Sportello lavoro non trovato per "${sportelloCandidates.join(' / ')}"`
+                );
+              } else {
+                companyData.contactInfo.laborConsultantId = resolvedSportello._id;
+                const normalizedRaw = normalizeEntityName(rawSportelloName);
+                const normalizedAgent = normalizeEntityName(resolvedSportello.agentName || '');
+                const normalizedBusiness = normalizeEntityName(resolvedSportello.businessName || '');
+                if (normalizedRaw && normalizedRaw === normalizedAgent) {
+                  companyData.contactInfo.laborConsultant = resolvedSportello.agentName;
+                } else if (normalizedRaw && normalizedRaw === normalizedBusiness) {
+                  companyData.contactInfo.laborConsultant = resolvedSportello.businessName;
+                } else {
+                  companyData.contactInfo.laborConsultant =
+                    resolvedSportello.agentName || resolvedSportello.businessName || rawSportelloName;
+                }
+              }
+            }
+
             if (normalizedVat) {
               if (seenVat.has(normalizedVat)) rowErrors.push("Duplicate Partita IVA in file");
               seenVat.add(normalizedVat);
@@ -790,21 +992,110 @@ export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) =
               seenFiscal.add(normalizedFiscal);
             }
 
+            let existingCompany: any = null;
             if (normalizedVat || normalizedFiscal) {
-              const existing = await Company.findOne({
+              existingCompany = await Company.findOne({
                 $or: [
                   normalizedVat ? { vatNumber: normalizedVat } : undefined,
                   normalizedFiscal ? { fiscalCode: normalizedFiscal } : undefined
                 ].filter(Boolean) as any[]
               });
-              if (existing) rowErrors.push("Company already exists (Partita IVA or Codice Fiscale)");
+              if (existingCompany && !upsertExisting) {
+                rowErrors.push("Company already exists (Partita IVA or Codice Fiscale)");
+              }
+              // In upsert mode, if file does not provide a valid sportello,
+              // preserve existing assignment instead of overwriting with wrong values.
+              if (existingCompany && upsertExisting) {
+                if (!hasNumeroAnagraficaFromFile && existingCompany.numeroAnagrafica) {
+                  companyData.numeroAnagrafica = existingCompany.numeroAnagrafica;
+                }
+                if (!companyData.user && existingCompany.user) {
+                  companyData.user = existingCompany.user;
+                }
+                if (typeof companyData.isActive !== 'boolean') {
+                  companyData.isActive = existingCompany.isActive;
+                }
+                const incomingSportelloName = String(companyData.contactInfo?.laborConsultant || '').trim();
+                const incomingResponsabileName = String(companyData.contractDetails?.territorialManager || '').trim();
+                const existingSportelloName = String(existingCompany?.contactInfo?.laborConsultant || '').trim();
+                // Prevent accidental overwrite when file puts responsabile name in sportello column.
+                if (
+                  incomingSportelloName &&
+                  incomingResponsabileName &&
+                  incomingSportelloName.toLowerCase() === incomingResponsabileName.toLowerCase() &&
+                  existingSportelloName &&
+                  existingSportelloName.toLowerCase() !== incomingSportelloName.toLowerCase()
+                ) {
+                  companyData.contactInfo = {
+                    ...(companyData.contactInfo || {}),
+                    laborConsultantId: existingCompany?.contactInfo?.laborConsultantId,
+                    laborConsultant: existingSportelloName,
+                  };
+                }
+                const hasIncomingSportelloId = !!companyData.contactInfo?.laborConsultantId;
+                const hasIncomingSportelloName = !!String(companyData.contactInfo?.laborConsultant || '').trim();
+                if (!hasIncomingSportelloId && !hasIncomingSportelloName) {
+                  companyData.contactInfo = {
+                    ...(companyData.contactInfo || {}),
+                    laborConsultantId: existingCompany?.contactInfo?.laborConsultantId,
+                    laborConsultant: existingCompany?.contactInfo?.laborConsultant || '',
+                  };
+                }
+                rowErrors = rowErrors.filter((err) => {
+                  if (err.startsWith('Responsabile territoriale non trovato') && !!companyData.user) {
+                    return false;
+                  }
+                  if (
+                    err.startsWith('Sportello lavoro non trovato') &&
+                    (
+                      !!companyData.contactInfo?.laborConsultantId ||
+                      !!String(companyData.contactInfo?.laborConsultant || '').trim()
+                    )
+                  ) {
+                    return false;
+                  }
+                  return true;
+                });
+              }
             }
 
             if (isPreview) {
+              let previewAction: "create" | "update" | "unchanged" | "error" = "create";
+              if (rowErrors.length > 0) {
+                previewAction = "error";
+              } else if (existingCompany) {
+                const updatePayload = {
+                  businessName: companyData.businessName,
+                  companyName: companyData.companyName,
+                  vatNumber: companyData.vatNumber,
+                  fiscalCode: companyData.fiscalCode,
+                  matricola: companyData.matricola,
+                  inpsCode: companyData.inpsCode,
+                  address: companyData.address,
+                  contactInfo: companyData.contactInfo,
+                  contractDetails: companyData.contractDetails,
+                  industry: companyData.industry,
+                  employees: companyData.employees,
+                  signaler: companyData.signaler,
+                  actuator: companyData.actuator,
+                  isActive: companyData.isActive,
+                  ...(companyData.user ? { user: companyData.user } : {}),
+                };
+                const incomingComparable = buildComparableCompanyPayload(updatePayload);
+                const existingComparable = buildComparableCompanyPayload({
+                  ...existingCompany.toObject(),
+                  user: companyData.user || existingCompany.user,
+                });
+                previewAction =
+                  JSON.stringify(incomingComparable) === JSON.stringify(existingComparable)
+                    ? "unchanged"
+                    : "update";
+              }
               previewRows.push({
                 rowNumber: index + 2,
                 data: companyData,
-                errors: rowErrors
+                errors: rowErrors,
+                action: previewAction,
               });
               if (rowErrors.length) {
                 errors.push(`Row ${index + 2}: ${rowErrors.join(', ')}`);
@@ -817,12 +1108,54 @@ export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) =
               continue;
             }
 
-            console.log(`Saving company: ${companyData.businessName}`);
-
-            const company = new Company(companyData);
-            await company.save();
-            companies.push(company);
-            console.log(`Company saved successfully: ${company._id}`);
+            if (existingCompany && upsertExisting) {
+              const updatePayload = {
+                businessName: companyData.businessName,
+                companyName: companyData.companyName,
+                vatNumber: companyData.vatNumber,
+                fiscalCode: companyData.fiscalCode,
+                matricola: companyData.matricola,
+                inpsCode: companyData.inpsCode,
+                address: companyData.address,
+                contactInfo: companyData.contactInfo,
+                contractDetails: companyData.contractDetails,
+                industry: companyData.industry,
+                employees: companyData.employees,
+                signaler: companyData.signaler,
+                actuator: companyData.actuator,
+                ...(typeof companyData.isActive === 'boolean' ? { isActive: companyData.isActive } : {}),
+                ...(companyData.user ? { user: companyData.user } : {}),
+              };
+              const incomingComparable = buildComparableCompanyPayload(updatePayload);
+              const existingComparable = buildComparableCompanyPayload({
+                ...existingCompany.toObject(),
+                user: companyData.user || existingCompany.user,
+              });
+              if (JSON.stringify(incomingComparable) === JSON.stringify(existingComparable)) {
+                skippedCount += 1;
+                continue;
+              }
+              const updated = await Company.findByIdAndUpdate(
+                existingCompany._id,
+                { $set: updatePayload },
+                { new: true, runValidators: true }
+              );
+              if (updated) {
+                companies.push(updated);
+                updatedCount += 1;
+                console.log(`Company updated successfully: ${updated._id}`);
+              }
+            } else {
+              console.log(`Saving company: ${companyData.businessName}`);
+              const company = new Company(companyData);
+              if (typeof companyData.isActive !== 'boolean') {
+                company.isActive = true;
+              }
+              await company.save();
+              companies.push(company);
+              createdCount += 1;
+              console.log(`Company saved successfully: ${company._id}`);
+            }
           } catch (rowError: any) {
             console.error(`Error processing row ${index + 2}:`, rowError);
             errors.push(`Row ${index + 2}: ${rowError.message}`);
@@ -832,17 +1165,17 @@ export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) =
         fs.unlinkSync(req.file.path);
         console.log("Uploaded file cleaned up");
 
-        if (!isPreview && companies.length > 0) {
+        if (!isPreview && createdCount > 0) {
           const DashboardStats = require("../models/Dashboard").default;
           await DashboardStats.findOneAndUpdate(
             { user: req.user?._id },
-            { $inc: { companies: companies.length } },
+            { $inc: { companies: createdCount } },
             { new: true, upsert: true }
           );
           console.log("Dashboard stats updated");
         }
 
-        console.log(`Import complete: ${companies.length} companies created, ${errors.length} errors`);
+        console.log(`Import complete: created=${createdCount}, updated=${updatedCount}, skipped=${skippedCount}, errors=${errors.length}`);
         if (isPreview) {
           return res.status(200).json({
             message: `${previewRows.length} rows parsed${errors.length > 0 ? ` with ${errors.length} issues` : ''}`,
@@ -852,8 +1185,11 @@ export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) =
         }
 
         return res.status(201).json({
-          message: `${companies.length} companies imported successfully${errors.length > 0 ? ` with ${errors.length} errors` : ''}`,
+          message: `${createdCount} create, ${updatedCount} update, ${skippedCount} unchanged${errors.length > 0 ? `, ${errors.length} errori` : ''}`,
           companies,
+          createdCount,
+          updatedCount,
+          skippedCount,
           errors: errors.length > 0 ? errors : undefined
         });
       } catch (processError: any) {

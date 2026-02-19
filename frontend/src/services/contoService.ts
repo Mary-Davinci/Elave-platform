@@ -73,6 +73,7 @@ export interface ContoUploadPreviewResponse {
   preview: ContoUploadPreviewRow[];
   nonRiconciliate?: ContoUploadPreviewRow[];
   errors?: string[];
+  account?: AccountType;
   fileHash?: string;
   fileAlreadyUploaded?: boolean;
   fileAlreadyUploadedAt?: string;
@@ -127,6 +128,11 @@ export interface ContoBreakdownResponse {
   sportelli: BreakdownRow[];
 }
 
+const scopedContoPath = (
+  account: AccountType,
+  section: 'transactions' | 'summary' | 'breakdown' | 'non-riconciliate' | 'preview' | 'upload' | 'imports'
+) => `/api/conto/${account}/${section}`;
+
 export const contoService = {
   async getTransactions(
     account: AccountType,
@@ -151,7 +157,14 @@ export const contoService = {
     if (limit) params.limit = String(limit);
     if (lite) params.lite = "1";
 
-    const res = await api.get('/api/conto/transactions', { params, signal });
+    let res: any;
+    try {
+      res = await api.get(scopedContoPath(account, 'transactions'), { params, signal });
+    } catch (error: any) {
+      if (error?.response?.status !== 404) throw error;
+      // Backward compatibility for older backend deployments.
+      res = await api.get('/api/conto/transactions', { params, signal });
+    }
     // Be forgiving with response shape
     if (Array.isArray(res.data)) {
       return { transactions: res.data as Transaction[] };
@@ -179,7 +192,13 @@ export const contoService = {
     if (filters.sportello) params.sportello = filters.sportello;
     if (userId) params.userId = userId;
 
-    const res = await api.get('/api/conto/summary', { params, signal });
+    let res: any;
+    try {
+      res = await api.get(scopedContoPath(account, 'summary'), { params, signal });
+    } catch (error: any) {
+      if (error?.response?.status !== 404) throw error;
+      res = await api.get('/api/conto/summary', { params, signal });
+    }
     const data = res.data;
     if (!data) return null;
     // Normalize
@@ -217,7 +236,13 @@ export const contoService = {
     if (filters.sportello) params.sportello = filters.sportello;
     if (userId) params.userId = userId;
 
-    const res = await api.get('/api/conto/breakdown', { params });
+    let res: any;
+    try {
+      res = await api.get(scopedContoPath(account, 'breakdown'), { params });
+    } catch (error: any) {
+      if (error?.response?.status !== 404) throw error;
+      res = await api.get('/api/conto/breakdown', { params });
+    }
     const data = res.data || {};
     return {
       responsabili: Array.isArray(data.responsabili) ? data.responsabili : [],
@@ -226,24 +251,65 @@ export const contoService = {
   },
 };
 
-export const previewContoFromExcel = async (formData: FormData): Promise<ContoUploadPreviewResponse> => {
-  const res = await api.post('/api/conto/preview', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 120000,
-  });
+const ensureAccountInFormData = (formData: FormData, account: AccountType): FormData => {
+  if (!formData.has('account')) {
+    formData.append('account', account);
+  }
+  return formData;
+};
+
+export const previewContoFromExcel = async (
+  formData: FormData,
+  account: AccountType = 'proselitismo'
+): Promise<ContoUploadPreviewResponse> => {
+  const payload = ensureAccountInFormData(formData, account);
+  let res: any;
+  try {
+    res = await api.post(scopedContoPath(account, 'preview'), payload, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
+    });
+  } catch (error: any) {
+    if (error?.response?.status !== 404) throw error;
+    res = await api.post('/api/conto/preview', payload, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
+    });
+  }
   return res.data as ContoUploadPreviewResponse;
 };
 
-export const uploadContoFromExcel = async (formData: FormData): Promise<ContoUploadResponse> => {
-  const res = await api.post('/api/conto/upload', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 120000,
-  });
+export const uploadContoFromExcel = async (
+  formData: FormData,
+  account: AccountType = 'proselitismo'
+): Promise<ContoUploadResponse> => {
+  const payload = ensureAccountInFormData(formData, account);
+  let res: any;
+  try {
+    res = await api.post(scopedContoPath(account, 'upload'), payload, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
+    });
+  } catch (error: any) {
+    if (error?.response?.status !== 404) throw error;
+    res = await api.post('/api/conto/upload', payload, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
+    });
+  }
   return res.data as ContoUploadResponse;
 };
 
-export const getContoImports = async (): Promise<ContoImportItem[]> => {
-  const res = await api.get('/api/conto/imports');
+export const getContoImports = async (
+  account: AccountType = 'proselitismo'
+): Promise<ContoImportItem[]> => {
+  let res: any;
+  try {
+    res = await api.get(scopedContoPath(account, 'imports'));
+  } catch (error: any) {
+    if (error?.response?.status !== 404) throw error;
+    res = await api.get('/api/conto/imports', { params: { account } });
+  }
   if (Array.isArray(res.data)) return res.data as ContoImportItem[];
   if (Array.isArray(res.data?.imports)) return res.data.imports as ContoImportItem[];
   return [];
@@ -267,7 +333,13 @@ export const getNonRiconciliate = async (
   if (userId) params.userId = userId;
   if (page) params.page = String(page);
   if (limit) params.limit = String(limit);
-  const res = await api.get('/api/conto/non-riconciliate', { params, signal });
+  let res: any;
+  try {
+    res = await api.get(scopedContoPath(account, 'non-riconciliate'), { params, signal });
+  } catch (error: any) {
+    if (error?.response?.status !== 404) throw error;
+    res = await api.get('/api/conto/non-riconciliate', { params, signal });
+  }
   if (Array.isArray(res.data)) return { items: res.data as NonRiconciliataItem[] };
   if (Array.isArray(res.data?.items)) {
     return {
@@ -279,4 +351,3 @@ export const getNonRiconciliate = async (
   }
   return { items: [] };
 };
-

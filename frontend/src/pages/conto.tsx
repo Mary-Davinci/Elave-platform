@@ -47,6 +47,7 @@ const Conto: React.FC = () => {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [summaryLoading, setSummaryLoading] = useState<boolean>(false);
   const [transactionsLoading, setTransactionsLoading] = useState<boolean>(false);
+  const [summaryReady, setSummaryReady] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [showResponsabiliModal, setShowResponsabiliModal] = useState(false);
   const responsabiliAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -67,7 +68,7 @@ const Conto: React.FC = () => {
   const [debouncedCompany, setDebouncedCompany] = useState((filters.company || '').toString());
   const [debouncedResponsabile, setDebouncedResponsabile] = useState((filters.responsabile || '').toString());
   const [debouncedSportello, setDebouncedSportello] = useState((filters.sportello || '').toString());
-  const PAGE_SIZE = 25;
+  const PAGE_SIZE = 5;
   const breakdownCacheRef = useRef(
     new Map<string, { data: { responsabili: BreakdownRow[]; sportelli: BreakdownRow[] }; ts: number }>()
   );
@@ -198,6 +199,7 @@ const Conto: React.FC = () => {
     let cancelled = false;
     const controller = new AbortController();
     const run = async () => {
+      if (!cancelled) setSummaryReady(false);
       setSummaryLoading(true);
       try {
         const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
@@ -237,7 +239,10 @@ const Conto: React.FC = () => {
         if (e?.name === 'CanceledError' || e?.code === 'ERR_CANCELED') return;
         if (!cancelled) setSummaryFromApi(null);
       } finally {
-        if (!cancelled) setSummaryLoading(false);
+        if (!cancelled) {
+          setSummaryLoading(false);
+          setSummaryReady(true);
+        }
       }
     };
     run();
@@ -249,6 +254,7 @@ const Conto: React.FC = () => {
 
   // Fetch transactions (table can load after the cards)
   useEffect(() => {
+    if (!summaryReady) return;
     let cancelled = false;
     const controller = new AbortController();
     const run = async () => {
@@ -395,9 +401,10 @@ const Conto: React.FC = () => {
       cancelled = true;
       controller.abort();
     };
-  }, [activeAccount, filters.from, filters.to, filters.type, filters.status, debouncedQ, debouncedCompany, debouncedResponsabile, debouncedSportello, currentPage]);
+  }, [summaryReady, activeAccount, filters.from, filters.to, filters.type, filters.status, debouncedQ, debouncedCompany, debouncedResponsabile, debouncedSportello, currentPage]);
 
   useEffect(() => {
+    if (!summaryReady) return;
     let cancelled = false;
     const controller = new AbortController();
     const run = async () => {
@@ -473,13 +480,17 @@ const Conto: React.FC = () => {
       cancelled = true;
       controller.abort();
     };
-  }, [activeAccount, filters.from, filters.to, debouncedQ, debouncedCompany, debouncedResponsabile, debouncedSportello, user?._id, user?.role, nonRiconciliatePage]);
+  }, [summaryReady, activeAccount, filters.from, filters.to, debouncedQ, debouncedCompany, debouncedResponsabile, debouncedSportello, user?._id, user?.role, nonRiconciliatePage]);
 
   useEffect(() => {
     let cancelled = false;
     const loadImports = async () => {
+      if (activeAccount !== 'proselitismo') {
+        if (!cancelled) setImports([]);
+        return;
+      }
       try {
-        const data = await getContoImports();
+        const data = await getContoImports(activeAccount);
         if (!cancelled) setImports(data);
       } catch (e) {
         if (!cancelled) setImports([]);
@@ -487,7 +498,7 @@ const Conto: React.FC = () => {
     };
     loadImports();
     return () => { cancelled = true; };
-  }, []);
+  }, [activeAccount]);
 
   useEffect(() => {
     let cancelled = false;
@@ -723,6 +734,25 @@ const Conto: React.FC = () => {
           Conto servizi
         </div>
       </div>
+      {(user?.role === 'admin' || user?.role === 'super_admin') && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12, marginBottom: 12 }}>
+          <button
+            type="button"
+            onClick={() => navigate(`/conto/upload?account=${activeAccount}`)}
+            style={{
+              border: '1px solid #2563eb',
+              background: '#2563eb',
+              color: '#fff',
+              borderRadius: 8,
+              padding: '8px 12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            {activeAccount === 'servizi' ? 'Carica file Conto Servizi' : 'Carica file Conto Proselitismo'}
+          </button>
+        </div>
+      )}
 
       <div className="projects-section conto-summaries" style={{ marginBottom: 20 }}>
         {isSportello ? (
@@ -731,10 +761,12 @@ const Conto: React.FC = () => {
               <div className="project-number">{formatCurrency(summary.balance || 0)}</div>
               <div className="project-title">Saldo Sportello</div>
             </div>
-            <div className="project-card-dash conto-saldo-card">
-              <div className="project-number">{formatCurrency(summary.nonRiconciliateTotal || 0)}</div>
-              <div className="project-title">Quote non riconciliate</div>
-            </div>
+            {activeAccount === 'proselitismo' && (
+              <div className="project-card-dash conto-saldo-card">
+                <div className="project-number">{formatCurrency(summary.nonRiconciliateTotal || 0)}</div>
+                <div className="project-title">Quote non riconciliate</div>
+              </div>
+            )}
           </>
         ) : isResponsabile ? (
           <>
@@ -757,10 +789,12 @@ const Conto: React.FC = () => {
               <div className="project-number">{formatCurrency(summary.sportelloTotal || 0)}</div>
               <div className="project-title">Saldo Sportelli</div>
             </div>
-            <div className="project-card-dash conto-saldo-card">
-              <div className="project-number">{formatCurrency(summary.nonRiconciliateTotal || 0)}</div>
-              <div className="project-title">Quote non riconciliate</div>
-            </div>
+            {activeAccount === 'proselitismo' && (
+              <div className="project-card-dash conto-saldo-card">
+                <div className="project-number">{formatCurrency(summary.nonRiconciliateTotal || 0)}</div>
+                <div className="project-title">Quote non riconciliate</div>
+              </div>
+            )}
           </>
         ) : (
           <>
@@ -768,21 +802,22 @@ const Conto: React.FC = () => {
               totalElav can be null if API didn't return it (fallback to derived).
               In that case, approximate from balance (80%) for display only.
             */}
-            {(() => {
-              const rawElav =
-                summary.totalElav ??
-                (activeAccount === 'proselitismo' && summary.balance
-                  ? summary.balance / 0.8
-                  : 0);
-              return (
-                <div className="project-card-dash conto-saldo-card">
-                  <div className="conto-saldo-meta">Quota ELAV totale</div>
-                  <div className="project-number">{formatCurrency(Number(rawElav))}</div>
-                  <div className="conto-saldo-meta">FIACOM (80%)</div>
-                  <div className="conto-saldo-sub">{formatCurrency(summary.balance)}</div>
-                </div>
-              );
-            })()}
+            {activeAccount === 'proselitismo' &&
+              (() => {
+                const rawElav =
+                  summary.totalElav ??
+                  (activeAccount === 'proselitismo' && summary.balance
+                    ? summary.balance / 0.8
+                    : 0);
+                return (
+                  <div className="project-card-dash conto-saldo-card">
+                    <div className="conto-saldo-meta">Quota ELAV totale</div>
+                    <div className="project-number">{formatCurrency(Number(rawElav))}</div>
+                    <div className="conto-saldo-meta">FIACOM (80%)</div>
+                    <div className="conto-saldo-sub">{formatCurrency(summary.balance)}</div>
+                  </div>
+                );
+              })()}
             <div
               className="project-card-dash conto-saldo-card"
               ref={responsabiliAnchorRef}
@@ -813,10 +848,12 @@ const Conto: React.FC = () => {
               <div className="project-number">{formatCurrency(summary.sportelloTotal || 0)}</div>
               <div className="project-title">Saldo Sportelli</div>
             </div>
-            <div className="project-card-dash conto-saldo-card">
-              <div className="project-number">{formatCurrency(summary.nonRiconciliateTotal || 0)}</div>
-              <div className="project-title">Quote non riconciliate</div>
-            </div>
+            {activeAccount === 'proselitismo' && (
+              <div className="project-card-dash conto-saldo-card">
+                <div className="project-number">{formatCurrency(summary.nonRiconciliateTotal || 0)}</div>
+                <div className="project-title">Quote non riconciliate</div>
+              </div>
+            )}
             <div className="project-card-dash conto-saldo-card">
               <div className="project-number">{formatCurrency(summary.outgoing)}</div>
               <div className="project-title">Uscite</div>
@@ -1348,7 +1385,7 @@ const Conto: React.FC = () => {
         </div>
       )}
 
-      {!isSportello && (
+      {!isSportello && activeAccount === 'proselitismo' && (
         <div className="utility-section" style={{ marginTop: 20 }}>
           <div className="section-header">Registro flussi</div>
           <div style={{ overflowX: 'auto' }}>

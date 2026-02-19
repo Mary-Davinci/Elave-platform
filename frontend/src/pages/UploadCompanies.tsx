@@ -2,7 +2,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { uploadCompaniesFromExcel, previewCompaniesFromExcel, CompanyUploadPreviewResponse } from '../services/companyService';
+import {
+  uploadCompaniesFromExcel,
+  previewCompaniesFromExcel,
+  CompanyUploadPreviewResponse,
+  CompanyUploadResponse,
+} from '../services/companyService';
 import '../styles/UploadCompanies.css';
 
 const UploadCompanies: React.FC = () => {
@@ -13,6 +18,8 @@ const UploadCompanies: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewData, setPreviewData] = useState<CompanyUploadPreviewResponse | null>(null);
+  const [upsertExisting, setUpsertExisting] = useState(true);
+  const [uploadResult, setUploadResult] = useState<CompanyUploadResponse | null>(null);
 
   // Check if user is authenticated
   React.useEffect(() => {
@@ -25,6 +32,7 @@ const UploadCompanies: React.FC = () => {
     if (e.target.files && e.target.files.length > 0) {
       setSelectedFile(e.target.files[0]);
       setPreviewData(null);
+      setUploadResult(null);
     }
   };
 
@@ -53,6 +61,7 @@ const handleSubmit = async (e: React.FormEvent) => {
   
   setLoading(true);
   setError(null);
+  setUploadResult(null);
   
   try {
     console.log(`Uploading file: ${selectedFile.name} (${selectedFile.type})`);
@@ -62,14 +71,19 @@ const handleSubmit = async (e: React.FormEvent) => {
     formData.append('file', selectedFile);
     
     // Call the API to upload and process the file
-    const companies = await uploadCompaniesFromExcel(formData);
+    const result = await uploadCompaniesFromExcel(formData, upsertExisting);
+    setUploadResult(result);
     
-    // Success message
-    console.log(`Upload successful: ${companies.length} companies imported`);
-    alert(`${companies.length} aziende importate con successo!`);
-    
-    // Redirect to companies list page
-    navigate('/companies');
+    const detailErrors = (result.errors || []).slice(0, 15).join('\n');
+    const summary = [
+      result.message || 'Upload completato',
+      `Create: ${result.createdCount ?? 0}`,
+      `Update: ${result.updatedCount ?? 0}`,
+      `Invariati: ${result.skippedCount ?? 0}`,
+      `Errori: ${(result.errors || []).length}`,
+    ].join('\n');
+
+    alert(`${summary}${detailErrors ? `\n\nDettagli errori:\n${detailErrors}` : ''}`);
   } catch (err: any) {
     console.error('Error uploading companies:', err);
     setError(err?.message || 'Si è verificato un errore durante il caricamento del file');
@@ -96,7 +110,7 @@ const handlePreview = async () => {
   try {
     const formData = new FormData();
     formData.append('file', selectedFile);
-    const preview = await previewCompaniesFromExcel(formData);
+    const preview = await previewCompaniesFromExcel(formData, upsertExisting);
     setPreviewData(preview);
   } catch (err: any) {
     console.error('Error previewing companies:', err);
@@ -112,6 +126,23 @@ const handlePreview = async () => {
       {error && (
         <div className="error-alert">
           <p>{error}</p>
+        </div>
+      )}
+
+      {uploadResult && (
+        <div className="upload-form-container" style={{ marginBottom: '16px' }}>
+          <h3 style={{ marginBottom: '8px' }}>Esito upload</h3>
+          <p style={{ marginBottom: '8px' }}>{uploadResult.message}</p>
+          <p style={{ marginBottom: '8px' }}>
+            Create: {uploadResult.createdCount ?? 0} | Update: {uploadResult.updatedCount ?? 0} | Invariati: {uploadResult.skippedCount ?? 0} | Errori: {(uploadResult.errors || []).length}
+          </p>
+          {uploadResult.errors && uploadResult.errors.length > 0 && (
+            <ul style={{ margin: 0, paddingLeft: '18px', maxHeight: '220px', overflowY: 'auto' }}>
+              {uploadResult.errors.map((item, idx) => (
+                <li key={`${item}-${idx}`}>{item}</li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
       
@@ -148,7 +179,14 @@ const handlePreview = async () => {
             >
               <span className="icon">⬇️</span> Scarica file di esempio
             </button>
-            
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginLeft: 12 }}>
+              <input
+                type="checkbox"
+                checked={upsertExisting}
+                onChange={(e) => setUpsertExisting(e.target.checked)}
+              />
+              Aggiorna aziende esistenti (stessa P.IVA / C.F.)
+            </label>
           </div>
           
           <div className="form-actions">
@@ -180,6 +218,11 @@ const handlePreview = async () => {
               <p>{previewData.errors.length} errori trovati</p>
             </div>
           )}
+          <p style={{ marginBottom: '10px', fontSize: '13px' }}>
+            Legenda: <span style={{ background: '#ffe5e5', padding: '2px 6px', borderRadius: 4 }}>Errore</span>{' '}
+            <span style={{ background: '#fff7d6', padding: '2px 6px', borderRadius: 4 }}>Aggiornamento</span>{' '}
+            <span style={{ background: '#e8f8ee', padding: '2px 6px', borderRadius: 4 }}>OK invariata</span>
+          </p>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
@@ -196,21 +239,45 @@ const handlePreview = async () => {
               </thead>
               <tbody>
                 {previewData.preview.map((row) => {
-                  const status = row.errors && row.errors.length > 0 ? 'Errore' : 'OK';
+                  const hasError = !!(row.errors && row.errors.length > 0);
+                  const rowColor = hasError
+                    ? '#ffe5e5'
+                    : row.action === 'update'
+                      ? '#fff7d6'
+                      : row.action === 'unchanged'
+                        ? '#e8f8ee'
+                      : 'transparent';
+                  const borderBottomColor = hasError
+                    ? '#ef4444'
+                    : row.action === 'update'
+                      ? '#f59e0b'
+                      : row.action === 'unchanged'
+                        ? '#22c55e'
+                      : '#f1f5f9';
+                  const status = hasError
+                    ? 'Errore'
+                    : row.action === 'update'
+                      ? 'Aggiornamento'
+                      : row.action === 'unchanged'
+                        ? 'Invariata'
+                        : 'Nuova';
                   const vatDisplay =
                     row.data?.vatNumber && String(row.data.vatNumber).startsWith('NO-PIVA-')
                       ? '-'
                       : row.data?.vatNumber || '-';
                   return (
-                    <tr key={`${row.rowNumber}-${row.data?.vatNumber || row.data?.businessName}`}>
-                      <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.rowNumber}</td>
-                      <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.businessName || '-'}</td>
-                      <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{vatDisplay}</td>
-                      <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.fiscalCode || '-'}</td>
-                      <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.inpsCode || '-'}</td>
-                      <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.contractDetails?.territorialManager || '-'}</td>
-                      <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{row.data?.contactInfo?.laborConsultant || '-'}</td>
-                      <td style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>{status}</td>
+                    <tr
+                      key={`${row.rowNumber}-${row.data?.vatNumber || row.data?.businessName}`}
+                      style={{ backgroundColor: rowColor }}
+                    >
+                      <td style={{ padding: '8px', borderBottom: `1px solid ${borderBottomColor}` }}>{row.rowNumber}</td>
+                      <td style={{ padding: '8px', borderBottom: `1px solid ${borderBottomColor}` }}>{row.data?.businessName || '-'}</td>
+                      <td style={{ padding: '8px', borderBottom: `1px solid ${borderBottomColor}` }}>{vatDisplay}</td>
+                      <td style={{ padding: '8px', borderBottom: `1px solid ${borderBottomColor}` }}>{row.data?.fiscalCode || '-'}</td>
+                      <td style={{ padding: '8px', borderBottom: `1px solid ${borderBottomColor}` }}>{row.data?.inpsCode || '-'}</td>
+                      <td style={{ padding: '8px', borderBottom: `1px solid ${borderBottomColor}` }}>{row.data?.contractDetails?.territorialManager || '-'}</td>
+                      <td style={{ padding: '8px', borderBottom: `1px solid ${borderBottomColor}` }}>{row.data?.contactInfo?.laborConsultant || '-'}</td>
+                      <td style={{ padding: '8px', borderBottom: `1px solid ${borderBottomColor}` }}>{status}</td>
                     </tr>
                   );
                 })}

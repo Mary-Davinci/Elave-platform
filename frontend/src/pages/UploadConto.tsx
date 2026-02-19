@@ -1,10 +1,17 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import '../styles/UploadCompanies.css';
-import { previewContoFromExcel, uploadContoFromExcel, type ContoUploadPreviewResponse } from '../services/contoService';
+import { previewContoFromExcel, uploadContoFromExcel, type ContoUploadPreviewResponse, type AccountType } from '../services/contoService';
 
 const UploadConto: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const accountParam = searchParams.get('account');
+  const account: AccountType = accountParam === 'servizi' ? 'servizi' : 'proselitismo';
+  const pageTitle =
+    account === 'servizi'
+      ? 'Inserisci movimenti Conto Servizi da file XLSX'
+      : 'Inserisci competenze da file XLSX';
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -35,7 +42,7 @@ const UploadConto: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', 'conto_template.csv');
+    link.setAttribute('download', `conto_${account}_template.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -61,7 +68,7 @@ const UploadConto: React.FC = () => {
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
-      const result = await uploadContoFromExcel(formData);
+      const result = await uploadContoFromExcel(formData, account);
       const buildDetails = (payload?: { errors?: string[]; duplicates?: Array<{ rowNumber: number; reason: string }> }) => {
         if (!payload) return '';
         const errorLines = (payload.errors || []).slice(0, 10);
@@ -90,13 +97,13 @@ const UploadConto: React.FC = () => {
           return;
         }
         formData.append('confirmDuplicates', 'true');
-        const confirmed = await uploadContoFromExcel(formData);
+        const confirmed = await uploadContoFromExcel(formData, account);
         alert((confirmed?.message || 'Import completato con successo.') + buildDetails(confirmed));
-        navigate('/conto');
+        navigate(`/conto/${account}`);
         return;
       }
       alert((result?.message || 'Import completato con successo.') + buildDetails(result));
-      navigate('/conto');
+      navigate(`/conto/${account}`);
     } catch (err: any) {
       setError(err?.message || 'Si è verificato un errore durante il caricamento');
     } finally {
@@ -122,7 +129,7 @@ const UploadConto: React.FC = () => {
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
-      const preview = await previewContoFromExcel(formData);
+      const preview = await previewContoFromExcel(formData, account);
       setPreviewData(preview);
     } catch (err: any) {
       setError(err?.message || 'Si è verificato un errore durante l’anteprima');
@@ -133,7 +140,7 @@ const UploadConto: React.FC = () => {
 
   return (
     <div className="upload-companies-container">
-      <h1 className="page-title">Inserisci competenze da file XLSX</h1>
+      <h1 className="page-title">{pageTitle}</h1>
 
       {error && (
         <div className="error-alert">

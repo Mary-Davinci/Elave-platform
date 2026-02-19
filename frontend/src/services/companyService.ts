@@ -204,6 +204,7 @@ export interface CompanyUploadPreviewRow {
   rowNumber: number;
   data: Company;
   errors?: string[];
+  action?: 'create' | 'update' | 'unchanged' | 'error';
 }
 
 export interface CompanyUploadPreviewResponse {
@@ -212,9 +213,19 @@ export interface CompanyUploadPreviewResponse {
   errors?: string[];
 }
 
+export interface CompanyUploadResponse {
+  message: string;
+  companies: Company[];
+  errors?: string[];
+  createdCount?: number;
+  updatedCount?: number;
+  skippedCount?: number;
+}
+
 export const uploadCompaniesFromExcel = async (
-  formData: FormData
-): Promise<Company[]> => {
+  formData: FormData,
+  upsertExisting: boolean = true
+): Promise<CompanyUploadResponse> => {
   try {
     console.log("Uploading Excel file...");
     
@@ -223,13 +234,8 @@ export const uploadCompaniesFromExcel = async (
       console.log(`FormData contains: ${pair[0]}, ${pair[1] instanceof File ? pair[1].name : pair[1]}`);
     }
     
-    const endpoint = '/api/companies/upload';
-    const response = await api.post<{
-      message: string;
-      companies?: Company[];
-      preview?: CompanyUploadPreviewRow[];
-      errors?: string[];
-    }>(endpoint, formData, {
+    const endpoint = `/api/companies/upload${upsertExisting ? '?upsertExisting=1' : ''}`;
+    const response = await api.post<CompanyUploadResponse>(endpoint, formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       },
@@ -238,12 +244,10 @@ export const uploadCompaniesFromExcel = async (
     
     console.log("Upload response:", response.data);
     
-    // Check if we have errors in the response
-    if (response.data.errors && response.data.errors.length > 0) {
-      throw new Error(response.data.errors.join(', '));
-    }
-    
-    return response.data.companies || [];
+    return {
+      ...response.data,
+      companies: response.data.companies || [],
+    };
   } catch (error: any) {
     console.error('Error uploading companies from Excel:', error);
     
@@ -259,7 +263,8 @@ export const uploadCompaniesFromExcel = async (
 };
 
 export const previewCompaniesFromExcel = async (
-  formData: FormData
+  formData: FormData,
+  upsertExisting: boolean = true
 ): Promise<CompanyUploadPreviewResponse> => {
   try {
     console.log("Previewing Excel file...");
@@ -267,7 +272,7 @@ export const previewCompaniesFromExcel = async (
       message: string;
       preview?: CompanyUploadPreviewRow[];
       errors?: string[];
-    }>('/api/companies/upload?preview=1', formData, {
+    }>(`/api/companies/upload?preview=1${upsertExisting ? '&upsertExisting=1' : ''}`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       },

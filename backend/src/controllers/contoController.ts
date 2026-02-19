@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import { Response } from "express";
 import { CustomRequestHandler } from "../types/express";
 import ContoTransaction from "../models/ContoTransaction";
 import ContoNonRiconciliata from "../models/ContoNonRiconciliata";
@@ -12,9 +12,39 @@ import path from "path";
 import fs from "fs";
 import xlsx from "xlsx";
 import crypto from "crypto";
+import {
+  clearComputedContoCaches,
+  getComputedCacheKey,
+  readComputedBreakdownCache,
+  readComputedSummaryCache,
+  writeComputedBreakdownCache,
+  writeComputedSummaryCache,
+} from "../services/contoCacheService";
+import {
+  escapeRegex,
+  getEffectiveUserId,
+  getSportelloScopedCompanyIds,
+  getResponsabileScope,
+} from "../services/contoScopeService";
 const FIACOM_NET_RATIO = 0.8;
+type ContoAccount = "proselitismo" | "servizi";
+
+// TODO(conto-refactor): ridurre progressivamente contoController monolitico.
+// 1) Estrarre parsing/import XLSX in contoImportService (preview/upload + dedupe).
+// 2) Estrarre query summary/breakdown in contoAnalyticsService (pipeline aggregate).
+// 3) Estrarre query transactions/non-riconciliate in contoQueryService (filtri + paging).
+// 4) Lasciare qui solo orchestrazione HTTP (req/res) e mapping errori.
+// 5) Aggiungere test di regressione su proselitismo/servizi prima della rimozione finale.
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
+const getRequestedContoAccount = (
+  req: Parameters<CustomRequestHandler>[0]
+): ContoAccount => {
+  const raw = String(req.body?.account ?? req.query?.account ?? "proselitismo")
+    .trim()
+    .toLowerCase();
+  return raw === "servizi" ? "servizi" : "proselitismo";
+};
 const normalizePercent = (value: unknown, fallback: number) => {
   const num = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(num)) return fallback;
@@ -116,8 +146,6 @@ const parseMonth = (value: any) => {
   return Number.isFinite(asNum) ? Math.min(Math.max(asNum, 1), 12) : null;
 };
 
-const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
 const buildRowData = (row: any[], headerIndexes: Record<string, number>) => {
   const get = (key: string) => {
     const idx = headerIndexes[key];
@@ -145,66 +173,21 @@ const isRowEmpty = (row: any[]) =>
     return value === "";
   });
 
-const buildImportKey = (data: any, baseAmount: number | null, nonRec: number | null) => {
+const buildImportKey = (
+  data: any,
+  baseAmount: number | null,
+  nonRec: number | null,
+  account: ContoAccount
+) => {
   const mese = (data.mese || "").toString().trim();
   const anno = (data.anno || "").toString().trim();
   const matricola = (data.matricolaInps || "").toString().trim().toUpperCase();
   const ragione = (data.ragioneSociale || "").toString().trim().toUpperCase();
   const fiacom = baseAmount && baseAmount > 0 ? `F:${round2(baseAmount)}` : "";
   const non = nonRec && nonRec > 0 ? `NR:${round2(nonRec)}` : "";
-  return ["proselitismo", mese, anno, matricola, ragione, fiacom, non].join("|");
+  return [account, mese, anno, matricola, ragione, fiacom, non].join("|");
 };
 
-const getEffectiveUserId = (req: Request) => {
-  if (!req.user) return null;
-  const requested = typeof req.query.userId === "string" ? req.query.userId : undefined;
-  const isAdmin = req.user.role === "admin" || req.user.role === "super_admin";
-  if (isAdmin && requested) return requested;
-  if (isAdmin) return null; // global view for admin/super_admin
-  return req.user._id?.toString() || null;
-};
-
-const getSportelloScopedCompanyIds = async (userId: mongoose.Types.ObjectId | string) => {
-  const userDoc = await User.findById(userId)
-    .select("organization firstName lastName username")
-    .lean<{ organization?: string; firstName?: string; lastName?: string; username?: string }>();
-
-  const sportelloDoc = await SportelloLavoro.findOne({ user: userId })
-    .select("_id businessName agentName")
-    .lean<{ _id: mongoose.Types.ObjectId; businessName?: string; agentName?: string }>();
-
-  const names = [
-    sportelloDoc?.businessName,
-    sportelloDoc?.agentName,
-    userDoc?.organization,
-    `${userDoc?.firstName || ""} ${userDoc?.lastName || ""}`.trim(),
-    userDoc?.username,
-  ]
-    .map((v) => String(v || "").trim())
-    .filter(Boolean);
-
-  if (!sportelloDoc?._id && names.length === 0) return [];
-
-  const nameMatchers = names.flatMap((value) => {
-    const regex = new RegExp(`^\\s*${escapeRegex(value)}\\s*$`, "i");
-    return [
-      { "contactInfo.laborConsultant": regex },
-      { "contactInfo.laborConsultant.businessName": regex },
-      { "contactInfo.laborConsultant.agentName": regex },
-    ];
-  });
-
-  const companies = await Company.find({
-    $or: [
-      ...(sportelloDoc?._id ? [{ "contactInfo.laborConsultantId": sportelloDoc._id }] : []),
-      ...nameMatchers,
-    ],
-  })
-    .select("_id")
-    .lean<Array<{ _id: mongoose.Types.ObjectId }>>();
-
-  return companies.map((c: { _id: mongoose.Types.ObjectId }) => c._id);
-};
 
 export const createCompetenzaTransactions: CustomRequestHandler = async (req, res) => {
   try {
@@ -317,6 +300,7 @@ export const createCompetenzaTransactions: CustomRequestHandler = async (req, re
         source,
       },
     ]);
+    clearComputedContoCaches();
 
     return res.status(201).json({
       message: "Transazioni create",
@@ -351,6 +335,7 @@ export const previewContoFromExcel: CustomRequestHandler = async (req, res) => {
       }
 
       try {
+        const targetAccount = getRequestedContoAccount(req);
         const fileBuffer = fs.readFileSync(file.path);
         const fileHash = crypto.createHash("sha256").update(fileBuffer).digest("hex");
         const existingImport = await ContoImport.findOne({ fileHash }).select("createdAt");
@@ -505,6 +490,7 @@ export const previewContoFromExcel: CustomRequestHandler = async (req, res) => {
           preview,
           nonRiconciliate,
           errors: preview.flatMap((p) => p.errors || []),
+          account: targetAccount,
           fileHash,
           fileAlreadyUploaded: !!existingImport,
           fileAlreadyUploadedAt: existingImport?.createdAt,
@@ -543,6 +529,7 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
       }
 
       try {
+        const targetAccount = getRequestedContoAccount(req);
         const fileBuffer = fs.readFileSync(file.path);
         const fileHash = crypto.createHash("sha256").update(fileBuffer).digest("hex");
         const existingImport = await ContoImport.findOne({ fileHash }).select("createdAt");
@@ -579,7 +566,7 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
           const data = buildRowData(row, headerIndexes);
           const baseAmount = parseNumber(data.quotaFiacom);
           const nonRec = parseNumber(data.nonRiconciliata);
-          const importKey = buildImportKey(data, baseAmount, nonRec);
+          const importKey = buildImportKey(data, baseAmount, nonRec, targetAccount);
 
           if (!data.matricolaInps && !data.ragioneSociale) {
             errors.push(`Row ${i + 1}: Matricola INPS o Ragione Sociale mancante`);
@@ -608,7 +595,7 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
               ].filter(Boolean);
               const description = descriptionParts.join(" | ") || "Quota non riconciliata";
               nonRiconciliateToInsert.push({
-                account: "proselitismo",
+                account: targetAccount,
                 amount: nonRec,
                 description,
                 user: uploaderId,
@@ -761,17 +748,9 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
           if (sportelloDoc) {
             const normalizedName = (sportelloDoc.businessName || sportelloDoc.agentName || consultantName).trim();
             const currentName = consultantName.trim();
-            if (normalizedName && normalizedName !== currentName) {
-              await Company.updateOne(
-                { _id: company._id },
-                {
-                  $set: {
-                    "contactInfo.laborConsultantId": sportelloDoc._id,
-                    "contactInfo.laborConsultant": normalizedName,
-                  },
-                }
-              );
-            } else if (!sportelloId) {
+            // During conto import we must not overwrite company anagrafica.
+            // We only backfill missing sportello fields.
+            if (!sportelloId || !currentName) {
               await Company.updateOne(
                 { _id: company._id },
                 {
@@ -841,11 +820,12 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
             data.fondoSanitario ? `Fondo sanitario: ${data.fondoSanitario}` : null,
           ].filter(Boolean);
 
-          const description = descriptionParts.join(" | ") || "Competenza proselitismo";
+          const description =
+            descriptionParts.join(" | ") || `Competenza ${targetAccount}`;
 
           transactionsToInsert.push(
             {
-              account: "proselitismo",
+              account: targetAccount,
               amount: fiacomAmount,
               rawAmount: baseAmount,
               type: "entrata",
@@ -859,7 +839,7 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
               date,
             },
             {
-              account: "proselitismo",
+              account: targetAccount,
               amount: responsabileAmount,
               rawAmount: baseAmount,
               type: "entrata",
@@ -873,7 +853,7 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
               date,
             },
             {
-              account: "proselitismo",
+              account: targetAccount,
               amount: sportelloAmount,
               rawAmount: baseAmount,
               type: "entrata",
@@ -936,6 +916,9 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
         if (nonRiconciliateToInsert.length > 0) {
           await ContoNonRiconciliata.insertMany(nonRiconciliateToInsert);
         }
+        if (transactionsToInsert.length > 0 || nonRiconciliateToInsert.length > 0) {
+          clearComputedContoCaches();
+        }
 
         if (!existingImport) {
           await ContoImport.create({
@@ -983,32 +966,8 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
     let sportelloCompanyIds: mongoose.Types.ObjectId[] = [];
 
     if (isResponsabileScope) {
-      const responsabileDoc = await User.findById(req.user._id)
-        .select("organization firstName lastName username")
-        .lean<{ organization?: string; firstName?: string; lastName?: string; username?: string }>();
-
-      const names: string[] = [];
-      const org = responsabileDoc?.organization?.trim();
-      if (org) names.push(org);
-      const full = `${responsabileDoc?.firstName || ""} ${responsabileDoc?.lastName || ""}`.trim();
-      if (full) names.push(full);
-      const username = responsabileDoc?.username?.trim();
-      if (username) names.push(username);
-
-      const companyNameMatchers = names.map((value) => ({
-        "contractDetails.territorialManager": new RegExp(`^\\s*${escapeRegex(value)}\\s*$`, "i"),
-      }));
-
-      const companies = await Company.find({
-        $or: [
-          { user: new mongoose.Types.ObjectId(req.user._id) },
-          ...companyNameMatchers,
-        ],
-      })
-        .select("_id")
-        .lean<Array<{ _id: mongoose.Types.ObjectId }>>();
-
-      responsabileCompanyIds = companies.map((c: { _id: mongoose.Types.ObjectId }) => c._id);
+      const scope = await getResponsabileScope(req.user._id);
+      responsabileCompanyIds = scope.responsabileCompanyIds;
     }
 
     if (isSportelloScope) {
@@ -1230,7 +1189,7 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
         ? `${company.user.firstName || ""} ${company.user.lastName || ""}`.trim() || company.user.username
         : undefined;
       const sportello = company?.contactInfo?.laborConsultantId;
-      const sportelloFromId = sportello?.businessName || sportello?.agentName;
+      const sportelloFromId = sportello?.agentName || sportello?.businessName;
       const sportelloRaw = company?.contactInfo?.laborConsultant;
       const sportelloFromRaw =
         typeof sportelloRaw === "string"
@@ -1264,6 +1223,11 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
     if (!req.user) {
       return res.status(401).json({ error: "User not authenticated" });
     }
+    const cacheKey = getComputedCacheKey(req);
+    const cached = readComputedSummaryCache(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
 
     const { account, from, to, type, status, q } = req.query as Record<string, string>;
     const userId = getEffectiveUserId(req);
@@ -1276,36 +1240,10 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
     let responsabileCompanyIds: mongoose.Types.ObjectId[] | null = null;
     let responsabileNames: string[] = [];
     if (isResponsabileScope) {
-      const responsabileDoc = await User.findById(req.user._id)
-        .select("organization firstName lastName username")
-        .lean<{ organization?: string; firstName?: string; lastName?: string; username?: string }>();
-      const org = responsabileDoc?.organization?.trim();
-      if (org) responsabileNames.push(org);
-      const full = `${responsabileDoc?.firstName || ""} ${responsabileDoc?.lastName || ""}`.trim();
-      if (full) responsabileNames.push(full);
-      const username = responsabileDoc?.username?.trim();
-      if (username) responsabileNames.push(username);
-      const nameMatchers = responsabileNames.map((value) => ({
-        "companyDoc.contractDetails.territorialManager": new RegExp(`^\\s*${escapeRegex(value)}\\s*$`, "i"),
-      }));
-      responsabileMatch = {
-        $or: [
-          { "companyDoc.user": responsabileObjectId },
-          ...nameMatchers,
-        ],
-      };
-      const companyNameMatchers = responsabileNames.map((value) => ({
-        "contractDetails.territorialManager": new RegExp(`^\\s*${escapeRegex(value)}\\s*$`, "i"),
-      }));
-      const companies = await Company.find({
-        $or: [
-          { user: responsabileObjectId },
-          ...companyNameMatchers,
-        ],
-      })
-        .select("_id")
-        .lean<Array<{ _id: mongoose.Types.ObjectId }>>();
-      responsabileCompanyIds = companies.map((c: { _id: mongoose.Types.ObjectId }) => c._id);
+      const scope = await getResponsabileScope(req.user._id);
+      responsabileNames = scope.responsabileNames;
+      responsabileMatch = scope.responsabileMatch;
+      responsabileCompanyIds = scope.responsabileCompanyIds;
     }
     if (isSportelloScope) {
       sportelloCompanyIds = await getSportelloScopedCompanyIds(req.user._id);
@@ -1609,7 +1547,7 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
       nonRiconciliateTotal = nonRiconciliateTotals[0]?.total ?? 0;
     }
 
-    return res.json({
+    const payload = {
       balance,
       incoming,
       outgoing,
@@ -1618,7 +1556,9 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
       sportelloTotal,
       totalElav,
       updatedAt: new Date().toISOString(),
-    });
+    };
+    writeComputedSummaryCache(cacheKey, payload);
+    return res.json(payload);
   } catch (err: any) {
     console.error("Get conto summary error:", err);
     return res.status(500).json({ error: "Server error" });
@@ -1656,15 +1596,8 @@ export const getNonRiconciliate: CustomRequestHandler = async (req, res) => {
     let sportelloCompanyIds: mongoose.Types.ObjectId[] = [];
     let responsabileNames: string[] = [];
     if (isResponsabileScope) {
-      const responsabileDoc = await User.findById(req.user._id)
-        .select("organization firstName lastName username")
-        .lean<{ organization?: string; firstName?: string; lastName?: string; username?: string }>();
-      const org = responsabileDoc?.organization?.trim();
-      if (org) responsabileNames.push(org);
-      const full = `${responsabileDoc?.firstName || ""} ${responsabileDoc?.lastName || ""}`.trim();
-      if (full) responsabileNames.push(full);
-      const username = responsabileDoc?.username?.trim();
-      if (username) responsabileNames.push(username);
+      const scope = await getResponsabileScope(req.user._id);
+      responsabileNames = scope.responsabileNames;
     }
     if (isSportelloScope) {
       sportelloCompanyIds = await getSportelloScopedCompanyIds(req.user._id);
@@ -1795,8 +1728,8 @@ export const getNonRiconciliate: CustomRequestHandler = async (req, res) => {
           ? `${company.user.firstName || ""} ${company.user.lastName || ""}`.trim() || company.user.username
           : undefined);
       const sportelloName =
-        company?.contactInfo?.laborConsultantId?.businessName ||
         company?.contactInfo?.laborConsultantId?.agentName ||
+        company?.contactInfo?.laborConsultantId?.businessName ||
         company?.contactInfo?.laborConsultant;
       return {
         ...item,
@@ -1855,6 +1788,11 @@ export const getContoBreakdown: CustomRequestHandler = async (req, res) => {
     if (!req.user) {
       return res.status(401).json({ error: "User not authenticated" });
     }
+    const cacheKey = getComputedCacheKey(req);
+    const cached = readComputedBreakdownCache(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
 
     const { account, from, to, type, status, q } = req.query as Record<string, string>;
     const userId = getEffectiveUserId(req);
@@ -1865,25 +1803,8 @@ export const getContoBreakdown: CustomRequestHandler = async (req, res) => {
     let sportelloCompanyIds: mongoose.Types.ObjectId[] = [];
     let responsabileMatch: any = null;
     if (isResponsabileScope) {
-      const responsabileDoc = await User.findById(req.user._id)
-        .select("organization firstName lastName username")
-        .lean<{ organization?: string; firstName?: string; lastName?: string; username?: string }>();
-      const names: string[] = [];
-      const org = responsabileDoc?.organization?.trim();
-      if (org) names.push(org);
-      const full = `${responsabileDoc?.firstName || ""} ${responsabileDoc?.lastName || ""}`.trim();
-      if (full) names.push(full);
-      const username = responsabileDoc?.username?.trim();
-      if (username) names.push(username);
-      const nameMatchers = names.map((value) => ({
-        "companyDoc.contractDetails.territorialManager": new RegExp(`^\\s*${escapeRegex(value)}\\s*$`, "i"),
-      }));
-      responsabileMatch = {
-        $or: [
-          { "companyDoc.user": responsabileObjectId },
-          ...nameMatchers,
-        ],
-      };
+      const scope = await getResponsabileScope(req.user._id);
+      responsabileMatch = scope.responsabileMatch;
     }
     if (isSportelloScope) {
       sportelloCompanyIds = await getSportelloScopedCompanyIds(req.user._id);
@@ -2001,13 +1922,14 @@ export const getContoBreakdown: CustomRequestHandler = async (req, res) => {
       {
         $addFields: {
           sportelloName: {
-            $ifNull: ["$sportelloDoc.businessName", "$sportelloDoc.agentName"],
+            // Prefer agentName in UI labels to avoid showing territorial-manager-like business aliases.
+            $ifNull: ["$sportelloDoc.agentName", "$sportelloDoc.businessName"],
           },
           sportelloNameKey: {
             $toLower: {
               $trim: {
                 input: {
-                  $ifNull: ["$sportelloDoc.businessName", "$sportelloDoc.agentName"],
+                  $ifNull: ["$sportelloDoc.agentName", "$sportelloDoc.businessName"],
                 },
               },
             },
@@ -2079,10 +2001,12 @@ export const getContoBreakdown: CustomRequestHandler = async (req, res) => {
     const result = await ContoTransaction.aggregate(pipeline);
     const payload = result?.[0] || {};
 
-    return res.json({
+    const payloadRes = {
       responsabili: payload.responsabili || [],
       sportelli: payload.sportelli || [],
-    });
+    };
+    writeComputedBreakdownCache(cacheKey, payloadRes);
+    return res.json(payloadRes);
   } catch (err: any) {
     console.error("Get conto breakdown error:", err);
     return res.status(500).json({ error: "Server error" });

@@ -82,6 +82,68 @@
   color: #253676;
 }
 
+.conto-fattura-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  align-items: end;
+}
+
+.conto-fattura-cliente {
+  grid-column: auto;
+}
+
+.conto-fattura-filename {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: #475569;
+  font-weight: 600;
+}
+
+.conto-servizi-dropdown {
+  position: relative;
+}
+
+.conto-servizi-dropdown-trigger {
+  text-align: left;
+  cursor: pointer;
+}
+
+.conto-servizi-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 100%;
+  max-height: 220px;
+  overflow: auto;
+  background: #fff;
+  border: 1px solid #dbe2ea;
+  border-radius: 10px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+  z-index: 20;
+  padding: 8px;
+}
+
+.conto-servizi-dropdown-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #1f2937;
+}
+
+.conto-servizi-dropdown-item:hover {
+  background: #f8fafc;
+}
+
+.conto-servizi-selected {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #334155;
+}
+
 
 .filter-select {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M6 8l4 4 4-4' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -95,8 +157,10 @@
 
 @media (max-width: 1024px) {
   .conto-filters-grid { gap: 14px; }
+  .conto-fattura-grid { grid-template-columns: repeat(2, minmax(180px, 1fr)); }
 }
 
 @media (max-width: 640px) {
   .conto-filters-grid { gap: 12px; }
+  .conto-fattura-grid { grid-template-columns: 1fr; gap: 12px; }
 }

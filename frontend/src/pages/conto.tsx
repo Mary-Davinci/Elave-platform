@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import '../styles/Dashboard.css';
 import '../styles/Conto.css';
-import { contoService, type AccountType, type Transaction, type ContoFilters, type TransactionType, type TransactionStatus, type Summary, getContoImports, type ContoImportItem, getNonRiconciliate, type NonRiconciliataItem, type BreakdownRow } from '../services/contoService';
+import { contoService, type AccountType, type Transaction, type ContoFilters, type Summary, getContoImports, type ContoImportItem, getNonRiconciliate, type NonRiconciliataItem, type BreakdownRow } from '../services/contoService';
 import { getCompanies } from '../services/companyService';
 import type { Company } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
@@ -29,6 +29,14 @@ const extractMatricolaFromDescription = (value: string) => {
   const match = value.match(/Matricola:\s*([0-9A-Za-z]+)/i);
   return match ? match[1].trim() : '';
 };
+
+const contoServiziOptions = [
+  'Supporto agli associati con assistenza contrattuale',
+  'Promozione attività formative inerenti la sicurezza e salute sui luoghi di lavoro',
+  'Promozione del fondo sanitario e del welfare aziendale',
+  'Promozione e sviluppo della formazione professionale e delle pari opportunità',
+  'Consulenza del lavoro',
+];
 
 const Conto: React.FC = () => {
   const { user } = useAuth();
@@ -64,6 +72,19 @@ const Conto: React.FC = () => {
   const [transactionsTotal, setTransactionsTotal] = useState<number | null>(null);
   const [nonRiconciliateTotal, setNonRiconciliateTotal] = useState<number | null>(null);
   const [serverPagingActive, setServerPagingActive] = useState(false);
+  const [fatturaDraft, setFatturaDraft] = useState<{
+    cliente: string;
+    servizio: string[];
+    importo: string;
+    allegatoNome: string;
+  }>({
+    cliente: '',
+    servizio: [],
+    importo: '',
+    allegatoNome: '',
+  });
+  const [serviziDropdownOpen, setServiziDropdownOpen] = useState(false);
+  const serviziDropdownRef = useRef<HTMLDivElement | null>(null);
   const [debouncedQ, setDebouncedQ] = useState((filters.q || '').toString());
   const [debouncedCompany, setDebouncedCompany] = useState((filters.company || '').toString());
   const [debouncedResponsabile, setDebouncedResponsabile] = useState((filters.responsabile || '').toString());
@@ -157,6 +178,17 @@ const Conto: React.FC = () => {
   const loading = summaryLoading || transactionsLoading;
 
   const onFilterChange = (patch: Partial<ContoFilters>) => setFilters((f) => ({ ...f, ...patch }));
+  const toggleServizioOption = (option: string) => {
+    setFatturaDraft((prev) => {
+      const exists = prev.servizio.includes(option);
+      return {
+        ...prev,
+        servizio: exists
+          ? prev.servizio.filter((item) => item !== option)
+          : [...prev.servizio, option],
+      };
+    });
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -164,6 +196,17 @@ const Conto: React.FC = () => {
     }, 600);
     return () => clearTimeout(timer);
   }, [filters.q]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!serviziDropdownRef.current) return;
+      if (!serviziDropdownRef.current.contains(event.target as Node)) {
+        setServiziDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -734,7 +777,7 @@ const Conto: React.FC = () => {
           Conto servizi
         </div>
       </div>
-      {(user?.role === 'admin' || user?.role === 'super_admin') && (
+      {(user?.role === 'admin' || user?.role === 'super_admin') && activeAccount === 'servizi' && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12, marginBottom: 12 }}>
           <button
             type="button"
@@ -749,7 +792,7 @@ const Conto: React.FC = () => {
               cursor: 'pointer',
             }}
           >
-            {activeAccount === 'servizi' ? 'Carica file Conto Servizi' : 'Carica file Conto Proselitismo'}
+            Carica file Conto Servizi
           </button>
         </div>
       )}
@@ -863,27 +906,27 @@ const Conto: React.FC = () => {
       </div>
 
       <div className="utility-section" style={{ marginBottom: 20 }}>
-        <div className="section-header">Filtri</div>
-        <div className="conto-filters-grid">
-          <div className="filter-field">
-            <label className="filter-label">Da</label>
-            <input
-              className="filter-input"
-              type="date"
-              value={filters.from || ''}
-              onChange={(e) => onFilterChange({ from: e.target.value })}
-            />
-          </div>
-          <div className="filter-field">
-            <label className="filter-label">A</label>
-            <input
-              className="filter-input"
-              type="date"
-              value={filters.to || ''}
-              onChange={(e) => onFilterChange({ to: e.target.value })}
-            />
-          </div>
-          {activeAccount === 'proselitismo' ? (
+        <div className="section-header">{activeAccount === 'servizi' ? 'Fattura' : 'Filtri'}</div>
+        {activeAccount === 'proselitismo' ? (
+          <div className="conto-filters-grid">
+            <div className="filter-field">
+              <label className="filter-label">Da</label>
+              <input
+                className="filter-input"
+                type="date"
+                value={filters.from || ''}
+                onChange={(e) => onFilterChange({ from: e.target.value })}
+              />
+            </div>
+            <div className="filter-field">
+              <label className="filter-label">A</label>
+              <input
+                className="filter-input"
+                type="date"
+                value={filters.to || ''}
+                onChange={(e) => onFilterChange({ to: e.target.value })}
+              />
+            </div>
             <>
               <div className="filter-field">
                 <label className="filter-label">Azienda</label>
@@ -916,38 +959,86 @@ const Conto: React.FC = () => {
                 />
               </div>
             </>
-          ) : (
-            <>
-              <div className="filter-field">
-                <label className="filter-label">Tipo</label>
-                <select className="filter-select" value={filters.type} onChange={(e) => onFilterChange({ type: e.target.value as TransactionType | '' })}>
-                  <option value="">Tutti</option>
-                  <option value="entrata">Entrata</option>
-                  <option value="uscita">Uscita</option>
-                </select>
+          </div>
+        ) : (
+          <div className="conto-fattura-grid">
+            <div className="filter-field conto-fattura-cliente">
+              <label className="filter-label">Cliente / Dati Fiacom</label>
+              <input
+                className="filter-input"
+                type="text"
+                placeholder="Anagrafica sportello o azienda..."
+                value={fatturaDraft.cliente}
+                onChange={(e) =>
+                  setFatturaDraft((prev) => ({ ...prev, cliente: e.target.value }))
+                }
+              />
+            </div>
+            <div className="filter-field">
+              <label className="filter-label">Prodotti / Servizi</label>
+              <div className="conto-servizi-dropdown" ref={serviziDropdownRef}>
+                <button
+                  type="button"
+                  className="filter-input conto-servizi-dropdown-trigger"
+                  onClick={() => setServiziDropdownOpen((prev) => !prev)}
+                >
+                  {fatturaDraft.servizio.length > 0
+                    ? `${fatturaDraft.servizio.length} selezionati`
+                    : 'Seleziona uno o più servizi'}
+                </button>
+                {serviziDropdownOpen && (
+                  <div className="conto-servizi-dropdown-menu">
+                    {contoServiziOptions.map((option) => (
+                      <label key={option} className="conto-servizi-dropdown-item">
+                        <input
+                          type="checkbox"
+                          checked={fatturaDraft.servizio.includes(option)}
+                          onChange={() => toggleServizioOption(option)}
+                        />
+                        <span>{option}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
-              <div className="filter-field">
-                <label className="filter-label">Stato</label>
-                <select className="filter-select" value={filters.status} onChange={(e) => onFilterChange({ status: e.target.value as TransactionStatus | '' })}>
-                  <option value="">Tutti</option>
-                  <option value="completata">Completata</option>
-                  <option value="in_attesa">In attesa</option>
-                  <option value="annullata">Annullata</option>
-                </select>
-              </div>
-              <div className="filter-field">
-                <label className="filter-label">Ricerca</label>
-                <input
-                  className="filter-input"
-                  type="text"
-                  placeholder="Descrizione..."
-                  value={filters.q || ''}
-                  onChange={(e) => onFilterChange({ q: e.target.value })}
-                />
-              </div>
-            </>
-          )}
-        </div>
+              {fatturaDraft.servizio.length > 0 && (
+                <div className="conto-servizi-selected">
+                  {fatturaDraft.servizio.join(' • ')}
+                </div>
+              )}
+            </div>
+            <div className="filter-field">
+              <label className="filter-label">Importo</label>
+              <input
+                className="filter-input"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="0,00"
+                value={fatturaDraft.importo}
+                onChange={(e) =>
+                  setFatturaDraft((prev) => ({ ...prev, importo: e.target.value }))
+                }
+              />
+            </div>
+            <div className="filter-field">
+              <label className="filter-label">Allegato</label>
+              <input
+                className="filter-input"
+                type="file"
+                onChange={(e) =>
+                  setFatturaDraft((prev) => ({
+                    ...prev,
+                    allegatoNome: e.target.files?.[0]?.name || '',
+                  }))
+                }
+              />
+            </div>
+            {fatturaDraft.allegatoNome && (
+              <div className="conto-fattura-filename">File selezionato: {fatturaDraft.allegatoNome}</div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="utility-section">

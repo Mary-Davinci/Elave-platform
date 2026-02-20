@@ -72,6 +72,7 @@ const Conto: React.FC = () => {
   const [transactionsTotal, setTransactionsTotal] = useState<number | null>(null);
   const [nonRiconciliateTotal, setNonRiconciliateTotal] = useState<number | null>(null);
   const [serverPagingActive, setServerPagingActive] = useState(false);
+  const [serviziFiacomReference, setServiziFiacomReference] = useState<number | null>(null);
   const [fatturaDraft, setFatturaDraft] = useState<{
     cliente: string;
     servizio: string[];
@@ -170,6 +171,7 @@ const Conto: React.FC = () => {
       responsabileTotal: 0,
       sportelloTotal: 0,
       totalElav: null,
+      fiacomReference: null,
       updatedAt: new Date().toISOString(),
     };
   }, [filteredTx]);
@@ -178,6 +180,28 @@ const Conto: React.FC = () => {
   const loading = summaryLoading || transactionsLoading;
 
   const onFilterChange = (patch: Partial<ContoFilters>) => setFilters((f) => ({ ...f, ...patch }));
+  const getApiFilters = (): ContoFilters => {
+    if (activeAccount === 'proselitismo') {
+      return {
+        ...filters,
+        q: '',
+        company: debouncedCompany,
+        responsabile: debouncedResponsabile,
+        sportello: debouncedSportello,
+      };
+    }
+    // Conto servizi: nessun filtro attivo per evitare stale state nascosto.
+    return {
+      from: '',
+      to: '',
+      type: '',
+      status: '',
+      q: '',
+      company: '',
+      responsabile: '',
+      sportello: '',
+    };
+  };
   const toggleServizioOption = (option: string) => {
     setFatturaDraft((prev) => {
       const exists = prev.servizio.includes(option);
@@ -237,6 +261,46 @@ const Conto: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (activeAccount !== 'proselitismo') return;
+    if (!summaryFromApi) return;
+    const fiacomValue = Number(summaryFromApi.balance || 0);
+    if (Number.isFinite(fiacomValue)) {
+      setServiziFiacomReference(fiacomValue);
+    }
+  }, [activeAccount, summaryFromApi]);
+
+  useEffect(() => {
+    try {
+      let bestTs = 0;
+      let bestValue: number | null = null;
+      for (let i = 0; i < sessionStorage.length; i += 1) {
+        const key = sessionStorage.key(i);
+        if (!key || !key.startsWith('conto:summary:')) continue;
+        const suffix = key.replace('conto:summary:', '');
+        let parsedKey: any = null;
+        try {
+          parsedKey = JSON.parse(suffix);
+        } catch {
+          parsedKey = null;
+        }
+        if (!parsedKey || parsedKey.account !== 'proselitismo') continue;
+        const raw = sessionStorage.getItem(key);
+        if (!raw) continue;
+        const payload = JSON.parse(raw) as { ts?: number; data?: { balance?: number } };
+        const ts = Number(payload?.ts || 0);
+        const value = Number(payload?.data?.balance || 0);
+        if (ts > bestTs && Number.isFinite(value)) {
+          bestTs = ts;
+          bestValue = value;
+        }
+      }
+      if (bestValue !== null) setServiziFiacomReference(bestValue);
+    } catch {
+      // ignore cache bootstrap errors
+    }
+  }, []);
+
   // Fetch summary first (fast path for the cards)
   useEffect(() => {
     let cancelled = false;
@@ -247,13 +311,7 @@ const Conto: React.FC = () => {
       try {
         const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
         const userIdForQuery = isAdmin ? undefined : user?._id;
-        const apiFilters = {
-          ...filters,
-          q: activeAccount === 'proselitismo' ? '' : debouncedQ,
-          company: activeAccount === 'proselitismo' ? debouncedCompany : '',
-          responsabile: activeAccount === 'proselitismo' ? debouncedResponsabile : '',
-          sportello: activeAccount === 'proselitismo' ? debouncedSportello : '',
-        };
+        const apiFilters = getApiFilters();
         const cacheKey = JSON.stringify({
           account: activeAccount,
           filters: apiFilters,
@@ -306,13 +364,7 @@ const Conto: React.FC = () => {
       try {
         const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
         const userIdForQuery = isAdmin ? undefined : user?._id;
-        const apiFilters = {
-          ...filters,
-          q: activeAccount === 'proselitismo' ? '' : debouncedQ,
-          company: activeAccount === 'proselitismo' ? debouncedCompany : '',
-          responsabile: activeAccount === 'proselitismo' ? debouncedResponsabile : '',
-          sportello: activeAccount === 'proselitismo' ? debouncedSportello : '',
-        };
+        const apiFilters = getApiFilters();
         const metaKey = JSON.stringify({
           account: activeAccount,
           filters: apiFilters,
@@ -454,13 +506,7 @@ const Conto: React.FC = () => {
       try {
         const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
         const userIdForQuery = isAdmin ? undefined : user?._id;
-        const apiFilters = {
-          ...filters,
-          q: activeAccount === 'proselitismo' ? '' : debouncedQ,
-          company: activeAccount === 'proselitismo' ? debouncedCompany : '',
-          responsabile: activeAccount === 'proselitismo' ? debouncedResponsabile : '',
-          sportello: activeAccount === 'proselitismo' ? debouncedSportello : '',
-        };
+        const apiFilters = getApiFilters();
         const cacheKey = JSON.stringify({
           account: activeAccount,
           filters: apiFilters,
@@ -757,6 +803,36 @@ const Conto: React.FC = () => {
     return () => cancelAnimationFrame(raf);
   }, [showSportelliModal]);
 
+  const serviziSaldoCard = useMemo(() => {
+    if (activeAccount !== 'servizi') return null as null | { label: string; value: number };
+    const balanceValue = Number(summary.balance || 0);
+    const incomingValue = Number(summary.incoming || 0);
+    const responsabileValue = Number(summary.responsabileTotal || 0);
+    const sportelloValue = Number(summary.sportelloTotal || 0);
+    const pickScopedValue = (...values: number[]) => {
+      const firstNonZero = values.find((v) => Number.isFinite(v) && Math.abs(v) > 0);
+      if (firstNonZero !== undefined) return firstNonZero;
+      return values.find((v) => Number.isFinite(v)) ?? 0;
+    };
+    if (isSportello) {
+      return {
+        label: 'Saldo Sportello',
+        value: pickScopedValue(sportelloValue, balanceValue, incomingValue),
+      };
+    }
+    if (isResponsabile) {
+      return {
+        label: 'Saldo Responsabile',
+        value: pickScopedValue(responsabileValue, balanceValue, incomingValue),
+      };
+    }
+    const fiacomReferenceValue = Number(summary.fiacomReference ?? serviziFiacomReference ?? 0);
+    return {
+      label: 'Saldo FIACOM (80%)',
+      value: pickScopedValue(fiacomReferenceValue, balanceValue, incomingValue),
+    };
+  }, [activeAccount, isSportello, isResponsabile, summary.balance, summary.incoming, summary.responsabileTotal, summary.sportelloTotal, summary.fiacomReference, serviziFiacomReference]);
+
   return (
     <div className="dashboard-page">
       <h2 className="welcome-header">Conto</h2>
@@ -798,7 +874,12 @@ const Conto: React.FC = () => {
       )}
 
       <div className="projects-section conto-summaries" style={{ marginBottom: 20 }}>
-        {isSportello ? (
+        {activeAccount === 'servizi' && serviziSaldoCard ? (
+          <div className="project-card-dash conto-saldo-card">
+            <div className="project-number">{formatCurrency(serviziSaldoCard.value)}</div>
+            <div className="project-title">{serviziSaldoCard.label}</div>
+          </div>
+        ) : isSportello ? (
           <>
             <div className="project-card-dash conto-saldo-card">
               <div className="project-number">{formatCurrency(summary.balance || 0)}</div>
@@ -905,7 +986,10 @@ const Conto: React.FC = () => {
         )}
       </div>
 
-      <div className="utility-section" style={{ marginBottom: 20 }}>
+      <div
+        className={`utility-section ${activeAccount === 'servizi' ? 'conto-fattura-section' : ''}`}
+        style={{ marginBottom: 20 }}
+      >
         <div className="section-header">{activeAccount === 'servizi' ? 'Fattura' : 'Filtri'}</div>
         {activeAccount === 'proselitismo' ? (
           <div className="conto-filters-grid">
@@ -964,18 +1048,26 @@ const Conto: React.FC = () => {
           <div className="conto-fattura-grid">
             <div className="filter-field conto-fattura-cliente">
               <label className="filter-label">Cliente / Dati Fiacom</label>
-              <input
-                className="filter-input"
-                type="text"
-                placeholder="Anagrafica sportello o azienda..."
-                value={fatturaDraft.cliente}
-                onChange={(e) =>
-                  setFatturaDraft((prev) => ({ ...prev, cliente: e.target.value }))
-                }
-              />
+              <div className="conto-fiacom-box">
+                <div className="conto-fiacom-line">Spett.le</div>
+                <div className="conto-fiacom-line conto-fiacom-strong">Fiacom Conapi</div>
+                <div className="conto-fiacom-line conto-fiacom-strong">C.F. 96601400581</div>
+                <div className="conto-fiacom-line conto-fiacom-strong">VIA NAZIONALE, 172</div>
+                <div className="conto-fiacom-line conto-fiacom-strong">00184 ROMA (RM)</div>
+                <div className="conto-fiacom-line conto-fiacom-strong">PEC: fiacomconapi@pec.it</div>
+              </div>
             </div>
             <div className="filter-field">
               <label className="filter-label">Prodotti / Servizi</label>
+              {fatturaDraft.servizio.length > 0 && (
+                <div className="conto-servizi-selected">
+                  {fatturaDraft.servizio.map((servizio) => (
+                    <span key={servizio} className="conto-servizi-chip">
+                      {servizio}
+                    </span>
+                  ))}
+                </div>
+              )}
               <div className="conto-servizi-dropdown" ref={serviziDropdownRef}>
                 <button
                   type="button"
@@ -1001,11 +1093,6 @@ const Conto: React.FC = () => {
                   </div>
                 )}
               </div>
-              {fatturaDraft.servizio.length > 0 && (
-                <div className="conto-servizi-selected">
-                  {fatturaDraft.servizio.join(' • ')}
-                </div>
-              )}
             </div>
             <div className="filter-field">
               <label className="filter-label">Importo</label>
@@ -1075,12 +1162,12 @@ const Conto: React.FC = () => {
                   (companyKey ? companiesByKey.get(companyKey) : undefined);
                 const companyName = rawCompanyName || '-';
                 const responsabile =
-                  companyFromList?.contractDetails?.territorialManager ||
                   t.responsabileName ||
+                  companyFromList?.contractDetails?.territorialManager ||
                   '-';
                 const sportello =
-                  companyFromList?.contactInfo?.laborConsultant ||
                   t.sportelloName ||
+                  companyFromList?.contactInfo?.laborConsultant ||
                   '-';
                 const displayAmount =
                   activeAccount === 'proselitismo' && typeof t.rawAmount === 'number'
@@ -1518,3 +1605,4 @@ const Conto: React.FC = () => {
 };
 
 export default Conto;
+

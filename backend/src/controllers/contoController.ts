@@ -1125,10 +1125,10 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
                   },
                   sportelloName: {
                     $ifNull: [
-                      "$sportelloDoc.businessName",
+                      "$sportelloDoc.agentName",
                       {
                         $ifNull: [
-                          "$sportelloDoc.agentName",
+                          "$sportelloDoc.businessName",
                           {
                             $ifNull: [
                               "$companyDoc.contactInfo.laborConsultant.businessName",
@@ -1239,7 +1239,7 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
     let responsabileMatch: any = null;
     let responsabileCompanyIds: mongoose.Types.ObjectId[] | null = null;
     let responsabileNames: string[] = [];
-    if (isResponsabileScope) {
+    if (isResponsabile) {
       const scope = await getResponsabileScope(req.user._id);
       responsabileNames = scope.responsabileNames;
       responsabileMatch = scope.responsabileMatch;
@@ -1416,6 +1416,164 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
         ? fiacomTotal - outgoing
         : incoming - outgoing;
 
+    let fiacomReference: number | null = null;
+    if (
+      account === "servizi" &&
+      (req.user.role === "admin" || req.user.role === "super_admin")
+    ) {
+      const fiacomReferenceAgg = await ContoTransaction.aggregate([
+        {
+          $match: {
+            account: "proselitismo",
+            type: "entrata",
+            rawAmount: { $gt: 0 },
+            importKey: { $exists: true, $ne: "" },
+          },
+        },
+        {
+          $group: {
+            _id: "$importKey",
+            elav: { $first: "$rawAmount" },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            fiacomTotal: { $sum: { $multiply: ["$elav", FIACOM_NET_RATIO] } },
+          },
+        },
+      ]);
+      fiacomReference = Number(fiacomReferenceAgg[0]?.fiacomTotal ?? 0);
+    }
+
+    let responsabileReference: number | null = null;
+    if (account === "servizi" && req.user.role === "responsabile_territoriale") {
+      const responsabileRefMatch: any = {
+        account: "proselitismo",
+        type: "entrata",
+        rawAmount: { $gt: 0 },
+        importKey: { $exists: true, $ne: "" },
+      };
+      if (from || to) {
+        responsabileRefMatch.date = {};
+        if (from) responsabileRefMatch.date.$gte = new Date(from);
+        if (to) responsabileRefMatch.date.$lte = new Date(to);
+      }
+      if (q) {
+        responsabileRefMatch.description = { $regex: q, $options: "i" };
+      }
+      const responsabileRefAgg = await ContoTransaction.aggregate([
+        { $match: responsabileRefMatch },
+        {
+          $group: {
+            _id: "$importKey",
+            elav: { $first: "$rawAmount" },
+            company: { $first: "$company" },
+          },
+        },
+        {
+          $lookup: {
+            from: "companies",
+            localField: "company",
+            foreignField: "_id",
+            as: "companyDoc",
+          },
+        },
+        { $unwind: { path: "$companyDoc", preserveNullAndEmptyArrays: true } },
+        ...(responsabileMatch ? [{ $match: responsabileMatch }] : []),
+        {
+          $lookup: {
+            from: "users",
+            localField: "companyDoc.user",
+            foreignField: "_id",
+            as: "responsabileDoc",
+          },
+        },
+        { $unwind: { path: "$responsabileDoc", preserveNullAndEmptyArrays: true } },
+        {
+          $addFields: {
+            responsabilePercent: "$responsabileDoc.profitSharePercentage",
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            total: {
+              $sum: {
+                $multiply: ["$elav", { $divide: ["$responsabilePercent", 100] }],
+              },
+            },
+          },
+        },
+      ]);
+      responsabileReference = Number(responsabileRefAgg[0]?.total ?? 0);
+    }
+
+    let sportelloReference: number | null = null;
+    if (account === "servizi" && req.user.role === "sportello_lavoro") {
+      const sportelloRefMatch: any = {
+        account: "proselitismo",
+        type: "entrata",
+        rawAmount: { $gt: 0 },
+        importKey: { $exists: true, $ne: "" },
+      };
+      if (from || to) {
+        sportelloRefMatch.date = {};
+        if (from) sportelloRefMatch.date.$gte = new Date(from);
+        if (to) sportelloRefMatch.date.$lte = new Date(to);
+      }
+      if (q) {
+        sportelloRefMatch.description = { $regex: q, $options: "i" };
+      }
+      const sportelloRefAgg = await ContoTransaction.aggregate([
+        { $match: sportelloRefMatch },
+        {
+          $group: {
+            _id: "$importKey",
+            elav: { $first: "$rawAmount" },
+            company: { $first: "$company" },
+          },
+        },
+        ...(sportelloCompanyIds.length
+          ? [{ $match: { company: { $in: sportelloCompanyIds } } }]
+          : []),
+        {
+          $lookup: {
+            from: "companies",
+            localField: "company",
+            foreignField: "_id",
+            as: "companyDoc",
+          },
+        },
+        { $unwind: { path: "$companyDoc", preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: "sportellolavoros",
+            localField: "companyDoc.contactInfo.laborConsultantId",
+            foreignField: "_id",
+            as: "sportelloDoc",
+          },
+        },
+        { $unwind: { path: "$sportelloDoc", preserveNullAndEmptyArrays: true } },
+        {
+          $addFields: {
+            sportelloPercent: "$sportelloDoc.agreedCommission",
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            total: {
+              $sum: {
+                $multiply: ["$elav", { $divide: ["$sportelloPercent", 100] }],
+              },
+            },
+          },
+        },
+      ]);
+      sportelloReference = Number(sportelloRefAgg[0]?.total ?? 0);
+    }
+
     let nonRiconciliateTotal = 0;
     if (isResponsabileScope) {
       const matchNonRiconciliate: any = {};
@@ -1552,9 +1710,16 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
       incoming,
       outgoing,
       nonRiconciliateTotal,
-      responsabileTotal,
-      sportelloTotal,
+      responsabileTotal:
+        account === "servizi" && req.user.role === "responsabile_territoriale"
+          ? Number(responsabileReference ?? 0)
+          : responsabileTotal,
+      sportelloTotal:
+        account === "servizi" && req.user.role === "sportello_lavoro"
+          ? Number(sportelloReference ?? 0)
+          : sportelloTotal,
       totalElav,
+      fiacomReference,
       updatedAt: new Date().toISOString(),
     };
     writeComputedSummaryCache(cacheKey, payload);

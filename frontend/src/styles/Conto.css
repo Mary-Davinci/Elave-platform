@@ -84,13 +84,13 @@
 
 .conto-fattura-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 14px;
   align-items: end;
 }
 
 .conto-fattura-cliente {
-  grid-column: auto;
+  grid-column: 1 / -1;
 }
 
 .conto-fattura-filename {
@@ -139,9 +139,70 @@
 }
 
 .conto-servizi-selected {
-  margin-top: 6px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.conto-servizi-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #cfe0ff;
+  background: #eef4ff;
+  color: #1e3a8a;
+  border-radius: 999px;
+  padding: 4px 10px;
   font-size: 12px;
-  color: #334155;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.conto-fiacom-box {
+  border: 1px solid #dbe4f0;
+  border-radius: 10px;
+  background: #f8fbff;
+  padding: 10px 12px;
+}
+
+.conto-fiacom-line {
+  font-size: 13px;
+  line-height: 1.35;
+  color: #0f172a;
+}
+
+.conto-fiacom-strong {
+  font-weight: 700;
+}
+
+.conto-fattura-section {
+  border: 1px solid #e5edf8;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.conto-fattura-section .section-header {
+  margin-bottom: 6px;
+}
+
+.conto-fattura-section .filter-label {
+  text-align: left;
+  font-size: 11px;
+  color: #475569;
+}
+
+.conto-fattura-grid .filter-field:not(.conto-fattura-cliente) .filter-label {
+  text-align: center;
+}
+
+.conto-fattura-section .filter-input,
+.conto-fattura-section .filter-select {
+  border-radius: 10px;
+  min-height: 42px;
+  background: #ffffff;
+}
+
+.conto-fattura-section .filter-field {
+  gap: 5px;
 }
 
 
@@ -158,9 +219,11 @@
 @media (max-width: 1024px) {
   .conto-filters-grid { gap: 14px; }
   .conto-fattura-grid { grid-template-columns: repeat(2, minmax(180px, 1fr)); }
+  .conto-fattura-cliente { grid-column: 1 / -1; }
 }
 
 @media (max-width: 640px) {
   .conto-filters-grid { gap: 12px; }
   .conto-fattura-grid { grid-template-columns: 1fr; gap: 12px; }
+  .conto-fattura-cliente { grid-column: auto; }
 }

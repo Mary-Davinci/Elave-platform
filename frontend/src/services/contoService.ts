@@ -49,6 +49,7 @@ export interface Summary {
   responsabileTotal?: number;
   sportelloTotal?: number;
   totalElav?: number | null;
+  fiacomReference?: number | null;
   updatedAt: string;
 }
 
@@ -212,6 +213,10 @@ export const contoService = {
       data.totalElav === null || data.totalElav === undefined
         ? null
         : Number(data.totalElav);
+    const fiacomReference =
+      data.fiacomReference === null || data.fiacomReference === undefined
+        ? null
+        : Number(data.fiacomReference);
     return {
       balance,
       incoming,
@@ -220,6 +225,7 @@ export const contoService = {
       responsabileTotal,
       sportelloTotal,
       totalElav,
+      fiacomReference,
       updatedAt: data.updatedAt ?? new Date().toISOString(),
     };
   },

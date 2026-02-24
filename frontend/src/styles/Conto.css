@@ -127,6 +127,84 @@
   cursor: not-allowed;
 }
 
+.conto-section-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.conto-report-button {
+  border: 1px solid #2563eb;
+  background: #2563eb;
+  color: #fff;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.conto-report-button:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.conto-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.35);
+  display: grid;
+  place-items: center;
+  z-index: 1200;
+  padding: 16px;
+}
+
+.conto-modal {
+  width: 100%;
+  max-width: 680px;
+  margin: 0;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.22);
+  border: 1px solid #e2e8f0;
+  padding: 16px;
+}
+
+.conto-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.conto-modal-header h3 {
+  margin: 0;
+  font-size: 20px;
+  color: #1e3a8a;
+}
+
+.conto-modal-header button {
+  border: none;
+  background: transparent;
+  font-size: 28px;
+  line-height: 1;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.conto-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.conto-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
 .conto-servizi-dropdown {
   position: relative;
 }
@@ -305,4 +383,5 @@
   .conto-filters-grid { gap: 12px; }
   .conto-fattura-grid { grid-template-columns: 1fr; gap: 12px; }
   .conto-fattura-cliente { grid-column: auto; }
+  .conto-modal-grid { grid-template-columns: 1fr; }
 }

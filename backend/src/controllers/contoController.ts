@@ -1002,15 +1002,33 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
       if (to) query.date.$lte = new Date(to);
     }
 
-    const extraClauses: any[] = [];
+    const structuredClauses: any[] = [];
     if (company?.trim()) {
-      extraClauses.push({ companyName: { $regex: new RegExp(escapeRegex(company.trim()), "i") } });
+      structuredClauses.push({ companyName: { $regex: new RegExp(escapeRegex(company.trim()), "i") } });
     }
     if (responsabile?.trim()) {
-      extraClauses.push({ responsabileName: { $regex: new RegExp(escapeRegex(responsabile.trim()), "i") } });
+      structuredClauses.push({ responsabileName: { $regex: new RegExp(escapeRegex(responsabile.trim()), "i") } });
     }
     if (sportello?.trim()) {
-      extraClauses.push({ sportelloName: { $regex: new RegExp(escapeRegex(sportello.trim()), "i") } });
+      const sportelloRegex = new RegExp(escapeRegex(sportello.trim()), "i");
+      structuredClauses.push({
+        $or: [
+          { sportelloName: { $regex: sportelloRegex } },
+          { "sportelloDoc.agentName": { $regex: sportelloRegex } },
+          { "sportelloDoc.businessName": { $regex: sportelloRegex } },
+          { "companyDoc.contactInfo.laborConsultant": { $regex: sportelloRegex } },
+          {
+            "companyDoc.contactInfo.laborConsultant.businessName": {
+              $regex: sportelloRegex,
+            },
+          },
+          {
+            "companyDoc.contactInfo.laborConsultant.agentName": {
+              $regex: sportelloRegex,
+            },
+          },
+        ],
+      });
     }
 
     const pageNum = Math.max(1, Number(page) || 1);
@@ -1035,18 +1053,6 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
         query.$or = searchOr;
       }
     }
-    if (extraClauses.length > 0) {
-      if (Array.isArray(query.$and)) {
-        query.$and.push(...extraClauses);
-      } else if (Array.isArray(query.$or)) {
-        const roleOr = query.$or;
-        delete query.$or;
-        query.$and = [{ $or: roleOr }, ...extraClauses];
-      } else {
-        query.$and = [...extraClauses];
-      }
-    }
-
     let transactions: any[] = [];
     let total = 0;
 
@@ -1073,80 +1079,93 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
         { $replaceRoot: { newRoot: "$doc" } },
         { $sort: { date: -1, createdAt: -1, _id: -1 } },
         {
-          $facet: {
-            items: [
-              { $skip: skip },
-              { $limit: pageSize },
-              {
-                $lookup: {
-                  from: "companies",
-                  localField: "company",
-                  foreignField: "_id",
-                  as: "companyDoc",
-                },
-              },
-              { $unwind: { path: "$companyDoc", preserveNullAndEmptyArrays: true } },
-              {
-                $lookup: {
-                  from: "users",
-                  localField: "companyDoc.user",
-                  foreignField: "_id",
-                  as: "responsabileDoc",
-                },
-              },
-              { $unwind: { path: "$responsabileDoc", preserveNullAndEmptyArrays: true } },
-              {
-                $lookup: {
-                  from: "sportellolavoros",
-                  localField: "companyDoc.contactInfo.laborConsultantId",
-                  foreignField: "_id",
-                  as: "sportelloDoc",
-                },
-              },
-              { $unwind: { path: "$sportelloDoc", preserveNullAndEmptyArrays: true } },
-              {
-                $addFields: {
-                  companyName: { $ifNull: ["$companyDoc.companyName", "$companyDoc.businessName"] },
-                  responsabileName: {
-                    $ifNull: [
-                      "$companyDoc.contractDetails.territorialManager",
-                      {
-                        $trim: {
-                          input: {
-                            $concat: [
-                              { $ifNull: ["$responsabileDoc.firstName", ""] },
-                              " ",
-                              { $ifNull: ["$responsabileDoc.lastName", ""] },
-                            ],
-                          },
+          $lookup: {
+            from: "companies",
+            localField: "company",
+            foreignField: "_id",
+            as: "companyDoc",
+          },
+        },
+        { $unwind: { path: "$companyDoc", preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: "users",
+            localField: "companyDoc.user",
+            foreignField: "_id",
+            as: "responsabileDoc",
+          },
+        },
+        { $unwind: { path: "$responsabileDoc", preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: "sportellolavoros",
+            localField: "companyDoc.contactInfo.laborConsultantId",
+            foreignField: "_id",
+            as: "sportelloDoc",
+          },
+        },
+        { $unwind: { path: "$sportelloDoc", preserveNullAndEmptyArrays: true } },
+        {
+          $addFields: {
+            companyName: {
+              $ifNull: [
+                "$companyName",
+                { $ifNull: ["$companyDoc.companyName", "$companyDoc.businessName"] },
+              ],
+            },
+            responsabileName: {
+              $ifNull: [
+                "$responsabileName",
+                {
+                  $ifNull: [
+                    "$companyDoc.contractDetails.territorialManager",
+                    {
+                      $trim: {
+                        input: {
+                          $concat: [
+                            { $ifNull: ["$responsabileDoc.firstName", ""] },
+                            " ",
+                            { $ifNull: ["$responsabileDoc.lastName", ""] },
+                          ],
                         },
                       },
-                    ],
-                  },
-                  sportelloName: {
-                    $ifNull: [
-                      "$sportelloDoc.agentName",
-                      {
-                        $ifNull: [
-                          "$sportelloDoc.businessName",
-                          {
-                            $ifNull: [
-                              "$companyDoc.contactInfo.laborConsultant.businessName",
-                              {
-                                $ifNull: [
-                                  "$companyDoc.contactInfo.laborConsultant.agentName",
-                                  "$companyDoc.contactInfo.laborConsultant",
-                                ],
-                              },
-                            ],
-                          },
-                        ],
-                      },
-                    ],
-                  },
+                    },
+                  ],
                 },
-              },
-            ],
+              ],
+            },
+            sportelloName: {
+              $ifNull: [
+                "$sportelloName",
+                {
+                  $ifNull: [
+                    "$sportelloDoc.agentName",
+                    {
+                      $ifNull: [
+                        "$sportelloDoc.businessName",
+                        {
+                          $ifNull: [
+                            "$companyDoc.contactInfo.laborConsultant.businessName",
+                            {
+                              $ifNull: [
+                                "$companyDoc.contactInfo.laborConsultant.agentName",
+                                "$companyDoc.contactInfo.laborConsultant",
+                              ],
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+        ...(structuredClauses.length ? [{ $match: { $and: structuredClauses } }] : []),
+        {
+          $facet: {
+            items: [{ $skip: skip }, { $limit: pageSize }],
             total: [{ $count: "count" }],
           },
         },
@@ -1215,6 +1234,121 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
   } catch (err: any) {
     console.error("Get conto transactions error:", err);
     return res.status(500).json({ error: "Server error" });
+  }
+};
+
+export const exportContoTransactionsXlsx: CustomRequestHandler = async (req, res, next) => {
+  try {
+    const parseDescription = (description: string) => {
+      const text = String(description || "");
+      const pick = (regex: RegExp) => {
+        const match = text.match(regex);
+        return match ? String(match[1] || "").trim() : "";
+      };
+      return {
+        matricola: pick(/Matricola:\s*([^|]+)/i),
+        riconciliata: pick(/Riconciliata:\s*([^|]+)/i),
+        nonRiconciliata: pick(/Non riconciliata:\s*([^|]+)/i),
+        fondoSanitario: pick(/Fondo sanitario:\s*([^|]+)/i),
+      };
+    };
+
+    const limit = 500;
+    let page = 1;
+    let total = Number.MAX_SAFE_INTEGER;
+    const allTransactions: any[] = [];
+
+    while (allTransactions.length < total) {
+      const capture: { statusCode?: number; payload?: any } = {};
+      const fakeRes = {
+        status(code: number) {
+          capture.statusCode = code;
+          return this;
+        },
+        json(payload: any) {
+          capture.payload = payload;
+          return this;
+        },
+      } as unknown as Response;
+
+      const fakeReq = {
+        ...req,
+        query: {
+          ...(req.query || {}),
+          page: String(page),
+          limit: String(limit),
+          lite: "1",
+        },
+      } as any;
+
+      await getContoTransactions(fakeReq, fakeRes, next);
+
+      if ((capture.statusCode || 200) >= 400) {
+        return res
+          .status(capture.statusCode || 500)
+          .json(capture.payload || { error: "Export failed" });
+      }
+
+      const transactions = Array.isArray(capture.payload?.transactions)
+        ? capture.payload.transactions
+        : [];
+      allTransactions.push(...transactions);
+
+      total = Number(capture.payload?.total || allTransactions.length);
+      if (!transactions.length || page > 200) break;
+      page += 1;
+    }
+
+    const rows = allTransactions.map((t: any) => {
+      const parsed = parseDescription(t?.description || "");
+      return {
+        Data: t?.date ? new Date(t.date).toLocaleDateString("it-IT") : "",
+        Azienda: t?.companyName || t?.company?.companyName || t?.company?.businessName || "",
+        "Responsabile Territoriale": t?.responsabileName || "",
+        "Sportello Lavoro": t?.sportelloName || "",
+        "Quota ELAV": Number(t?.rawAmount ?? t?.amount ?? 0),
+        Tipo: t?.type || "",
+        Stato: t?.status || "",
+        Categoria: t?.category || "",
+        Matricola: parsed.matricola,
+        Riconciliata: parsed.riconciliata,
+        "Non riconciliata": parsed.nonRiconciliata,
+        "Fondo sanitario": parsed.fondoSanitario,
+      };
+    });
+
+    const ws = xlsx.utils.json_to_sheet(rows);
+    ws["!cols"] = [
+      { wch: 12 }, // Data
+      { wch: 34 }, // Azienda
+      { wch: 28 }, // Responsabile
+      { wch: 28 }, // Sportello
+      { wch: 12 }, // Quota ELAV
+      { wch: 10 }, // Tipo
+      { wch: 12 }, // Stato
+      { wch: 16 }, // Categoria
+      { wch: 16 }, // Matricola
+      { wch: 14 }, // Riconciliata
+      { wch: 16 }, // Non riconciliata
+      { wch: 14 }, // Fondo sanitario
+    ];
+    const wb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(wb, ws, "Report");
+    const buffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
+
+    const from = String(req.query?.from || "all");
+    const to = String(req.query?.to || "all");
+    const filename = `report-proselitismo-${from}-${to}.xlsx`;
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    return res.send(buffer);
+  } catch (err: any) {
+    console.error("Export conto transactions xlsx error:", err);
+    return res.status(500).json({ error: "Server error while exporting report" });
   }
 };
 

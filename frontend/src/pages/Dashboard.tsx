@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { getDashboardStats } from '../services/dashboardService';
+import { contoService, type Summary } from '../services/contoService';
 import { getUtilities, uploadUtility, deleteUtility } from '../services/utilityService';
 import { useNavigate } from 'react-router-dom';
 import '../styles/Dashboard.css';
@@ -49,6 +50,7 @@ const Dashboard: React.FC = () => {
 
   const [loaded, setLoaded] = useState(false);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [serviziSummary, setServiziSummary] = useState<Summary | null>(null);
   const [utilities, setUtilities] = useState<Utility[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -82,6 +84,14 @@ const Dashboard: React.FC = () => {
         const data = await getDashboardStats();
         setDashboardData(data);
 
+        const isAdminRole = user?.role === 'admin' || user?.role === 'super_admin';
+        const serviziData = await contoService.getSummary(
+          'servizi',
+          { from: '', to: '', type: '', status: '', q: '', company: '', responsabile: '', sportello: '' },
+          isAdminRole ? undefined : user?._id
+        );
+        setServiziSummary(serviziData);
+
         // Get utilities data
         const utilitiesData = await getUtilities();
         setUtilities(utilitiesData);
@@ -96,7 +106,25 @@ const Dashboard: React.FC = () => {
     };
 
     fetchDashboardData();
-  }, []);
+  }, [user?._id, user?.role]);
+
+  const serviziBalance = React.useMemo(() => {
+    if (!serviziSummary) return Number(dashboardData?.accounts.servizi.balance || 0);
+    const isAdminRole = user?.role === 'admin' || user?.role === 'super_admin';
+    if (isAdminRole) {
+      const value = Number(serviziSummary.fiacomReference ?? 0);
+      return Number.isFinite(value) ? value : 0;
+    }
+    if (user?.role === 'responsabile_territoriale') {
+      const value = Number(serviziSummary.responsabileTotal ?? 0);
+      return Number.isFinite(value) ? value : 0;
+    }
+    if (user?.role === 'sportello_lavoro') {
+      const value = Number(serviziSummary.sportelloTotal ?? 0);
+      return Number.isFinite(value) ? value : 0;
+    }
+    return Number(serviziSummary.balance || 0);
+  }, [dashboardData?.accounts.servizi.balance, serviziSummary, user?.role]);
 
   // Handle file upload
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -348,7 +376,7 @@ const Dashboard: React.FC = () => {
               <div className="account-content">
                 <h3 className="account-title">Conto servizi</h3>
                 <div className="account-balance">
-                  €{dashboardData?.accounts.servizi.balance.toFixed(2) || '0.00'}
+                  €{serviziBalance.toFixed(2)}
                 </div>
                 <button className="account-button" onClick={() => handleNavigation('/conto/servizi')}>
                   Accedi al conto

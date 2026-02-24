@@ -9,6 +9,7 @@ import {
   getContoProselitismoImports,
   previewContoProselitismoFromExcel,
   uploadContoProselitismoFromExcel,
+  exportContoProselitismoXlsx,
 } from "../controllers/contoProselitismoController";
 
 const router = Router();
@@ -18,6 +19,7 @@ router.get("/summary", authMiddleware, getContoProselitismoSummary);
 router.get("/breakdown", authMiddleware, getContoProselitismoBreakdown);
 router.get("/non-riconciliate", authMiddleware, getContoProselitismoNonRiconciliate);
 router.get("/imports", authMiddleware, getContoProselitismoImports);
+router.get("/export", authMiddleware, exportContoProselitismoXlsx);
 router.post("/preview", authMiddleware, adminRoleMiddleware, previewContoProselitismoFromExcel);
 router.post("/upload", authMiddleware, adminRoleMiddleware, uploadContoProselitismoFromExcel);
 

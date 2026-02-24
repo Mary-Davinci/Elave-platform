@@ -370,3 +370,20 @@ export const createServiziInvoiceRequest = async (
   const res = await api.post('/api/conto/servizi/invoice-request', payload);
   return res.data as { message: string; invoiceId: string };
 };
+
+export const downloadProselitismoReportXlsx = async (
+  filters: Pick<ContoFilters, 'from' | 'to' | 'company' | 'responsabile' | 'sportello'>
+): Promise<Blob> => {
+  const params: Record<string, string> = {};
+  if (filters.from) params.from = filters.from;
+  if (filters.to) params.to = filters.to;
+  if (filters.company) params.company = filters.company;
+  if (filters.responsabile) params.responsabile = filters.responsabile;
+  if (filters.sportello) params.sportello = filters.sportello;
+
+  const res = await api.get('/api/conto/proselitismo/export', {
+    params,
+    responseType: 'blob',
+  });
+  return res.data as Blob;
+};

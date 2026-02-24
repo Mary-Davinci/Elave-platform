@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import '../styles/Dashboard.css';
 import '../styles/Conto.css';
-import { contoService, type AccountType, type Transaction, type ContoFilters, type Summary, getContoImports, type ContoImportItem, getNonRiconciliate, type NonRiconciliataItem, type BreakdownRow, createServiziInvoiceRequest } from '../services/contoService';
+import { contoService, type AccountType, type Transaction, type ContoFilters, type Summary, getContoImports, type ContoImportItem, getNonRiconciliate, type NonRiconciliataItem, type BreakdownRow, createServiziInvoiceRequest, downloadProselitismoReportXlsx } from '../services/contoService';
 import { getCompanies } from '../services/companyService';
 import type { Company } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
@@ -88,6 +89,15 @@ const Conto: React.FC = () => {
   const serviziDropdownRef = useRef<HTMLDivElement | null>(null);
   const [invoiceSubmitting, setInvoiceSubmitting] = useState(false);
   const [invoiceFeedback, setInvoiceFeedback] = useState<string | null>(null);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportFilters, setReportFilters] = useState<ContoFilters>({
+    from: '',
+    to: '',
+    company: '',
+    responsabile: '',
+    sportello: '',
+  });
   const [debouncedQ, setDebouncedQ] = useState((filters.q || '').toString());
   const [debouncedCompany, setDebouncedCompany] = useState((filters.company || '').toString());
   const [debouncedResponsabile, setDebouncedResponsabile] = useState((filters.responsabile || '').toString());
@@ -250,6 +260,35 @@ const Conto: React.FC = () => {
       setInvoiceFeedback(err?.response?.data?.error || 'Errore durante invio fattura.');
     } finally {
       setInvoiceSubmitting(false);
+    }
+  };
+
+  const handleGenerateProselitismoReport = async () => {
+    if (reportLoading) return;
+    try {
+      setReportLoading(true);
+      const blob = await downloadProselitismoReportXlsx({
+        from: reportFilters.from,
+        to: reportFilters.to,
+        company: reportFilters.company,
+        responsabile: reportFilters.responsabile,
+        sportello: reportFilters.sportello,
+      });
+      const url = URL.createObjectURL(blob);
+      const fromToken = reportFilters.from || 'all';
+      const toToken = reportFilters.to || 'all';
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `report-proselitismo-${fromToken}-${toToken}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setShowReportModal(false);
+    } catch (err: any) {
+      setError(err?.response?.data?.error || 'Errore generazione report.');
+    } finally {
+      setReportLoading(false);
     }
   };
 
@@ -749,6 +788,45 @@ const Conto: React.FC = () => {
     return pages;
   }, [nonRiconciliatePage, nonRiconciliateTotalPages]);
 
+  const reportCompanyOptions = useMemo(() => {
+    const set = new Set<string>();
+    companies.forEach((c) => {
+      const name = (c.companyName || c.businessName || c.name || '').trim();
+      if (name) set.add(name);
+    });
+    transactions.forEach((t) => {
+      const name = (t.companyName || t.company?.companyName || t.company?.businessName || '').trim();
+      if (name) set.add(name);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'it'));
+  }, [companies, transactions]);
+
+  const reportResponsabileOptions = useMemo(() => {
+    const set = new Set<string>();
+    responsabiliBreakdown.forEach((r) => {
+      const name = String(r.name || '').trim();
+      if (name) set.add(name);
+    });
+    transactions.forEach((t) => {
+      const name = String(t.responsabileName || '').trim();
+      if (name) set.add(name);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'it'));
+  }, [responsabiliBreakdown, transactions]);
+
+  const reportSportelloOptions = useMemo(() => {
+    const set = new Set<string>();
+    sportelliBreakdown.forEach((s) => {
+      const name = String(s.name || '').trim();
+      if (name) set.add(name);
+    });
+    transactions.forEach((t) => {
+      const name = String(t.sportelloName || '').trim();
+      if (name) set.add(name);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'it'));
+  }, [sportelliBreakdown, transactions]);
+
   const loadBreakdown = async () => {
     if (activeAccount !== 'proselitismo') return;
     try {
@@ -800,6 +878,12 @@ const Conto: React.FC = () => {
     setResponsabiliBreakdown([]);
     setSportelliBreakdown([]);
   }, [activeAccount, filters.from, filters.to, filters.type, filters.status, filters.q]);
+
+  useEffect(() => {
+    if (!showReportModal || activeAccount !== 'proselitismo') return;
+    if (responsabiliBreakdown.length > 0 || sportelliBreakdown.length > 0) return;
+    loadBreakdown();
+  }, [showReportModal, activeAccount, responsabiliBreakdown.length, sportelliBreakdown.length]);
 
   const handleResponsabiliClick = () => {
     setShowSportelliModal(false);
@@ -1012,7 +1096,18 @@ const Conto: React.FC = () => {
         className={`utility-section ${activeAccount === 'servizi' ? 'conto-fattura-section' : ''}`}
         style={{ marginBottom: 20 }}
       >
-        <div className="section-header">{activeAccount === 'servizi' ? 'Fattura' : 'Filtri'}</div>
+        <div className="conto-section-header-row">
+          <div className="section-header">{activeAccount === 'servizi' ? 'Fattura' : 'Filtri'}</div>
+          {activeAccount === 'proselitismo' && (
+            <button
+              type="button"
+              className="conto-report-button"
+              onClick={() => setShowReportModal(true)}
+            >
+              Scarica report
+            </button>
+          )}
+        </div>
         {activeAccount === 'proselitismo' ? (
           <div className="conto-filters-grid">
             <div className="filter-field">
@@ -1159,6 +1254,87 @@ const Conto: React.FC = () => {
           </div>
         )}
       </div>
+
+      {showReportModal && createPortal((
+        <div className="conto-modal-overlay" onClick={() => setShowReportModal(false)}>
+          <div className="conto-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="conto-modal-header">
+              <h3>Filtra report proselitismo</h3>
+              <button type="button" onClick={() => setShowReportModal(false)}>×</button>
+            </div>
+            <div className="conto-modal-grid">
+              <div className="filter-field">
+                <label className="filter-label">Da</label>
+                <input
+                  className="filter-input"
+                  type="date"
+                  value={reportFilters.from || ''}
+                  onChange={(e) => setReportFilters((p) => ({ ...p, from: e.target.value }))}
+                />
+              </div>
+              <div className="filter-field">
+                <label className="filter-label">A</label>
+                <input
+                  className="filter-input"
+                  type="date"
+                  value={reportFilters.to || ''}
+                  onChange={(e) => setReportFilters((p) => ({ ...p, to: e.target.value }))}
+                />
+              </div>
+              <div className="filter-field">
+                <label className="filter-label">Azienda</label>
+                <select
+                  className="filter-select"
+                  value={reportFilters.company || ''}
+                  onChange={(e) => setReportFilters((p) => ({ ...p, company: e.target.value }))}
+                >
+                  <option value="">Tutte</option>
+                  {reportCompanyOptions.map((name) => (
+                    <option key={`report-company-${name}`} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="filter-field">
+                <label className="filter-label">Responsabile</label>
+                <select
+                  className="filter-select"
+                  value={reportFilters.responsabile || ''}
+                  onChange={(e) => setReportFilters((p) => ({ ...p, responsabile: e.target.value }))}
+                >
+                  <option value="">Tutti</option>
+                  {reportResponsabileOptions.map((name) => (
+                    <option key={`report-responsabile-${name}`} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="filter-field">
+                <label className="filter-label">Sportello</label>
+                <select
+                  className="filter-select"
+                  value={reportFilters.sportello || ''}
+                  onChange={(e) => setReportFilters((p) => ({ ...p, sportello: e.target.value }))}
+                >
+                  <option value="">Tutti</option>
+                  {reportSportelloOptions.map((name) => (
+                    <option key={`report-sportello-${name}`} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="conto-modal-actions">
+              <button type="button" className="conto-fattura-submit" onClick={handleGenerateProselitismoReport} disabled={reportLoading}>
+                {reportLoading ? 'Generazione...' : 'Genera XLSX'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ), document.body)}
 
       <div className="utility-section">
         <div className="section-header">{movementsTitle}</div>

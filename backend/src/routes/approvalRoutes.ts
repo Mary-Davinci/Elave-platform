@@ -5,6 +5,7 @@ import {
   approveSportelloLavoro, 
   approveAgente, 
   approveUser,
+  approveInvoice,
   rejectItem 
 } from '../controllers/approvalController';
 import { authMiddleware } from '../middleware/authMiddleware';
@@ -21,6 +22,7 @@ router.post('/approve/company/:id', approveCompany);
 router.post('/approve/sportello/:id', approveSportelloLavoro);
 router.post('/approve/agente/:id', approveAgente);
 router.post('/approve/user/:id', approveUser);
+router.post('/approve/invoice/:id', approveInvoice);
 
 router.post('/reject/:type/:id', rejectItem);
 

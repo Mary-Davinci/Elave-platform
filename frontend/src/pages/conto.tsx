@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import '../styles/Dashboard.css';
 import '../styles/Conto.css';
-import { contoService, type AccountType, type Transaction, type ContoFilters, type Summary, getContoImports, type ContoImportItem, getNonRiconciliate, type NonRiconciliataItem, type BreakdownRow } from '../services/contoService';
+import { contoService, type AccountType, type Transaction, type ContoFilters, type Summary, getContoImports, type ContoImportItem, getNonRiconciliate, type NonRiconciliataItem, type BreakdownRow, createServiziInvoiceRequest } from '../services/contoService';
 import { getCompanies } from '../services/companyService';
 import type { Company } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
@@ -86,6 +86,8 @@ const Conto: React.FC = () => {
   });
   const [serviziDropdownOpen, setServiziDropdownOpen] = useState(false);
   const serviziDropdownRef = useRef<HTMLDivElement | null>(null);
+  const [invoiceSubmitting, setInvoiceSubmitting] = useState(false);
+  const [invoiceFeedback, setInvoiceFeedback] = useState<string | null>(null);
   const [debouncedQ, setDebouncedQ] = useState((filters.q || '').toString());
   const [debouncedCompany, setDebouncedCompany] = useState((filters.company || '').toString());
   const [debouncedResponsabile, setDebouncedResponsabile] = useState((filters.responsabile || '').toString());
@@ -212,6 +214,43 @@ const Conto: React.FC = () => {
           : [...prev.servizio, option],
       };
     });
+  };
+
+  const handleServiziInvoiceSubmit = async () => {
+    if (invoiceSubmitting) return;
+    setInvoiceFeedback(null);
+    const amount = Number(fatturaDraft.importo);
+    const services = fatturaDraft.servizio;
+
+    if (!services.length) {
+      setInvoiceFeedback('Seleziona almeno un servizio.');
+      return;
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setInvoiceFeedback('Inserisci un importo valido maggiore di zero.');
+      return;
+    }
+
+    try {
+      setInvoiceSubmitting(true);
+      await createServiziInvoiceRequest({
+        selectedServices: services,
+        amount,
+        attachmentName: fatturaDraft.allegatoNome || undefined,
+      });
+      setInvoiceFeedback('Fattura inviata in approvazione.');
+      setFatturaDraft({
+        cliente: '',
+        servizio: [],
+        importo: '',
+        allegatoNome: '',
+      });
+      setServiziDropdownOpen(false);
+    } catch (err: any) {
+      setInvoiceFeedback(err?.response?.data?.error || 'Errore durante invio fattura.');
+    } finally {
+      setInvoiceSubmitting(false);
+    }
   };
 
   useEffect(() => {
@@ -838,6 +877,9 @@ const Conto: React.FC = () => {
       <h2 className="welcome-header">Conto</h2>
       {loading && <div className="notification-banner">Carico i dati...</div>}
       {error && <div className="notification-banner secondary">{error}</div>}
+      {invoiceFeedback && activeAccount === 'servizi' && (
+        <div className="notification-banner secondary">{invoiceFeedback}</div>
+      )}
 
       <div className="dashboard-tabs">
         <div
@@ -853,26 +895,6 @@ const Conto: React.FC = () => {
           Conto servizi
         </div>
       </div>
-      {(user?.role === 'admin' || user?.role === 'super_admin') && activeAccount === 'servizi' && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12, marginBottom: 12 }}>
-          <button
-            type="button"
-            onClick={() => navigate(`/conto/upload?account=${activeAccount}`)}
-            style={{
-              border: '1px solid #2563eb',
-              background: '#2563eb',
-              color: '#fff',
-              borderRadius: 8,
-              padding: '8px 12px',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            Carica file Conto Servizi
-          </button>
-        </div>
-      )}
-
       <div className="projects-section conto-summaries" style={{ marginBottom: 20 }}>
         {activeAccount === 'servizi' && serviziSaldoCard ? (
           <div className="project-card-dash conto-saldo-card">
@@ -1124,6 +1146,16 @@ const Conto: React.FC = () => {
             {fatturaDraft.allegatoNome && (
               <div className="conto-fattura-filename">File selezionato: {fatturaDraft.allegatoNome}</div>
             )}
+            <div className="conto-fattura-actions">
+              <button
+                type="button"
+                className="conto-fattura-submit"
+                onClick={handleServiziInvoiceSubmit}
+                disabled={invoiceSubmitting}
+              >
+                {invoiceSubmitting ? 'Invio in corso...' : 'CARICA FATTURA'}
+              </button>
+            </div>
           </div>
         )}
       </div>

@@ -31,6 +31,9 @@ interface PendingItem {
   };
   createdAt: string;
   status?: string;
+  amount?: number;
+  selectedServices?: string[];
+  attachmentName?: string;
 }
 
 interface PendingItemsData {
@@ -38,6 +41,7 @@ interface PendingItemsData {
   sportelloLavoro: PendingItem[];
   agenti: PendingItem[];
   segnalatori: PendingItem[];
+  invoices: PendingItem[];
   total: number;
 }
 
@@ -47,6 +51,7 @@ const StyledApprovalsPage: React.FC = () => {
     sportelloLavoro: [],
     agenti: [],
     segnalatori: [],
+    invoices: [],
     total: 0
   });
   const [loading, setLoading] = useState(true);
@@ -65,8 +70,14 @@ const StyledApprovalsPage: React.FC = () => {
       
       const data = await approvalService.getPendingItems();
       
-      
-      setPendingItems(data);
+      setPendingItems({
+        companies: Array.isArray(data?.companies) ? data.companies : [],
+        sportelloLavoro: Array.isArray(data?.sportelloLavoro) ? data.sportelloLavoro : [],
+        agenti: Array.isArray(data?.agenti) ? data.agenti : [],
+        segnalatori: Array.isArray(data?.segnalatori) ? data.segnalatori : [],
+        invoices: Array.isArray(data?.invoices) ? data.invoices : [],
+        total: Number(data?.total || 0),
+      });
     } catch (err: any) {
       console.error('❌ Error fetching pending items:', err);
       setError(err.message || 'Failed to fetch pending items');
@@ -77,6 +88,7 @@ const StyledApprovalsPage: React.FC = () => {
         sportelloLavoro: [],
         agenti: [],
         segnalatori: [],
+        invoices: [],
         total: 0
       });
     } finally {
@@ -111,6 +123,9 @@ const StyledApprovalsPage: React.FC = () => {
         case 'user':
           await approvalService.approveUser(itemId);
           break;
+        case 'invoice':
+          await approvalService.approveInvoice(itemId);
+          break;
         default:
           throw new Error('Invalid item type');
       }
@@ -120,7 +135,8 @@ const StyledApprovalsPage: React.FC = () => {
         const key = type === 'user' ? 'segnalatori' : 
                    type === 'sportello' ? 'sportelloLavoro' : 
                    type === 'company' ? 'companies' :
-                   type === 'agente' ? 'agenti' : 'companies';
+                   type === 'agente' ? 'agenti' :
+                   type === 'invoice' ? 'invoices' : 'companies';
         
         const currentItems = prev[key as keyof PendingItemsData];
         
@@ -163,7 +179,8 @@ const StyledApprovalsPage: React.FC = () => {
         const key = type === 'user' ? 'segnalatori' : 
                    type === 'sportello' ? 'sportelloLavoro' : 
                    type === 'company' ? 'companies' :
-                   type === 'agente' ? 'agenti' : 'companies';
+                   type === 'agente' ? 'agenti' :
+                   type === 'invoice' ? 'invoices' : 'companies';
         
         const currentItems = prev[key as keyof PendingItemsData];
         
@@ -219,6 +236,7 @@ const StyledApprovalsPage: React.FC = () => {
       case 'sportello': return <Briefcase size={20} />;
       case 'agente': return <Users size={20} />;
       case 'user': return <MessageSquare size={20} />;
+      case 'invoice': return <Briefcase size={20} />;
       default: return <Building2 size={20} />;
     }
   };
@@ -311,6 +329,12 @@ const StyledApprovalsPage: React.FC = () => {
                   </span>
                 </div>
               )}
+              {typeof item?.amount === 'number' && (
+                <div className="info-row">
+                  <span className="info-label">Importo:</span>
+                  <span className="info-value">{item.amount.toFixed(2)} EUR</span>
+                </div>
+              )}
             </div>
             
             <div className="content-column">
@@ -320,6 +344,22 @@ const StyledApprovalsPage: React.FC = () => {
                   <span className="info-value">
                     {renderAddress(item.address)}
                   </span>
+                </div>
+              )}
+              {Array.isArray(item?.selectedServices) && item.selectedServices.length > 0 && (
+                <div className="info-row">
+                  <span className="info-label">Servizi:</span>
+                  <ul className="info-value services-list">
+                    {item.selectedServices.map((service, index) => (
+                      <li key={`${item._id}-service-${index}`}>{service}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {item?.attachmentName && (
+                <div className="info-row">
+                  <span className="info-label">Allegato:</span>
+                  <span className="info-value">{item.attachmentName}</span>
                 </div>
               )}
             </div>
@@ -398,7 +438,8 @@ const StyledApprovalsPage: React.FC = () => {
     { key: 'companies', label: 'Aziende', count: pendingItems.companies?.length || 0, icon: Building2 },
     { key: 'sportelloLavoro', label: 'sportello Lavoro', count: pendingItems.sportelloLavoro?.length || 0, icon: Briefcase },
     { key: 'agenti', label: 'Responsabile Territoriale', count: pendingItems.agenti?.length || 0, icon: Users },
-    { key: 'segnalatori', label: 'Segnalatori', count: pendingItems.segnalatori?.length || 0, icon: MessageSquare }
+    { key: 'segnalatori', label: 'Segnalatori', count: pendingItems.segnalatori?.length || 0, icon: MessageSquare },
+    { key: 'invoices', label: 'Fatture Servizi', count: pendingItems.invoices?.length || 0, icon: Briefcase }
   ];
 
   return (
@@ -836,6 +877,12 @@ const StyledApprovalsPage: React.FC = () => {
           line-height: 1.5;
         }
 
+        .services-list {
+          margin: 0;
+          padding-left: 1rem;
+          list-style: disc;
+        }
+
         .vat-number {
           font-family: 'Monaco', 'Menlo', monospace;
           background: #f9fafb;
@@ -1015,6 +1062,12 @@ const StyledApprovalsPage: React.FC = () => {
                 pendingItems.segnalatori, 
                 'user', 
                 'No reporters pending approval'
+              )}
+
+              {activeTab === 'invoices' && renderTabContent(
+                pendingItems.invoices,
+                'invoice',
+                'No service invoices pending approval'
               )}
             </div>
           </div>

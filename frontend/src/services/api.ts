@@ -150,6 +150,16 @@ export const approvalService = {
     }
   },
 
+  approveInvoice: async (id: string) => {
+    try {
+      const response = await api.post(`/api/approvals/approve/invoice/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error approving invoice:', error);
+      throw error;
+    }
+  },
+
   // Reject items
   rejectItem: async (type: string, id: string, reason?: string) => {
     try {
@@ -242,5 +252,6 @@ export interface PendingItemsResponse {
   sportelloLavoro: any[];
   agenti: any[];
   segnalatori: any[];
+  invoices?: any[];
   total: number;
 }

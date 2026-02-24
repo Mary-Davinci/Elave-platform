@@ -115,6 +115,12 @@ export interface NonRiconciliataItem {
   sportelloName?: string;
 }
 
+export interface ServiziInvoiceRequestPayload {
+  selectedServices: string[];
+  amount: number;
+  attachmentName?: string;
+}
+
 export interface BreakdownRow {
   _id?: string;
   name?: string;
@@ -356,4 +362,11 @@ export const getNonRiconciliate = async (
     };
   }
   return { items: [] };
+};
+
+export const createServiziInvoiceRequest = async (
+  payload: ServiziInvoiceRequestPayload
+): Promise<{ message: string; invoiceId: string }> => {
+  const res = await api.post('/api/conto/servizi/invoice-request', payload);
+  return res.data as { message: string; invoiceId: string };
 };

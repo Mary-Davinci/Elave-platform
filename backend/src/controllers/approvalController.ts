@@ -5,6 +5,9 @@ import SportelloLavoro from "../models/sportello";
 import Agente from "../models/Agenti";
 import Segnalatore from "../models/Segnalatore";
 import User from "../models/User";
+import ServiziInvoiceRequest from "../models/ServiziInvoiceRequest";
+import ContoTransaction from "../models/ContoTransaction";
+import { clearComputedContoCaches } from "../services/contoCacheService";
 
 export const getPendingItems: CustomRequestHandler = async (req, res) => {
   try {
@@ -102,13 +105,24 @@ export const getPendingItems: CustomRequestHandler = async (req, res) => {
       }))
     ];
 
-    const total = companies.length + sportelloLavoro.length + agenti.length + allSegnalatori.length;
+    const invoices = await ServiziInvoiceRequest.find({ status: "pending" })
+      .populate("requester", "username firstName lastName role")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const total =
+      companies.length +
+      sportelloLavoro.length +
+      agenti.length +
+      allSegnalatori.length +
+      invoices.length;
 
     console.log('Real pending items fetched:', {
       companies: companies.length,
       sportelloLavoro: sportelloLavoro.length,
       agenti: agenti.length,
       segnalatori: allSegnalatori.length,
+      invoices: invoices.length,
       total
     });
 
@@ -157,6 +171,18 @@ export const getPendingItems: CustomRequestHandler = async (req, res) => {
         status: 'pending'
       })),
       segnalatori: allSegnalatori,
+      invoices: invoices.map((invoice: any) => ({
+        _id: invoice._id,
+        businessName: "Fattura conto servizi",
+        role: "invoice",
+        amount: invoice.amount,
+        selectedServices: invoice.selectedServices || [],
+        attachmentName: invoice.attachmentName,
+        createdAt: invoice.createdAt,
+        requester: invoice.requester,
+        user: invoice.requester,
+        status: "pending",
+      })),
       total
     });
   } catch (err: any) {
@@ -425,6 +451,55 @@ export const approveUser: CustomRequestHandler = async (req, res) => {
   }
 };
 
+export const approveInvoice: CustomRequestHandler = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+
+    if (!['admin', 'super_admin'].includes(req.user.role)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const { id } = req.params;
+    const invoice = await ServiziInvoiceRequest.findById(id);
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice request not found" });
+    }
+    if (invoice.status !== "pending") {
+      return res.status(400).json({ error: "Invoice request already processed" });
+    }
+
+    const tx = await ContoTransaction.create({
+      account: "servizi",
+      amount: -Math.abs(Number(invoice.amount || 0)),
+      type: "uscita",
+      status: "completata",
+      description: `Fattura servizi approvata | ${(invoice.selectedServices || []).join(" | ") || "Servizi"}`,
+      category: "Fattura servizi",
+      user: invoice.requester,
+      source: "manuale",
+      date: new Date(),
+    });
+
+    invoice.status = "approved";
+    invoice.approvedBy = req.user._id as any;
+    invoice.processedAt = new Date();
+    invoice.contoTransaction = tx._id as any;
+    await invoice.save();
+    clearComputedContoCaches();
+
+    return res.json({
+      message: "Fattura approvata con successo",
+      invoiceId: invoice._id,
+      transactionId: tx._id,
+    });
+  } catch (err: any) {
+    console.error("Approve invoice error:", err);
+    return res.status(500).json({ error: "Server error while approving invoice" });
+  }
+};
+
 
 export const rejectItem: CustomRequestHandler = async (req, res) => {
   try {
@@ -446,6 +521,22 @@ export const rejectItem: CustomRequestHandler = async (req, res) => {
 
   
     switch (type) {
+      case "invoice":
+        item = await ServiziInvoiceRequest.findById(id);
+        if (item) {
+          if (item.status !== "pending") {
+            return res.status(400).json({ error: "Invoice request already processed" });
+          }
+          item.status = "rejected";
+          item.approvalNote = reason || undefined;
+          item.rejectedBy = req.user._id as any;
+          item.processedAt = new Date();
+          await item.save();
+          itemName = "Fattura conto servizi";
+          clearComputedContoCaches();
+        }
+        break;
+
       case 'company':
         item = await Company.findById(id);
         if (item) {
@@ -550,7 +641,10 @@ export const rejectItem: CustomRequestHandler = async (req, res) => {
 
     
     try {
-      const notificationType = `${type}_pending` as 'company_pending' | 'sportello_pending' | 'agente_pending' | 'segnalatore_pending';
+      const notificationType =
+        (type === "invoice"
+          ? "company_pending"
+          : `${type}_pending`) as 'company_pending' | 'sportello_pending' | 'agente_pending' | 'segnalatore_pending';
       
       await NotificationService.notifyAdminsOfPendingApproval({
         title: `${type.charAt(0).toUpperCase() + type.slice(1)} Rejected: ${itemName}`,

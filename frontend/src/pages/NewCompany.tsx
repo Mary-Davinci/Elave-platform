@@ -1,5 +1,5 @@
 // src/pages/NewCompany.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createCompany, getNextNumeroAnagrafica } from '../services/companyService';
 import { CompanyFormData } from '../types/interfaces';
@@ -17,6 +17,12 @@ const NewCompany: React.FC = () => {
   const [consultantsError, setConsultantsError] = useState<string | null>(null);
   const [numeroAnagraficaLoading, setNumeroAnagraficaLoading] = useState(false);
   const [numeroAnagraficaError, setNumeroAnagraficaError] = useState<string | null>(null);
+  const normalizeLabelKey = (value: string) =>
+    value
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
 
   // Form state matching your interfaces
 const [formData, setFormData] = useState<CompanyFormData>({
@@ -102,6 +108,20 @@ const [formData, setFormData] = useState<CompanyFormData>({
     };
     loadConsultants();
   }, []);
+
+  const consultantOptions = useMemo(() => {
+    const byLabel = new Map<string, { id: string; label: string }>();
+    consultants.forEach((c) => {
+      // Prefer agentName to avoid showing territorial manager labels in dirty records.
+      const label = String(c.agentName || c.businessName || '').trim();
+      if (!label) return;
+      const key = normalizeLabelKey(label);
+      if (!byLabel.has(key)) {
+        byLabel.set(key, { id: c._id, label });
+      }
+    });
+    return Array.from(byLabel.values()).sort((a, b) => a.label.localeCompare(b.label, 'it'));
+  }, [consultants]);
 
   useEffect(() => {
     let ignore = false;
@@ -444,7 +464,7 @@ const [formData, setFormData] = useState<CompanyFormData>({
         onChange={(e) => {
           const selectedId = e.target.value;
           const selected = consultants.find(c => c._id === selectedId);
-          const label = selected ? (selected.businessName || selected.agentName || '') : '';
+          const label = selected ? (selected.agentName || selected.businessName || '') : '';
           setFormData(prev => ({
             ...prev,
             contactInfo: {
@@ -461,10 +481,10 @@ const [formData, setFormData] = useState<CompanyFormData>({
         {!consultantsLoading && consultants.length === 0 && (
           <option value="" disabled>Nessun consulente attivo trovato</option>
         )}
-        {!consultantsLoading && consultants.map((c) => {
-          const label = c.businessName || c.agentName || 'Senza nome';
+        {!consultantsLoading && consultantOptions.map((c) => {
+          const label = c.label || 'Senza nome';
           return (
-            <option key={c._id} value={c._id}>{label}</option>
+            <option key={c.id} value={c.id}>{label}</option>
           );
         })}
       </select>

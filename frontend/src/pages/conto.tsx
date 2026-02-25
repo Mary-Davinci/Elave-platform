@@ -31,6 +31,20 @@ const extractMatricolaFromDescription = (value: string) => {
   return match ? match[1].trim() : '';
 };
 
+const normalizeLabelKey = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+const preferReadableLabel = (current: string, candidate: string) => {
+  const currentIsAllCaps = current === current.toUpperCase();
+  const candidateIsAllCaps = candidate === candidate.toUpperCase();
+  if (currentIsAllCaps && !candidateIsAllCaps) return candidate;
+  return current;
+};
+
 const contoServiziOptions = [
   'Supporto agli associati con assistenza contrattuale',
   'Promozione attività formative inerenti la sicurezza e salute sui luoghi di lavoro',
@@ -810,16 +824,25 @@ const Conto: React.FC = () => {
   }, [companies, transactions]);
 
   const reportResponsabileOptions = useMemo(() => {
-    const set = new Set<string>();
+    const map = new Map<string, string>();
+    const collect = (raw: string) => {
+      const name = String(raw || '').trim();
+      if (!name) return;
+      const key = normalizeLabelKey(name);
+      const existing = map.get(key);
+      if (!existing) {
+        map.set(key, name);
+        return;
+      }
+      map.set(key, preferReadableLabel(existing, name));
+    };
     responsabiliBreakdown.forEach((r) => {
-      const name = String(r.name || '').trim();
-      if (name) set.add(name);
+      collect(String(r.name || ''));
     });
     transactions.forEach((t) => {
-      const name = String(t.responsabileName || '').trim();
-      if (name) set.add(name);
+      collect(String(t.responsabileName || ''));
     });
-    return Array.from(set).sort((a, b) => a.localeCompare(b, 'it'));
+    return Array.from(map.values()).sort((a, b) => a.localeCompare(b, 'it'));
   }, [responsabiliBreakdown, transactions]);
 
   const reportSportelloOptions = useMemo(() => {

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import '../styles/Dashboard.css';
 import '../styles/Conto.css';
-import { contoService, type AccountType, type Transaction, type ContoFilters, type Summary, getContoImports, type ContoImportItem, getNonRiconciliate, type NonRiconciliataItem, type BreakdownRow, createServiziInvoiceRequest, downloadProselitismoReportXlsx } from '../services/contoService';
+import { contoService, type AccountType, type Transaction, type ContoFilters, type Summary, getContoImports, type ContoImportItem, getNonRiconciliate, type NonRiconciliataItem, type BreakdownRow, createServiziInvoiceRequest, downloadProselitismoReportXlsx, downloadProselitismoMonthlyCompanyReportXlsx } from '../services/contoService';
 import { getCompanies } from '../services/companyService';
 import type { Company } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
@@ -91,6 +91,7 @@ const Conto: React.FC = () => {
   const [invoiceFeedback, setInvoiceFeedback] = useState<string | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
+  const [reportMode, setReportMode] = useState<'controllo' | 'fatturazione'>('controllo');
   const [reportFilters, setReportFilters] = useState<ContoFilters>({
     from: '',
     to: '',
@@ -267,19 +268,26 @@ const Conto: React.FC = () => {
     if (reportLoading) return;
     try {
       setReportLoading(true);
-      const blob = await downloadProselitismoReportXlsx({
+      const filtersPayload = {
         from: reportFilters.from,
         to: reportFilters.to,
         company: reportFilters.company,
         responsabile: reportFilters.responsabile,
         sportello: reportFilters.sportello,
-      });
+      };
+      const blob =
+        reportMode === 'fatturazione'
+          ? await downloadProselitismoMonthlyCompanyReportXlsx(filtersPayload)
+          : await downloadProselitismoReportXlsx(filtersPayload);
       const url = URL.createObjectURL(blob);
       const fromToken = reportFilters.from || 'all';
       const toToken = reportFilters.to || 'all';
       const a = document.createElement('a');
       a.href = url;
-      a.download = `report-proselitismo-${fromToken}-${toToken}.xlsx`;
+      a.download =
+        reportMode === 'fatturazione'
+          ? `prospetto-fatturazione-${fromToken}-${toToken}.xlsx`
+          : `prospetto-mensile-controllo-${fromToken}-${toToken}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -1099,13 +1107,28 @@ const Conto: React.FC = () => {
         <div className="conto-section-header-row">
           <div className="section-header">{activeAccount === 'servizi' ? 'Fattura' : 'Filtri'}</div>
           {activeAccount === 'proselitismo' && (
-            <button
-              type="button"
-              className="conto-report-button"
-              onClick={() => setShowReportModal(true)}
-            >
-              Scarica report
-            </button>
+            <div className="conto-report-actions">
+              <button
+                type="button"
+                className="conto-report-button"
+                onClick={() => {
+                  setReportMode('controllo');
+                  setShowReportModal(true);
+                }}
+              >
+                Prospetto mensile di controllo
+              </button>
+              <button
+                type="button"
+                className="conto-report-button secondary"
+                onClick={() => {
+                  setReportMode('fatturazione');
+                  setShowReportModal(true);
+                }}
+              >
+                Prospetto di fatturazione
+              </button>
+            </div>
           )}
         </div>
         {activeAccount === 'proselitismo' ? (
@@ -1259,7 +1282,7 @@ const Conto: React.FC = () => {
         <div className="conto-modal-overlay" onClick={() => setShowReportModal(false)}>
           <div className="conto-modal" onClick={(e) => e.stopPropagation()}>
             <div className="conto-modal-header">
-              <h3>Filtra report proselitismo</h3>
+              <h3>{reportMode === 'fatturazione' ? 'Filtra prospetto di fatturazione' : 'Filtra prospetto mensile di controllo'}</h3>
               <button type="button" onClick={() => setShowReportModal(false)}>×</button>
             </div>
             <div className="conto-modal-grid">
@@ -1329,7 +1352,7 @@ const Conto: React.FC = () => {
             </div>
             <div className="conto-modal-actions">
               <button type="button" className="conto-fattura-submit" onClick={handleGenerateProselitismoReport} disabled={reportLoading}>
-                {reportLoading ? 'Generazione...' : 'Genera XLSX'}
+                {reportLoading ? 'Generazione...' : 'Genera prospetto XLSX'}
               </button>
             </div>
           </div>

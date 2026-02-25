@@ -387,3 +387,20 @@ export const downloadProselitismoReportXlsx = async (
   });
   return res.data as Blob;
 };
+
+export const downloadProselitismoMonthlyCompanyReportXlsx = async (
+  filters: Pick<ContoFilters, 'from' | 'to' | 'company' | 'responsabile' | 'sportello'>
+): Promise<Blob> => {
+  const params: Record<string, string> = {};
+  if (filters.from) params.from = filters.from;
+  if (filters.to) params.to = filters.to;
+  if (filters.company) params.company = filters.company;
+  if (filters.responsabile) params.responsabile = filters.responsabile;
+  if (filters.sportello) params.sportello = filters.sportello;
+
+  const res = await api.get('/api/conto/proselitismo/export-monthly', {
+    params,
+    responseType: 'blob',
+  });
+  return res.data as Blob;
+};

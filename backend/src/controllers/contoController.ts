@@ -1239,20 +1239,6 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
 
 export const exportContoTransactionsXlsx: CustomRequestHandler = async (req, res, next) => {
   try {
-    const parseDescription = (description: string) => {
-      const text = String(description || "");
-      const pick = (regex: RegExp) => {
-        const match = text.match(regex);
-        return match ? String(match[1] || "").trim() : "";
-      };
-      return {
-        matricola: pick(/Matricola:\s*([^|]+)/i),
-        riconciliata: pick(/Riconciliata:\s*([^|]+)/i),
-        nonRiconciliata: pick(/Non riconciliata:\s*([^|]+)/i),
-        fondoSanitario: pick(/Fondo sanitario:\s*([^|]+)/i),
-      };
-    };
-
     const limit = 500;
     let page = 1;
     let total = Number.MAX_SAFE_INTEGER;
@@ -1299,41 +1285,72 @@ export const exportContoTransactionsXlsx: CustomRequestHandler = async (req, res
       page += 1;
     }
 
-    const rows = allTransactions.map((t: any) => {
-      const parsed = parseDescription(t?.description || "");
-      return {
-        Data: t?.date ? new Date(t.date).toLocaleDateString("it-IT") : "",
-        Azienda: t?.companyName || t?.company?.companyName || t?.company?.businessName || "",
-        "Responsabile Territoriale": t?.responsabileName || "",
-        "Sportello Lavoro": t?.sportelloName || "",
-        "Quota ELAV": Number(t?.rawAmount ?? t?.amount ?? 0),
-        Tipo: t?.type || "",
-        Stato: t?.status || "",
-        Categoria: t?.category || "",
-        Matricola: parsed.matricola,
-        Riconciliata: parsed.riconciliata,
-        "Non riconciliata": parsed.nonRiconciliata,
-        "Fondo sanitario": parsed.fondoSanitario,
-      };
-    });
+    const monthlyMap = new Map<
+      string,
+      {
+        periodo: string;
+        azienda: string;
+        responsabile: string;
+        sportello: string;
+        totaleElav: number;
+        movimenti: number;
+      }
+    >();
+
+    for (const t of allTransactions) {
+      const date = t?.date ? new Date(t.date) : null;
+      if (!date || Number.isNaN(date.getTime())) continue;
+
+      const periodo = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      const azienda = String(
+        t?.companyName || t?.company?.companyName || t?.company?.businessName || ""
+      ).trim();
+      const responsabile = String(t?.responsabileName || "").trim();
+      const sportello = String(t?.sportelloName || "").trim();
+      const quotaElav = Number(t?.rawAmount ?? t?.amount ?? 0) || 0;
+      const key = [periodo, azienda, responsabile, sportello].join("|");
+
+      const current = monthlyMap.get(key);
+      if (current) {
+        current.totaleElav += quotaElav;
+        current.movimenti += 1;
+      } else {
+        monthlyMap.set(key, {
+          periodo,
+          azienda,
+          responsabile,
+          sportello,
+          totaleElav: quotaElav,
+          movimenti: 1,
+        });
+      }
+    }
+
+    const rows = Array.from(monthlyMap.values())
+      .sort((a, b) => {
+        if (a.periodo !== b.periodo) return a.periodo > b.periodo ? -1 : 1;
+        return a.azienda.localeCompare(b.azienda, "it");
+      })
+      .map((r) => ({
+        Periodo: r.periodo,
+        Azienda: r.azienda,
+        "Responsabile Territoriale": r.responsabile,
+        "Sportello Lavoro": r.sportello,
+        "Totale ELAV mensile": Number(r.totaleElav.toFixed(2)),
+        Movimenti: r.movimenti,
+      }));
 
     const ws = xlsx.utils.json_to_sheet(rows);
     ws["!cols"] = [
-      { wch: 12 }, // Data
-      { wch: 34 }, // Azienda
-      { wch: 28 }, // Responsabile
-      { wch: 28 }, // Sportello
-      { wch: 12 }, // Quota ELAV
-      { wch: 10 }, // Tipo
-      { wch: 12 }, // Stato
-      { wch: 16 }, // Categoria
-      { wch: 16 }, // Matricola
-      { wch: 14 }, // Riconciliata
-      { wch: 16 }, // Non riconciliata
-      { wch: 14 }, // Fondo sanitario
+      { wch: 12 }, // Periodo
+      { wch: 40 }, // Azienda
+      { wch: 28 }, // Responsabile Territoriale
+      { wch: 28 }, // Sportello Lavoro
+      { wch: 20 }, // Totale ELAV mensile
+      { wch: 10 }, // Movimenti
     ];
     const wb = xlsx.utils.book_new();
-    xlsx.utils.book_append_sheet(wb, ws, "Report");
+    xlsx.utils.book_append_sheet(wb, ws, "Controllo");
     const buffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
 
     const from = String(req.query?.from || "all");
@@ -1349,6 +1366,163 @@ export const exportContoTransactionsXlsx: CustomRequestHandler = async (req, res
   } catch (err: any) {
     console.error("Export conto transactions xlsx error:", err);
     return res.status(500).json({ error: "Server error while exporting report" });
+  }
+};
+
+export const exportMonthlyCompanyTotalsXlsx: CustomRequestHandler = async (req, res, next) => {
+  try {
+    const role = req.user?.role;
+    const isAdminScope = role === "admin" || role === "super_admin";
+    const limit = 500;
+    let page = 1;
+    let total = Number.MAX_SAFE_INTEGER;
+    const allTransactions: any[] = [];
+
+    while (allTransactions.length < total) {
+      const capture: { statusCode?: number; payload?: any } = {};
+      const fakeRes = {
+        status(code: number) {
+          capture.statusCode = code;
+          return this;
+        },
+        json(payload: any) {
+          capture.payload = payload;
+          return this;
+        },
+      } as unknown as Response;
+
+      const fakeReq = {
+        ...req,
+        query: {
+          ...(req.query || {}),
+          page: String(page),
+          limit: String(limit),
+          lite: "1",
+        },
+      } as any;
+
+      await getContoTransactions(fakeReq, fakeRes, next);
+
+      if ((capture.statusCode || 200) >= 400) {
+        return res
+          .status(capture.statusCode || 500)
+          .json(capture.payload || { error: "Export failed" });
+      }
+
+      const transactions = Array.isArray(capture.payload?.transactions)
+        ? capture.payload.transactions
+        : [];
+      allTransactions.push(...transactions);
+
+      total = Number(capture.payload?.total || allTransactions.length);
+      if (!transactions.length || page > 200) break;
+      page += 1;
+    }
+
+    const companyMap = new Map<
+      string,
+      {
+        azienda: string;
+        responsabile: string;
+        sportello: string;
+        totaleElav: number;
+        provvigioni: number;
+        movimenti: number;
+        seenMovements: Set<string>;
+      }
+    >();
+
+    for (const t of allTransactions) {
+      const azienda = String(
+        t?.companyName || t?.company?.companyName || t?.company?.businessName || ""
+      ).trim();
+      if (!azienda) continue;
+
+      const responsabile = String(t?.responsabileName || "").trim();
+      const sportello = String(t?.sportelloName || "").trim();
+      const quotaElav = Number(t?.rawAmount ?? t?.amount ?? 0) || 0;
+      if (quotaElav <= 0) continue;
+
+      const companyKey = azienda.toLowerCase();
+      const movementKey = String(
+        t?.importKey || `${t?.date || ""}|${azienda}|${t?._id || ""}`
+      );
+
+      const responsabilePct = Number(t?.company?.user?.profitSharePercentage);
+      const sportelloPct = Number(t?.company?.contactInfo?.laborConsultantId?.agreedCommission);
+      const fallbackPct = quotaElav > 0 ? (Number(t?.amount || 0) / quotaElav) * 100 : 0;
+      const percentual =
+        role === "responsabile_territoriale"
+          ? Number.isFinite(responsabilePct)
+            ? responsabilePct
+            : fallbackPct
+          : role === "sportello_lavoro"
+            ? Number.isFinite(sportelloPct)
+              ? sportelloPct
+              : fallbackPct
+            : 80;
+      const provvigioneRiga = (quotaElav * percentual) / 100;
+
+      const current = companyMap.get(companyKey);
+      if (current) {
+        if (!current.seenMovements.has(movementKey)) {
+          current.seenMovements.add(movementKey);
+          current.totaleElav += quotaElav;
+          current.provvigioni += isAdminScope ? quotaElav * 0.8 : provvigioneRiga;
+          current.movimenti += 1;
+        }
+        if (!current.responsabile && responsabile) current.responsabile = responsabile;
+        if (!current.sportello && sportello) current.sportello = sportello;
+      } else {
+        companyMap.set(companyKey, {
+          azienda,
+          responsabile,
+          sportello,
+          totaleElav: quotaElav,
+          provvigioni: isAdminScope ? quotaElav * 0.8 : provvigioneRiga,
+          movimenti: 1,
+          seenMovements: new Set([movementKey]),
+        });
+      }
+    }
+
+    const rows = Array.from(companyMap.values())
+      .sort((a, b) => a.azienda.localeCompare(b.azienda, "it"))
+      .map((r) => ({
+        Azienda: r.azienda,
+        "Responsabile Territoriale": r.responsabile,
+        "Sportello Lavoro": r.sportello,
+        "Totale Quote ELAV": Number(r.totaleElav.toFixed(2)),
+        Provvigioni: Number(r.provvigioni.toFixed(2)),
+        Movimenti: r.movimenti,
+      }));
+
+    const ws = xlsx.utils.json_to_sheet(rows);
+    ws["!cols"] = [
+      { wch: 40 }, // Azienda
+      { wch: 28 }, // Responsabile Territoriale
+      { wch: 28 }, // Sportello Lavoro
+      { wch: 18 }, // Totale Quote ELAV
+      { wch: 14 }, // Provvigioni
+      { wch: 10 }, // Movimenti
+    ];
+    const wb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(wb, ws, "Fatturazione");
+    const buffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
+
+    const fromQuery = String(req.query?.from || "all");
+    const toQuery = String(req.query?.to || "all");
+    const filename = `prospetto-fatturazione-${fromQuery}-${toQuery}.xlsx`;
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    return res.send(buffer);
+  } catch (err: any) {
+    console.error("Export monthly company totals xlsx error:", err);
+    return res.status(500).json({ error: "Server error while exporting monthly report" });
   }
 };
 

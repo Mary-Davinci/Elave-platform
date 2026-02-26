@@ -61,6 +61,40 @@ export interface Agente {
 
 export interface Company {
   territorialManager: any;
+  companyDocuments?: {
+    signedContractFile?: {
+      filename?: string;
+      originalName?: string;
+      path?: string;
+      mimetype?: string;
+      size?: number;
+      uploadedAt?: string;
+    };
+    privacyNoticeFile?: {
+      filename?: string;
+      originalName?: string;
+      path?: string;
+      mimetype?: string;
+      size?: number;
+      uploadedAt?: string;
+    };
+    legalRepresentativeDocumentFile?: {
+      filename?: string;
+      originalName?: string;
+      path?: string;
+      mimetype?: string;
+      size?: number;
+      uploadedAt?: string;
+    };
+    chamberOfCommerceFile?: {
+      filename?: string;
+      originalName?: string;
+      path?: string;
+      mimetype?: string;
+      size?: number;
+      uploadedAt?: string;
+    };
+  };
   _id: string;
   name: string;  // Original name field for backward compatibility
   businessName: string;  // Ragione sociale

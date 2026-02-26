@@ -7,6 +7,20 @@ import { useAuth } from '../contexts/AuthContext';
 import '../styles/NewCompany.css';
 import sportelloLavoroService, { SportelloLavoroResponse } from '../services/sportelloServices';
 
+const normalizeSaluteAmicaPlan = (value?: string) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const lower = raw
+    .replace('â‚¬', 'eur')
+    .replace('€', 'eur')
+    .replace(',', '.')
+    .toLowerCase();
+  if (lower.includes('5') && lower.includes('basic')) return '5.00 Basic';
+  if (lower.includes('12') && lower.includes('standard')) return '12.00 Standard';
+  if (lower.includes('16') && lower.includes('premium')) return '16.00 Premium';
+  return raw;
+};
+
 const NewCompany: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated , user } = useAuth();
@@ -17,6 +31,17 @@ const NewCompany: React.FC = () => {
   const [consultantsError, setConsultantsError] = useState<string | null>(null);
   const [numeroAnagraficaLoading, setNumeroAnagraficaLoading] = useState(false);
   const [numeroAnagraficaError, setNumeroAnagraficaError] = useState<string | null>(null);
+  const [companyFiles, setCompanyFiles] = useState<{
+    signedContract: File | null;
+    privacyNotice: File | null;
+    legalRepresentativeDocument: File | null;
+    chamberOfCommerce: File | null;
+  }>({
+    signedContract: null,
+    privacyNotice: null,
+    legalRepresentativeDocument: null,
+    chamberOfCommerce: null,
+  });
   const normalizeLabelKey = (value: string) =>
     value
       .trim()
@@ -191,6 +216,12 @@ const [formData, setFormData] = useState<CompanyFormData>({
     setLoading(true);
     setError(null);
 
+    if (!companyFiles.signedContract) {
+      setLoading(false);
+      setError('Il Contratto Firmato è obbligatorio.');
+      return;
+    }
+
     try {
       // Prepare data for submission
      const submissionData = {
@@ -236,14 +267,19 @@ const [formData, setFormData] = useState<CompanyFormData>({
     useEbapPayment: !!formData.contractDetails?.useEbapPayment,
     elavAdhesion: !!formData.contractDetails?.elavAdhesion,
     // keep this as the SELECTED PLAN string (e.g., "€12.00 Standard")
-    saluteAmicaAdhesion: formData.contractDetails?.saluteAmicaAdhesion || '',
+    saluteAmicaAdhesion: normalizeSaluteAmicaPlan(formData.contractDetails?.saluteAmicaAdhesion),
     // if your API expects it here, not top-level:
     territorialManager: formData.territorialManager?.trim(),
   },
 };
 
 
-      await createCompany(submissionData);
+      await createCompany(submissionData, {
+        signedContractFile: companyFiles.signedContract,
+        privacyNoticeFile: companyFiles.privacyNotice,
+        legalRepresentativeDocumentFile: companyFiles.legalRepresentativeDocument,
+        chamberOfCommerceFile: companyFiles.chamberOfCommerce,
+      });
       navigate('/companies');
     } catch (err: any) {
       console.error('Error creating company:', err);
@@ -258,6 +294,13 @@ const [formData, setFormData] = useState<CompanyFormData>({
       setError(errorMessage);
       setLoading(false);
     }
+  };
+
+  const handleCompanyFileChange = (
+    key: 'signedContract' | 'privacyNotice' | 'legalRepresentativeDocument' | 'chamberOfCommerce',
+    file: File | null
+  ) => {
+    setCompanyFiles((prev) => ({ ...prev, [key]: file }));
   };
 
   return (
@@ -542,13 +585,82 @@ const [formData, setFormData] = useState<CompanyFormData>({
     required
   >
     <option value="">-- Seleziona un piano --</option>
-    <option value="€5.00 Basic">€5.00 Basic</option>
-    <option value="€12.00 Standard">€12.00 Standard</option>
-    <option value="€16.00 Premium">€16.00 Premium</option>
+    <option value="5.00 Basic">5.00 Basic</option>
+    <option value="12.00 Standard">12.00 Standard</option>
+    <option value="16.00 Premium">16.00 Premium</option>
   </select>
 </div>
   </div>
 </div>
+
+        <div className="form-section">
+          <h2 className="section-title">Documenti Azienda</h2>
+          <div className="company-files-grid">
+            <div className="company-file-field">
+              <label>Contratto Firmato <span className="required">*</span></label>
+              <div className="file-input-wrapper">
+                <div className="file-select company-file-select">
+                  <input
+                    id="company-file-signed-contract"
+                    className="file-input"
+                    type="file"
+                    onChange={(e) => handleCompanyFileChange('signedContract', e.target.files?.[0] || null)}
+                  />
+                  <div className="file-select-button company-file-select-button">Scegli file</div>
+                  <div className="file-select-name company-file-select-name">{companyFiles.signedContract?.name || 'Nessun file selezionato'}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="company-file-field">
+              <label>Informativa Privacy</label>
+              <div className="file-input-wrapper">
+                <div className="file-select company-file-select">
+                  <input
+                    id="company-file-privacy"
+                    className="file-input"
+                    type="file"
+                    onChange={(e) => handleCompanyFileChange('privacyNotice', e.target.files?.[0] || null)}
+                  />
+                  <div className="file-select-button company-file-select-button">Scegli file</div>
+                  <div className="file-select-name company-file-select-name">{companyFiles.privacyNotice?.name || 'Nessun file selezionato'}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="company-file-field">
+              <label>Documento Legale Rappresentante</label>
+              <div className="file-input-wrapper">
+                <div className="file-select company-file-select">
+                  <input
+                    id="company-file-legal"
+                    className="file-input"
+                    type="file"
+                    onChange={(e) => handleCompanyFileChange('legalRepresentativeDocument', e.target.files?.[0] || null)}
+                  />
+                  <div className="file-select-button company-file-select-button">Scegli file</div>
+                  <div className="file-select-name company-file-select-name">{companyFiles.legalRepresentativeDocument?.name || 'Nessun file selezionato'}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="company-file-field">
+              <label>Visura Camerale</label>
+              <div className="file-input-wrapper">
+                <div className="file-select company-file-select">
+                  <input
+                    id="company-file-visura"
+                    className="file-input"
+                    type="file"
+                    onChange={(e) => handleCompanyFileChange('chamberOfCommerce', e.target.files?.[0] || null)}
+                  />
+                  <div className="file-select-button company-file-select-button">Scegli file</div>
+                  <div className="file-select-name company-file-select-name">{companyFiles.chamberOfCommerce?.name || 'Nessun file selezionato'}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         <div className="form-actions">
           <button type="submit" className="submit-button" disabled={loading}>
             {loading ? 'Salvataggio...' : 'Aggiungi'}

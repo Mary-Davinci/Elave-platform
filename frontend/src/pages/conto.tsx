@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import '../styles/Dashboard.css';
 import '../styles/Conto.css';
-import { contoService, type AccountType, type Transaction, type ContoFilters, type Summary, getContoImports, type ContoImportItem, getNonRiconciliate, type NonRiconciliataItem, type BreakdownRow, createServiziInvoiceRequest, downloadProselitismoReportXlsx, downloadProselitismoMonthlyCompanyReportXlsx } from '../services/contoService';
+import { contoService, type AccountType, type Transaction, type ContoFilters, type Summary, getContoImports, type ContoImportItem, getNonRiconciliate, type NonRiconciliataItem, type BreakdownRow, createServiziInvoiceRequest, downloadProselitismoReportXlsx, downloadProselitismoMonthlyCompanyReportXlsx, previewProselitismoReport, previewProselitismoMonthlyCompanyReport, type ProselitismoReportPreviewResponse } from '../services/contoService';
 import { getCompanies } from '../services/companyService';
 import type { Company } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
@@ -105,6 +105,8 @@ const Conto: React.FC = () => {
   const [invoiceFeedback, setInvoiceFeedback] = useState<string | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
+  const [reportPreviewLoading, setReportPreviewLoading] = useState(false);
+  const [reportPreview, setReportPreview] = useState<ProselitismoReportPreviewResponse | null>(null);
   const [reportMode, setReportMode] = useState<'controllo' | 'fatturazione'>('controllo');
   const [reportFilters, setReportFilters] = useState<ContoFilters>({
     from: '',
@@ -311,6 +313,29 @@ const Conto: React.FC = () => {
       setError(err?.response?.data?.error || 'Errore generazione report.');
     } finally {
       setReportLoading(false);
+    }
+  };
+
+  const handlePreviewProselitismoReport = async () => {
+    if (reportPreviewLoading) return;
+    try {
+      setReportPreviewLoading(true);
+      const filtersPayload = {
+        from: reportFilters.from,
+        to: reportFilters.to,
+        company: reportFilters.company,
+        responsabile: reportFilters.responsabile,
+        sportello: reportFilters.sportello,
+      };
+      const preview =
+        reportMode === 'fatturazione'
+          ? await previewProselitismoMonthlyCompanyReport(filtersPayload)
+          : await previewProselitismoReport(filtersPayload);
+      setReportPreview(preview);
+    } catch (err: any) {
+      setError(err?.response?.data?.error || 'Errore generazione anteprima report.');
+    } finally {
+      setReportPreviewLoading(false);
     }
   };
 
@@ -916,6 +941,11 @@ const Conto: React.FC = () => {
     loadBreakdown();
   }, [showReportModal, activeAccount, responsabiliBreakdown.length, sportelliBreakdown.length]);
 
+  useEffect(() => {
+    if (!showReportModal) return;
+    setReportPreview(null);
+  }, [reportMode, reportFilters.from, reportFilters.to, reportFilters.company, reportFilters.responsabile, reportFilters.sportello, showReportModal]);
+
   const handleResponsabiliClick = () => {
     setShowSportelliModal(false);
     setShowResponsabiliModal(true);
@@ -1374,10 +1404,54 @@ const Conto: React.FC = () => {
               </div>
             </div>
             <div className="conto-modal-actions">
+              <button
+                type="button"
+                className="conto-report-button secondary"
+                onClick={handlePreviewProselitismoReport}
+                disabled={reportPreviewLoading}
+              >
+                {reportPreviewLoading ? 'Anteprima...' : 'Anteprima'}
+              </button>
               <button type="button" className="conto-fattura-submit" onClick={handleGenerateProselitismoReport} disabled={reportLoading}>
                 {reportLoading ? 'Generazione...' : 'Genera prospetto XLSX'}
               </button>
             </div>
+            {reportPreview && (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontSize: 13, color: '#475569', marginBottom: 8 }}>
+                  Anteprima: {reportPreview.items.length} righe su {reportPreview.total}
+                </div>
+                {reportPreview.summary && (
+                  <div style={{ fontSize: 13, color: '#1f2937', marginBottom: 8 }}>
+                    {Object.entries(reportPreview.summary).map(([k, v]) => `${k}: ${formatCurrency(Number(v || 0))}`).join(' | ')}
+                  </div>
+                )}
+                <div style={{ maxHeight: 260, overflow: 'auto', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr>
+                        {(reportPreview.items[0] ? Object.keys(reportPreview.items[0]) : []).map((col) => (
+                          <th key={col} style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+                            {col}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reportPreview.items.map((row, idx) => (
+                        <tr key={`preview-row-${idx}`} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          {Object.keys(row).map((col) => (
+                            <td key={`${idx}-${col}`} style={{ padding: '8px', fontSize: 13 }}>
+                              {String(row[col] ?? '')}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ), document.body)}

@@ -56,6 +56,20 @@ const emptyForm: CompanyFormData = {
   territorialManager: '',
 };
 
+const normalizeSaluteAmicaPlan = (value?: string) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const lower = raw
+    .replace('â‚¬', 'eur')
+    .replace('€', 'eur')
+    .replace(',', '.')
+    .toLowerCase();
+  if (lower.includes('5') && lower.includes('basic')) return '5.00 Basic';
+  if (lower.includes('12') && lower.includes('standard')) return '12.00 Standard';
+  if (lower.includes('16') && lower.includes('premium')) return '16.00 Premium';
+  return raw;
+};
+
 const CompanyEdit: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -65,6 +79,22 @@ const CompanyEdit: React.FC = () => {
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [existingDocuments, setExistingDocuments] = React.useState<Company['companyDocuments']>({});
+  const [documentFiles, setDocumentFiles] = React.useState<{
+    signedContractFile: File | null;
+    privacyNoticeFile: File | null;
+    legalRepresentativeDocumentFile: File | null;
+    chamberOfCommerceFile: File | null;
+  }>({
+    signedContractFile: null,
+    privacyNoticeFile: null,
+    legalRepresentativeDocumentFile: null,
+    chamberOfCommerceFile: null,
+  });
+  const apiBase =
+    (import.meta as any).env?.VITE_API_URL ||
+    (import.meta as any).env?.VITE_API_BASE_URL ||
+    'http://localhost:5000';
 
   // Redirect if not authenticated
   React.useEffect(() => {
@@ -125,7 +155,9 @@ const CompanyEdit: React.FC = () => {
             hasFondoSani: !!company.contractDetails?.hasFondoSani,
             useEbapPayment: !!company.contractDetails?.useEbapPayment,
             elavAdhesion: !!company.contractDetails?.elavAdhesion,
-            saluteAmicaAdhesion: company.contractDetails?.saluteAmicaAdhesion || '',
+            saluteAmicaAdhesion: normalizeSaluteAmicaPlan(
+              company.contractDetails?.saluteAmicaAdhesion
+            ),
           },
 
           signaler:
@@ -139,6 +171,7 @@ const CompanyEdit: React.FC = () => {
             company.contractDetails?.territorialManager || // in case API still returns it nested
             '',
         });
+        setExistingDocuments(company.companyDocuments || {});
       } catch (e: any) {
         setError(
           e?.response?.data?.error ||
@@ -224,7 +257,7 @@ const CompanyEdit: React.FC = () => {
       hasFondoSani: !!data.contractDetails?.hasFondoSani,
       useEbapPayment: !!data.contractDetails?.useEbapPayment,
       elavAdhesion: !!data.contractDetails?.elavAdhesion,
-      saluteAmicaAdhesion: data.contractDetails?.saluteAmicaAdhesion || '',
+      saluteAmicaAdhesion: normalizeSaluteAmicaPlan(data.contractDetails?.saluteAmicaAdhesion),
       // If your backend expects this inside contractDetails, keep it here; otherwise you already
       // have a top-level territorialManager below.
       // territorialManager: data.territorialManager?.trim(),
@@ -241,7 +274,12 @@ const CompanyEdit: React.FC = () => {
     setError(null);
     try {
       const payload = buildSubmission(formData);
-      await updateCompany(id, payload);
+      await updateCompany(id, payload, {
+        signedContractFile: documentFiles.signedContractFile,
+        privacyNoticeFile: documentFiles.privacyNoticeFile,
+        legalRepresentativeDocumentFile: documentFiles.legalRepresentativeDocumentFile,
+        chamberOfCommerceFile: documentFiles.chamberOfCommerceFile,
+      });
       navigate('/companies');
     } catch (err: any) {
       const msg =
@@ -253,6 +291,14 @@ const CompanyEdit: React.FC = () => {
       setError(msg);
       setSaving(false);
     }
+  };
+
+  const getFileUrl = (doc?: { path?: string }) => {
+    if (!doc?.path) return null;
+    const normalizedBase = String(apiBase).replace(/\/+$/, '');
+    const fileName = doc.path.split(/[/\\]/).pop();
+    if (!fileName) return null;
+    return `${normalizedBase}/uploads/${fileName}`;
   };
 
   if (loading) {
@@ -515,11 +561,72 @@ const CompanyEdit: React.FC = () => {
                 required
               >
                 <option value="">-- Seleziona un piano --</option>
-                <option value="€5.00 Basic">€5.00 Basic</option>
-                <option value="€12.00 Standard">€12.00 Standard</option>
-                <option value="€16.00 Premium">€16.00 Premium</option>
+                <option value="5.00 Basic">5.00 Basic</option>
+                <option value="12.00 Standard">12.00 Standard</option>
+                <option value="16.00 Premium">16.00 Premium</option>
               </select>
             </div>
+          </div>
+        </div>
+
+        <div className="form-section">
+          <h2 className="section-title">Documenti Azienda</h2>
+          <div className="company-files-grid">
+            {[
+              {
+                key: 'signedContractFile',
+                label: 'Contratto Firmato',
+                existing: existingDocuments?.signedContractFile,
+              },
+              {
+                key: 'privacyNoticeFile',
+                label: 'Informativa Privacy',
+                existing: existingDocuments?.privacyNoticeFile,
+              },
+              {
+                key: 'legalRepresentativeDocumentFile',
+                label: 'Documento Legale Rappresentante',
+                existing: existingDocuments?.legalRepresentativeDocumentFile,
+              },
+              {
+                key: 'chamberOfCommerceFile',
+                label: 'Visura Camerale',
+                existing: existingDocuments?.chamberOfCommerceFile,
+              },
+            ].map((item) => {
+              const current = documentFiles[item.key as keyof typeof documentFiles];
+              const existingUrl = getFileUrl(item.existing as any);
+              return (
+                <div className="company-file-field" key={item.key}>
+                  <label>{item.label}</label>
+                  <div className="file-input-wrapper">
+                    <div className="file-select company-file-select">
+                      <input
+                        className="file-input"
+                        type="file"
+                        onChange={(e) =>
+                          setDocumentFiles((prev) => ({
+                            ...prev,
+                            [item.key]: e.target.files?.[0] || null,
+                          }))
+                        }
+                      />
+                      <div className="file-select-button company-file-select-button">Scegli file</div>
+                      <div className="file-select-name company-file-select-name">
+                        {current?.name || item.existing?.originalName || 'Nessun file selezionato'}
+                      </div>
+                    </div>
+                  </div>
+                  {existingUrl && (
+                    <div style={{ marginTop: 6 }}>
+                      <a href={existingUrl} target="_blank" rel="noreferrer">
+                        Scarica documento attuale
+                      </a>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
 

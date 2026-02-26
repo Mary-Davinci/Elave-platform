@@ -1,4 +1,4 @@
-
+﻿
 import mongoose, { Document, Schema } from "mongoose";
 
 export interface ICompany extends Document {
@@ -48,6 +48,40 @@ export interface ICompany extends Document {
 
   
   territorialManager?: string;     // NEW
+  companyDocuments?: {
+    signedContractFile?: {
+      filename: string;
+      originalName: string;
+      path: string;
+      mimetype: string;
+      size: number;
+      uploadedAt: Date;
+    };
+    privacyNoticeFile?: {
+      filename: string;
+      originalName: string;
+      path: string;
+      mimetype: string;
+      size: number;
+      uploadedAt: Date;
+    };
+    legalRepresentativeDocumentFile?: {
+      filename: string;
+      originalName: string;
+      path: string;
+      mimetype: string;
+      size: number;
+      uploadedAt: Date;
+    };
+    chamberOfCommerceFile?: {
+      filename: string;
+      originalName: string;
+      path: string;
+      mimetype: string;
+      size: number;
+      uploadedAt: Date;
+    };
+  };
   
   user: mongoose.Types.ObjectId;
   createdAt: Date;
@@ -112,11 +146,11 @@ const CompanySchema = new Schema<ICompany>(
       hasFondoSani: { type: Boolean, default: false },
       useEbapPayment: { type: Boolean, default: false },
       elavAdhesion: { type: Boolean, default: false },        // NEW
-      saluteAmicaAdhesion: { 
-    type: String, 
-    enum: ["€5.00 Basic", "€12.00 Standard", "€16.00 Premium", ""], 
-    default: "" 
-  },
+            saluteAmicaAdhesion: {
+        type: String,
+        enum: ["5.00 Basic", "12.00 Standard", "16.00 Premium", ""],
+        default: "",
+      },
       territorialManager: { type: String, trim: true },
     },
     industry: {
@@ -156,6 +190,40 @@ const CompanySchema = new Schema<ICompany>(
       type: Boolean,
       default: true,
     },
+    companyDocuments: {
+      signedContractFile: {
+        filename: { type: String },
+        originalName: { type: String },
+        path: { type: String },
+        mimetype: { type: String },
+        size: { type: Number },
+        uploadedAt: { type: Date },
+      },
+      privacyNoticeFile: {
+        filename: { type: String },
+        originalName: { type: String },
+        path: { type: String },
+        mimetype: { type: String },
+        size: { type: Number },
+        uploadedAt: { type: Date },
+      },
+      legalRepresentativeDocumentFile: {
+        filename: { type: String },
+        originalName: { type: String },
+        path: { type: String },
+        mimetype: { type: String },
+        size: { type: Number },
+        uploadedAt: { type: Date },
+      },
+      chamberOfCommerceFile: {
+        filename: { type: String },
+        originalName: { type: String },
+        path: { type: String },
+        mimetype: { type: String },
+        size: { type: Number },
+        uploadedAt: { type: Date },
+      },
+    },
     
     user: {
       type: Schema.Types.ObjectId,
@@ -179,3 +247,5 @@ CompanySchema.index({ 'contactInfo.laborConsultantId': 1 });
 
 const Company = mongoose.model<ICompany>("Company", CompanySchema);
 export default Company;
+
+

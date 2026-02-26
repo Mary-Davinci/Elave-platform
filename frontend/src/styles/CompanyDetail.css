@@ -662,6 +662,32 @@
   box-shadow: var(--shadow-md);
 }
 
+.company-documents-section {
+  margin-top: 16px;
+}
+
+.company-documents-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.company-documents-list li {
+  margin-bottom: 10px;
+  color: var(--text-dark);
+  font-size: 14px;
+}
+
+.company-documents-list a {
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.company-documents-list a:hover {
+  text-decoration: underline;
+}
+
 /* Responsive styles */
 @media (max-width: 1200px) {
   .dashboard-stats {

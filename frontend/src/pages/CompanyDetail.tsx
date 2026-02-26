@@ -18,6 +18,10 @@ const CompanyDetail: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'employees'>('dashboard');
   const [employeesLoading, setEmployeesLoading] = useState(false);
+  const apiBase =
+    (import.meta as any).env?.VITE_API_URL ||
+    (import.meta as any).env?.VITE_API_BASE_URL ||
+    'http://localhost:5000';
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -90,6 +94,37 @@ const CompanyDetail: React.FC = () => {
     const date = new Date(dateString);
     return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
   };
+
+  const getFileUrl = (doc?: { path?: string }) => {
+    if (!doc?.path) return null;
+    const normalizedBase = String(apiBase).replace(/\/+$/, '');
+    const fileName = doc.path.split(/[/\\]/).pop();
+    if (!fileName) return null;
+    return `${normalizedBase}/uploads/${fileName}`;
+  };
+
+  const companyDocuments = [
+    {
+      key: 'signedContractFile',
+      label: 'Contratto firmato',
+      file: company.companyDocuments?.signedContractFile,
+    },
+    {
+      key: 'privacyNoticeFile',
+      label: 'Informativa privacy',
+      file: company.companyDocuments?.privacyNoticeFile,
+    },
+    {
+      key: 'legalRepresentativeDocumentFile',
+      label: 'Documento legale rappresentante',
+      file: company.companyDocuments?.legalRepresentativeDocumentFile,
+    },
+    {
+      key: 'chamberOfCommerceFile',
+      label: 'Visura camerale',
+      file: company.companyDocuments?.chamberOfCommerceFile,
+    },
+  ];
 
   return (
     <div className="company-detail-container">
@@ -200,6 +235,26 @@ const CompanyDetail: React.FC = () => {
                       <li><strong>Fondo Sani:</strong> {company.contractDetails?.hasFondoSani ? 'Sì' : 'No'}</li>
                       <li><strong>EBAP:</strong> {company.contractDetails?.useEbapPayment ? 'Sì' : 'No'}</li>
                       <li><strong>Settore:</strong> {company.industry || 'N/A'}</li>
+                    </ul>
+                  </div>
+                  <div className="info-section company-documents-section">
+                    <h4>Documenti azienda</h4>
+                    <ul className="company-documents-list">
+                      {companyDocuments.map((item) => {
+                        const url = getFileUrl(item.file as any);
+                        return (
+                          <li key={item.key}>
+                            <strong>{item.label}:</strong>{' '}
+                            {url ? (
+                              <a href={url} target="_blank" rel="noreferrer">
+                                {item.file?.originalName || 'Scarica documento'}
+                              </a>
+                            ) : (
+                              <span>Non caricato</span>
+                            )}
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                 </div>

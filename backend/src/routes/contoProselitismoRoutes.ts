@@ -11,6 +11,8 @@ import {
   uploadContoProselitismoFromExcel,
   exportContoProselitismoXlsx,
   exportContoProselitismoMonthlyCompanyXlsx,
+  previewContoProselitismoReport,
+  previewContoProselitismoMonthlyCompanyReport,
 } from "../controllers/contoProselitismoController";
 
 const router = Router();
@@ -22,6 +24,8 @@ router.get("/non-riconciliate", authMiddleware, getContoProselitismoNonRiconcili
 router.get("/imports", authMiddleware, getContoProselitismoImports);
 router.get("/export", authMiddleware, exportContoProselitismoXlsx);
 router.get("/export-monthly", authMiddleware, exportContoProselitismoMonthlyCompanyXlsx);
+router.get("/export/preview", authMiddleware, previewContoProselitismoReport);
+router.get("/export-monthly/preview", authMiddleware, previewContoProselitismoMonthlyCompanyReport);
 router.post("/preview", authMiddleware, adminRoleMiddleware, previewContoProselitismoFromExcel);
 router.post("/upload", authMiddleware, adminRoleMiddleware, uploadContoProselitismoFromExcel);
 

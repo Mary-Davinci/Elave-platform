@@ -502,8 +502,8 @@ const Agenti: React.FC = () => {
                     className="file-input"
                     disabled={isSubmitting}
                   />
-                  <div className="file-select-button">Choose File</div>
-                  <div className="file-select-name">{signedContract ? signedContract.name : 'No file chosen'}</div>
+                  <div className="file-select-button">Seleziona file</div>
+                  <div className="file-select-name">{signedContract ? signedContract.name : 'Nessun file selezionato'}</div>
                 </div>
               </div>
               {signedContract && (
@@ -526,8 +526,8 @@ const Agenti: React.FC = () => {
                     className="file-input"
                     disabled={isSubmitting}
                   />
-                  <div className="file-select-button">Choose File</div>
-                  <div className="file-select-name">{legalDoc ? legalDoc.name : 'No file chosen'}</div>
+                  <div className="file-select-button">Seleziona file</div>
+                  <div className="file-select-name">{legalDoc ? legalDoc.name : 'Nessun file selezionato'}</div>
                 </div>
               </div>
               {legalDoc && (

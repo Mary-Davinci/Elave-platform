@@ -1237,108 +1237,258 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
   }
 };
 
+const collectTransactionsForExport = async (
+  req: any,
+  next: any
+): Promise<any[] | { errorStatus: number; errorPayload: any }> => {
+  const limit = 500;
+  let page = 1;
+  let total = Number.MAX_SAFE_INTEGER;
+  const allTransactions: any[] = [];
+
+  while (allTransactions.length < total) {
+    const capture: { statusCode?: number; payload?: any } = {};
+    const fakeRes = {
+      status(code: number) {
+        capture.statusCode = code;
+        return this;
+      },
+      json(payload: any) {
+        capture.payload = payload;
+        return this;
+      },
+    } as unknown as Response;
+
+    const fakeReq = {
+      ...req,
+      query: {
+        ...(req.query || {}),
+        page: String(page),
+        limit: String(limit),
+        lite: "1",
+      },
+    } as any;
+
+    await getContoTransactions(fakeReq, fakeRes, next);
+
+    if ((capture.statusCode || 200) >= 400) {
+      return {
+        errorStatus: capture.statusCode || 500,
+        errorPayload: capture.payload || { error: "Export failed" },
+      };
+    }
+
+    const transactions = Array.isArray(capture.payload?.transactions)
+      ? capture.payload.transactions
+      : [];
+    allTransactions.push(...transactions);
+
+    total = Number(capture.payload?.total || allTransactions.length);
+    if (!transactions.length || page > 200) break;
+    page += 1;
+  }
+
+  return allTransactions;
+};
+
+const buildControlloRows = (allTransactions: any[]) => {
+  const monthlyMap = new Map<
+    string,
+    {
+      periodo: string;
+      azienda: string;
+      responsabile: string;
+      sportello: string;
+      totaleElav: number;
+      movimenti: number;
+    }
+  >();
+
+  for (const t of allTransactions) {
+    const date = t?.date ? new Date(t.date) : null;
+    if (!date || Number.isNaN(date.getTime())) continue;
+
+    const periodo = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    const azienda = String(
+      t?.companyName || t?.company?.companyName || t?.company?.businessName || ""
+    ).trim();
+    const responsabile = String(t?.responsabileName || "").trim();
+    const sportello = String(t?.sportelloName || "").trim();
+    const quotaElav = Number(t?.rawAmount ?? t?.amount ?? 0) || 0;
+    const key = [periodo, azienda, responsabile, sportello].join("|");
+
+    const current = monthlyMap.get(key);
+    if (current) {
+      current.totaleElav += quotaElav;
+      current.movimenti += 1;
+    } else {
+      monthlyMap.set(key, {
+        periodo,
+        azienda,
+        responsabile,
+        sportello,
+        totaleElav: quotaElav,
+        movimenti: 1,
+      });
+    }
+  }
+
+  return Array.from(monthlyMap.values())
+    .sort((a, b) => {
+      if (a.periodo !== b.periodo) return a.periodo > b.periodo ? -1 : 1;
+      return a.azienda.localeCompare(b.azienda, "it");
+    })
+    .map((r) => ({
+      Periodo: r.periodo,
+      Azienda: r.azienda,
+      "Responsabile Territoriale": r.responsabile,
+      "Sportello Lavoro": r.sportello,
+      "Totale ELAV mensile": Number(r.totaleElav.toFixed(2)),
+      Movimenti: r.movimenti,
+    }));
+};
+
+const buildFatturazioneRows = (allTransactions: any[], req: any) => {
+  const role = req.user?.role;
+  const isAdminScope = role === "admin" || role === "super_admin";
+  const hasResponsabileFilter = Boolean(String(req.query?.responsabile || "").trim());
+  const hasSportelloFilter = Boolean(String(req.query?.sportello || "").trim());
+  const companyMap = new Map<
+    string,
+    {
+      azienda: string;
+      responsabile: string;
+      sportello: string;
+      totaleElav: number;
+      provvigioni: number;
+      movimenti: number;
+      seenMovements: Set<string>;
+    }
+  >();
+
+  for (const t of allTransactions) {
+    const azienda = String(
+      t?.companyName || t?.company?.companyName || t?.company?.businessName || ""
+    ).trim();
+    if (!azienda) continue;
+
+    const responsabile = String(t?.responsabileName || "").trim();
+    const sportello = String(t?.sportelloName || "").trim();
+    const quotaElav = Number(t?.rawAmount ?? t?.amount ?? 0) || 0;
+    if (quotaElav <= 0) continue;
+
+    const companyKey = azienda.toLowerCase();
+    const movementKey = String(t?.importKey || `${t?.date || ""}|${azienda}|${t?._id || ""}`);
+    const responsabilePct = Number(
+      t?.company?.user?.profitSharePercentage ?? t?.responsabileDoc?.profitSharePercentage
+    );
+    const sportelloPct = Number(
+      t?.company?.contactInfo?.laborConsultantId?.agreedCommission ?? t?.sportelloDoc?.agreedCommission
+    );
+    const fallbackPct = quotaElav > 0 ? (Number(t?.amount || 0) / quotaElav) * 100 : 0;
+    const percentual = (() => {
+      if (role === "responsabile_territoriale") {
+        return Number.isFinite(responsabilePct) ? responsabilePct : fallbackPct;
+      }
+      if (role === "sportello_lavoro") {
+        return Number.isFinite(sportelloPct) ? sportelloPct : fallbackPct;
+      }
+      if (isAdminScope && hasSportelloFilter) {
+        return Number.isFinite(sportelloPct) ? sportelloPct : fallbackPct;
+      }
+      if (isAdminScope && hasResponsabileFilter) {
+        return Number.isFinite(responsabilePct) ? responsabilePct : fallbackPct;
+      }
+      return 80;
+    })();
+    const provvigioneRiga = (quotaElav * percentual) / 100;
+
+    const current = companyMap.get(companyKey);
+    if (current) {
+      if (!current.seenMovements.has(movementKey)) {
+        current.seenMovements.add(movementKey);
+        current.totaleElav += quotaElav;
+        current.provvigioni += provvigioneRiga;
+        current.movimenti += 1;
+      }
+      if (!current.responsabile && responsabile) current.responsabile = responsabile;
+      if (!current.sportello && sportello) current.sportello = sportello;
+    } else {
+      companyMap.set(companyKey, {
+        azienda,
+        responsabile,
+        sportello,
+        totaleElav: quotaElav,
+        provvigioni: provvigioneRiga,
+        movimenti: 1,
+        seenMovements: new Set([movementKey]),
+      });
+    }
+  }
+
+  return Array.from(companyMap.values())
+    .sort((a, b) => a.azienda.localeCompare(b.azienda, "it"))
+    .map((r) => ({
+      Azienda: r.azienda,
+      "Responsabile Territoriale": r.responsabile,
+      "Sportello Lavoro": r.sportello,
+      "Totale Quote ELAV": Number(r.totaleElav.toFixed(2)),
+      Provvigioni: Number(r.provvigioni.toFixed(2)),
+      Movimenti: r.movimenti,
+    }));
+};
+
+export const previewContoTransactionsReport: CustomRequestHandler = async (req, res, next) => {
+  try {
+    const collected = await collectTransactionsForExport(req, next);
+    if (!Array.isArray(collected)) {
+      return res.status(collected.errorStatus).json(collected.errorPayload);
+    }
+    const rows = buildControlloRows(collected);
+    const totalElav = rows.reduce((sum, r: any) => sum + Number(r["Totale ELAV mensile"] || 0), 0);
+    return res.json({
+      items: rows.slice(0, 20),
+      total: rows.length,
+      summary: {
+        totaleElav: Number(totalElav.toFixed(2)),
+      },
+    });
+  } catch (err: any) {
+    console.error("Preview conto transactions report error:", err);
+    return res.status(500).json({ error: "Server error while previewing report" });
+  }
+};
+
+export const previewMonthlyCompanyTotalsReport: CustomRequestHandler = async (req, res, next) => {
+  try {
+    const collected = await collectTransactionsForExport(req, next);
+    if (!Array.isArray(collected)) {
+      return res.status(collected.errorStatus).json(collected.errorPayload);
+    }
+    const rows = buildFatturazioneRows(collected, req);
+    const totaleQuote = rows.reduce((sum, r: any) => sum + Number(r["Totale Quote ELAV"] || 0), 0);
+    const totaleProvvigioni = rows.reduce((sum, r: any) => sum + Number(r["Provvigioni"] || 0), 0);
+    return res.json({
+      items: rows.slice(0, 20),
+      total: rows.length,
+      summary: {
+        totaleQuoteElav: Number(totaleQuote.toFixed(2)),
+        totaleProvvigioni: Number(totaleProvvigioni.toFixed(2)),
+      },
+    });
+  } catch (err: any) {
+    console.error("Preview monthly company totals report error:", err);
+    return res.status(500).json({ error: "Server error while previewing monthly report" });
+  }
+};
+
 export const exportContoTransactionsXlsx: CustomRequestHandler = async (req, res, next) => {
   try {
-    const limit = 500;
-    let page = 1;
-    let total = Number.MAX_SAFE_INTEGER;
-    const allTransactions: any[] = [];
-
-    while (allTransactions.length < total) {
-      const capture: { statusCode?: number; payload?: any } = {};
-      const fakeRes = {
-        status(code: number) {
-          capture.statusCode = code;
-          return this;
-        },
-        json(payload: any) {
-          capture.payload = payload;
-          return this;
-        },
-      } as unknown as Response;
-
-      const fakeReq = {
-        ...req,
-        query: {
-          ...(req.query || {}),
-          page: String(page),
-          limit: String(limit),
-          lite: "1",
-        },
-      } as any;
-
-      await getContoTransactions(fakeReq, fakeRes, next);
-
-      if ((capture.statusCode || 200) >= 400) {
-        return res
-          .status(capture.statusCode || 500)
-          .json(capture.payload || { error: "Export failed" });
-      }
-
-      const transactions = Array.isArray(capture.payload?.transactions)
-        ? capture.payload.transactions
-        : [];
-      allTransactions.push(...transactions);
-
-      total = Number(capture.payload?.total || allTransactions.length);
-      if (!transactions.length || page > 200) break;
-      page += 1;
+    const collected = await collectTransactionsForExport(req, next);
+    if (!Array.isArray(collected)) {
+      return res.status(collected.errorStatus).json(collected.errorPayload);
     }
-
-    const monthlyMap = new Map<
-      string,
-      {
-        periodo: string;
-        azienda: string;
-        responsabile: string;
-        sportello: string;
-        totaleElav: number;
-        movimenti: number;
-      }
-    >();
-
-    for (const t of allTransactions) {
-      const date = t?.date ? new Date(t.date) : null;
-      if (!date || Number.isNaN(date.getTime())) continue;
-
-      const periodo = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      const azienda = String(
-        t?.companyName || t?.company?.companyName || t?.company?.businessName || ""
-      ).trim();
-      const responsabile = String(t?.responsabileName || "").trim();
-      const sportello = String(t?.sportelloName || "").trim();
-      const quotaElav = Number(t?.rawAmount ?? t?.amount ?? 0) || 0;
-      const key = [periodo, azienda, responsabile, sportello].join("|");
-
-      const current = monthlyMap.get(key);
-      if (current) {
-        current.totaleElav += quotaElav;
-        current.movimenti += 1;
-      } else {
-        monthlyMap.set(key, {
-          periodo,
-          azienda,
-          responsabile,
-          sportello,
-          totaleElav: quotaElav,
-          movimenti: 1,
-        });
-      }
-    }
-
-    const rows = Array.from(monthlyMap.values())
-      .sort((a, b) => {
-        if (a.periodo !== b.periodo) return a.periodo > b.periodo ? -1 : 1;
-        return a.azienda.localeCompare(b.azienda, "it");
-      })
-      .map((r) => ({
-        Periodo: r.periodo,
-        Azienda: r.azienda,
-        "Responsabile Territoriale": r.responsabile,
-        "Sportello Lavoro": r.sportello,
-        "Totale ELAV mensile": Number(r.totaleElav.toFixed(2)),
-        Movimenti: r.movimenti,
-      }));
+    const rows = buildControlloRows(collected);
 
     const ws = xlsx.utils.json_to_sheet(rows);
     ws["!cols"] = [
@@ -1371,131 +1521,11 @@ export const exportContoTransactionsXlsx: CustomRequestHandler = async (req, res
 
 export const exportMonthlyCompanyTotalsXlsx: CustomRequestHandler = async (req, res, next) => {
   try {
-    const role = req.user?.role;
-    const isAdminScope = role === "admin" || role === "super_admin";
-    const limit = 500;
-    let page = 1;
-    let total = Number.MAX_SAFE_INTEGER;
-    const allTransactions: any[] = [];
-
-    while (allTransactions.length < total) {
-      const capture: { statusCode?: number; payload?: any } = {};
-      const fakeRes = {
-        status(code: number) {
-          capture.statusCode = code;
-          return this;
-        },
-        json(payload: any) {
-          capture.payload = payload;
-          return this;
-        },
-      } as unknown as Response;
-
-      const fakeReq = {
-        ...req,
-        query: {
-          ...(req.query || {}),
-          page: String(page),
-          limit: String(limit),
-          lite: "1",
-        },
-      } as any;
-
-      await getContoTransactions(fakeReq, fakeRes, next);
-
-      if ((capture.statusCode || 200) >= 400) {
-        return res
-          .status(capture.statusCode || 500)
-          .json(capture.payload || { error: "Export failed" });
-      }
-
-      const transactions = Array.isArray(capture.payload?.transactions)
-        ? capture.payload.transactions
-        : [];
-      allTransactions.push(...transactions);
-
-      total = Number(capture.payload?.total || allTransactions.length);
-      if (!transactions.length || page > 200) break;
-      page += 1;
+    const collected = await collectTransactionsForExport(req, next);
+    if (!Array.isArray(collected)) {
+      return res.status(collected.errorStatus).json(collected.errorPayload);
     }
-
-    const companyMap = new Map<
-      string,
-      {
-        azienda: string;
-        responsabile: string;
-        sportello: string;
-        totaleElav: number;
-        provvigioni: number;
-        movimenti: number;
-        seenMovements: Set<string>;
-      }
-    >();
-
-    for (const t of allTransactions) {
-      const azienda = String(
-        t?.companyName || t?.company?.companyName || t?.company?.businessName || ""
-      ).trim();
-      if (!azienda) continue;
-
-      const responsabile = String(t?.responsabileName || "").trim();
-      const sportello = String(t?.sportelloName || "").trim();
-      const quotaElav = Number(t?.rawAmount ?? t?.amount ?? 0) || 0;
-      if (quotaElav <= 0) continue;
-
-      const companyKey = azienda.toLowerCase();
-      const movementKey = String(
-        t?.importKey || `${t?.date || ""}|${azienda}|${t?._id || ""}`
-      );
-
-      const responsabilePct = Number(t?.company?.user?.profitSharePercentage);
-      const sportelloPct = Number(t?.company?.contactInfo?.laborConsultantId?.agreedCommission);
-      const fallbackPct = quotaElav > 0 ? (Number(t?.amount || 0) / quotaElav) * 100 : 0;
-      const percentual =
-        role === "responsabile_territoriale"
-          ? Number.isFinite(responsabilePct)
-            ? responsabilePct
-            : fallbackPct
-          : role === "sportello_lavoro"
-            ? Number.isFinite(sportelloPct)
-              ? sportelloPct
-              : fallbackPct
-            : 80;
-      const provvigioneRiga = (quotaElav * percentual) / 100;
-
-      const current = companyMap.get(companyKey);
-      if (current) {
-        if (!current.seenMovements.has(movementKey)) {
-          current.seenMovements.add(movementKey);
-          current.totaleElav += quotaElav;
-          current.provvigioni += isAdminScope ? quotaElav * 0.8 : provvigioneRiga;
-          current.movimenti += 1;
-        }
-        if (!current.responsabile && responsabile) current.responsabile = responsabile;
-        if (!current.sportello && sportello) current.sportello = sportello;
-      } else {
-        companyMap.set(companyKey, {
-          azienda,
-          responsabile,
-          sportello,
-          totaleElav: quotaElav,
-          provvigioni: isAdminScope ? quotaElav * 0.8 : provvigioneRiga,
-          movimenti: 1,
-          seenMovements: new Set([movementKey]),
-        });
-      }
-    }
-
-    const rows = Array.from(companyMap.values())
-      .sort((a, b) => a.azienda.localeCompare(b.azienda, "it"))
-      .map((r) => ({
-        Azienda: r.azienda,
-        "Responsabile Territoriale": r.responsabile,
-        "Sportello Lavoro": r.sportello,
-        "Totale Quote ELAV": Number(r.totaleElav.toFixed(2)),
-        Provvigioni: Number(r.provvigioni.toFixed(2)),
-        Movimenti: r.movimenti,
-      }));
+    const rows = buildFatturazioneRows(collected, req);
 
     const ws = xlsx.utils.json_to_sheet(rows);
     ws["!cols"] = [

@@ -210,6 +210,21 @@ const getNextCompanyNumeroAnagrafica = async (): Promise<number> => {
   return counter.seq;
 };
 
+const compactCompanyDocuments = (docs: any) => {
+  const normalized = docs && typeof docs.toObject === "function" ? docs.toObject() : docs || {};
+  const result: any = {};
+  const keys = [
+    "signedContractFile",
+    "privacyNoticeFile",
+    "legalRepresentativeDocumentFile",
+    "chamberOfCommerceFile",
+  ];
+  for (const key of keys) {
+    if (normalized?.[key]) result[key] = normalized[key];
+  }
+  return result;
+};
+
 const storage = multer.diskStorage({
   destination: (req: Request, file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => {
     const uploadDir = path.join(__dirname, '../uploads');
@@ -258,6 +273,30 @@ const upload = multer({
     }
   }
 }).single('file');
+
+const companyDocumentsUpload = multer({
+  storage,
+  fileFilter: (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+    const validExtensions = /\.(pdf|doc|docx|jpg|jpeg|png)$/i;
+    const hasValidExtension = validExtensions.test(path.extname(file.originalname).toLowerCase());
+    if (hasValidExtension) return cb(null, true);
+    return cb(new Error("Formato file non supportato. Usa PDF, DOC, DOCX, JPG o PNG."));
+  },
+}).fields([
+  { name: "signedContractFile", maxCount: 1 },
+  { name: "privacyNoticeFile", maxCount: 1 },
+  { name: "legalRepresentativeDocumentFile", maxCount: 1 },
+  { name: "chamberOfCommerceFile", maxCount: 1 },
+]);
+
+export const companyDocumentsUploadMiddleware: CustomRequestHandler = async (req, res, next) => {
+  companyDocumentsUpload(req as any, res as any, (err: any) => {
+    if (err) {
+      return res.status(400).json({ error: err.message || "Errore caricamento documenti azienda" });
+    }
+    return next();
+  });
+};
 
 export const getCompanies: CustomRequestHandler = async (req, res) => {
   try {
@@ -379,6 +418,15 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
     });
     console.log("[createCompany] request body keys:", Object.keys(req.body || {}));
 
+    let bodyData: any = req.body || {};
+    if (typeof bodyData?.payload === "string") {
+      try {
+        bodyData = JSON.parse(bodyData.payload);
+      } catch {
+        return res.status(400).json({ error: "Payload form-data non valido" });
+      }
+    }
+
     const { 
       businessName, 
       companyName,
@@ -396,7 +444,7 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
       signaler,
       actuator,
       isActive 
-    } = req.body;
+    } = bodyData;
 
     // valida sportello lavoro se cè
       if (contactInfo?.laborConsultantId) {
@@ -467,6 +515,27 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
       resolvedResponsabileId = resolved._id as mongoose.Types.ObjectId;
     }
 
+    const uploadedFiles = (req as any).files as Record<string, Express.Multer.File[] | undefined> | undefined;
+    const pickFileMeta = (key: string) => {
+      const file = uploadedFiles?.[key]?.[0];
+      if (!file) return undefined;
+      return {
+        filename: file.filename,
+        originalName: file.originalname,
+        path: file.path,
+        mimetype: file.mimetype,
+        size: file.size,
+        uploadedAt: new Date(),
+      };
+    };
+
+    const documentsForCreate = compactCompanyDocuments({
+      signedContractFile: pickFileMeta("signedContractFile"),
+      privacyNoticeFile: pickFileMeta("privacyNoticeFile"),
+      legalRepresentativeDocumentFile: pickFileMeta("legalRepresentativeDocumentFile"),
+      chamberOfCommerceFile: pickFileMeta("chamberOfCommerceFile"),
+    });
+
     const newCompany = new Company({
       businessName, 
       companyName: companyName || businessName,
@@ -491,7 +560,8 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
       pendingApproval: needsApproval,
       approvedBy: isAutoApproved ? req.user._id : undefined,
       approvedAt: isAutoApproved ? new Date() : undefined,
-      user: resolvedResponsabileId || new mongoose.Types.ObjectId(req.user._id)
+      user: resolvedResponsabileId || new mongoose.Types.ObjectId(req.user._id),
+      ...(Object.keys(documentsForCreate).length ? { companyDocuments: documentsForCreate } : {}),
     });
 
     await newCompany.save();
@@ -540,6 +610,15 @@ export const updateCompany: CustomRequestHandler = async (req, res) => {
     }
 
     const { id } = req.params;
+    let bodyData: any = req.body || {};
+    if (typeof bodyData?.payload === "string") {
+      try {
+        bodyData = JSON.parse(bodyData.payload);
+      } catch {
+        return res.status(400).json({ error: "Payload form-data non valido" });
+      }
+    }
+
     const { 
       businessName, 
       companyName,
@@ -557,7 +636,7 @@ export const updateCompany: CustomRequestHandler = async (req, res) => {
       signaler,
       actuator,
       isActive 
-    } = req.body;
+    } = bodyData;
 
     const company = await Company.findById(id);
     
@@ -657,12 +736,59 @@ export const updateCompany: CustomRequestHandler = async (req, res) => {
     if (actuator !== undefined) company.actuator = actuator;
     if (isActive !== undefined) company.isActive = isActive;
 
+    const uploadedFiles = (req as any).files as Record<string, Express.Multer.File[] | undefined> | undefined;
+    const pickFileMeta = (key: string) => {
+      const file = uploadedFiles?.[key]?.[0];
+      if (!file) return undefined;
+      return {
+        filename: file.filename,
+        originalName: file.originalname,
+        path: file.path,
+        mimetype: file.mimetype,
+        size: file.size,
+        uploadedAt: new Date(),
+      };
+    };
+
+    const signedContractFile = pickFileMeta("signedContractFile");
+    const privacyNoticeFile = pickFileMeta("privacyNoticeFile");
+    const legalRepresentativeDocumentFile = pickFileMeta("legalRepresentativeDocumentFile");
+    const chamberOfCommerceFile = pickFileMeta("chamberOfCommerceFile");
+    if (
+      signedContractFile ||
+      privacyNoticeFile ||
+      legalRepresentativeDocumentFile ||
+      chamberOfCommerceFile
+    ) {
+      const currentDocs = compactCompanyDocuments(company.companyDocuments);
+      company.companyDocuments = compactCompanyDocuments({
+        ...currentDocs,
+        ...(signedContractFile ? { signedContractFile } : {}),
+        ...(privacyNoticeFile ? { privacyNoticeFile } : {}),
+        ...(legalRepresentativeDocumentFile ? { legalRepresentativeDocumentFile } : {}),
+        ...(chamberOfCommerceFile ? { chamberOfCommerceFile } : {}),
+      }) as any;
+    }
+
+    if (company.companyDocuments) {
+      company.companyDocuments = compactCompanyDocuments(company.companyDocuments) as any;
+    }
+
     await company.save();
 
     return res.json(company);
   } catch (err: any) {
     console.error("Update company error:", err);
     
+    if (err?.name === "ValidationError") {
+      const details = Object.values(err.errors || {})
+        .map((e: any) => e?.message)
+        .filter(Boolean);
+      return res.status(400).json({
+        error: details.length ? details.join(", ") : "Validation error",
+      });
+    }
+
     if (err.code === 11000 && err.keyPattern && err.keyPattern.vatNumber) {
       return res.status(400).json({ error: "VAT number already exists" });
     }

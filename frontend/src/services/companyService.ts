@@ -2,6 +2,13 @@
 import api from './api';
 import { Company, CompanyFormData } from '../types/interfaces';
 
+export interface CompanyDocumentFiles {
+  signedContractFile?: File | null;
+  privacyNoticeFile?: File | null;
+  legalRepresentativeDocumentFile?: File | null;
+  chamberOfCommerceFile?: File | null;
+}
+
 // Get all companies
 export const getCompanies = async (): Promise<Company[]> => {
   try {
@@ -39,7 +46,10 @@ export const getNextNumeroAnagrafica = async (): Promise<string> => {
 
 // Create a new company
 // src/services/companyService.ts
-export const createCompany = async (companyData: CompanyFormData): Promise<Company> => {
+export const createCompany = async (
+  companyData: CompanyFormData,
+  files?: CompanyDocumentFiles
+): Promise<Company> => {
   try {
     const preparedData = {
       businessName: companyData.businessName?.trim() || '',
@@ -100,7 +110,31 @@ export const createCompany = async (companyData: CompanyFormData): Promise<Compa
     if (!preparedData.vatNumber) throw new Error('VAT number is required');
     if (!preparedData.inpsCode) throw new Error('INPS code is required');
 
-    const { data } = await api.post<Company>('/api/companies', preparedData);
+    const hasFiles = Boolean(
+      files?.signedContractFile ||
+      files?.privacyNoticeFile ||
+      files?.legalRepresentativeDocumentFile ||
+      files?.chamberOfCommerceFile
+    );
+
+    let data: Company;
+    if (hasFiles) {
+      const formData = new FormData();
+      formData.append('payload', JSON.stringify(preparedData));
+      if (files?.signedContractFile) formData.append('signedContractFile', files.signedContractFile);
+      if (files?.privacyNoticeFile) formData.append('privacyNoticeFile', files.privacyNoticeFile);
+      if (files?.legalRepresentativeDocumentFile) {
+        formData.append('legalRepresentativeDocumentFile', files.legalRepresentativeDocumentFile);
+      }
+      if (files?.chamberOfCommerceFile) formData.append('chamberOfCommerceFile', files.chamberOfCommerceFile);
+      const response = await api.post<Company>('/api/companies', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      data = response.data;
+    } else {
+      const response = await api.post<Company>('/api/companies', preparedData);
+      data = response.data;
+    }
     return data;
   } catch (error: any) {
     console.error('Error creating company:', error);
@@ -112,7 +146,11 @@ export const createCompany = async (companyData: CompanyFormData): Promise<Compa
 
 
 // Update company
-export const updateCompany = async (id: string, companyData: Partial<CompanyFormData>): Promise<Company> => {
+export const updateCompany = async (
+  id: string,
+  companyData: Partial<CompanyFormData>,
+  files?: CompanyDocumentFiles
+): Promise<Company> => {
   try {
     // Prepare the data for submission (similar to createCompany)
     const preparedData = {
@@ -149,15 +187,41 @@ export const updateCompany = async (id: string, companyData: Partial<CompanyForm
         ccnlType: companyData.contractDetails.ccnlType?.trim(),
         bilateralEntity: companyData.contractDetails.bilateralEntity?.trim(),
         hasFondoSani: companyData.contractDetails.hasFondoSani,
-        useEbapPayment: companyData.contractDetails.useEbapPayment
+        useEbapPayment: companyData.contractDetails.useEbapPayment,
+        elavAdhesion: companyData.contractDetails.elavAdhesion,
+        saluteAmicaAdhesion: companyData.contractDetails.saluteAmicaAdhesion,
+        territorialManager: (companyData as any).territorialManager?.trim?.(),
       } : undefined,
       
       industry: companyData.industry?.trim(),
       employees: companyData.employees,
       signaler: companyData.signaler?.trim(),
       actuator: companyData.actuator?.trim(),
-      isActive: companyData.isActive
+      isActive: companyData.isActive,
+      territorialManager: (companyData as any).territorialManager?.trim?.(),
     };
+
+    const hasFiles = Boolean(
+      files?.signedContractFile ||
+      files?.privacyNoticeFile ||
+      files?.legalRepresentativeDocumentFile ||
+      files?.chamberOfCommerceFile
+    );
+
+    if (hasFiles) {
+      const formData = new FormData();
+      formData.append('payload', JSON.stringify(preparedData));
+      if (files?.signedContractFile) formData.append('signedContractFile', files.signedContractFile);
+      if (files?.privacyNoticeFile) formData.append('privacyNoticeFile', files.privacyNoticeFile);
+      if (files?.legalRepresentativeDocumentFile) {
+        formData.append('legalRepresentativeDocumentFile', files.legalRepresentativeDocumentFile);
+      }
+      if (files?.chamberOfCommerceFile) formData.append('chamberOfCommerceFile', files.chamberOfCommerceFile);
+      const response = await api.put<Company>(`/api/companies/${id}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data;
+    }
 
     const response = await api.put<Company>(`/api/companies/${id}`, preparedData);
     return response.data;

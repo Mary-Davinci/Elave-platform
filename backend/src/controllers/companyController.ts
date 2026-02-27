@@ -373,6 +373,60 @@ export const exportCompaniesXlsx: CustomRequestHandler = async (req, res) => {
       query = { user: req.user._id };
     }
 
+    const territorialManagerFilter = String(req.query?.territorialManager || "").trim();
+    const sportelloLavoroFilter = String(req.query?.sportelloLavoro || "").trim();
+    const excludeTerritorialManager =
+      String(req.query?.excludeTerritorialManager || "").toLowerCase() === "1" ||
+      String(req.query?.excludeTerritorialManager || "").toLowerCase() === "true";
+    const excludeSportelloLavoro =
+      String(req.query?.excludeSportelloLavoro || "").toLowerCase() === "1" ||
+      String(req.query?.excludeSportelloLavoro || "").toLowerCase() === "true";
+
+    if (excludeTerritorialManager) {
+      query.$and = [
+        ...(query.$and || []),
+        {
+          $or: [
+            { territorialManager: { $exists: false } },
+            { territorialManager: null },
+            { territorialManager: "" },
+            { territorialManager: "-" },
+          ],
+        },
+        {
+          $or: [
+            { "contractDetails.territorialManager": { $exists: false } },
+            { "contractDetails.territorialManager": null },
+            { "contractDetails.territorialManager": "" },
+            { "contractDetails.territorialManager": "-" },
+          ],
+        },
+      ];
+    } else if (territorialManagerFilter) {
+      const tmRegex = buildExactRegex(territorialManagerFilter);
+      query.$or = [
+        { territorialManager: tmRegex },
+        { "contractDetails.territorialManager": tmRegex },
+      ];
+    }
+
+    if (excludeSportelloLavoro) {
+      query.$and = [
+        ...(query.$and || []),
+        {
+          $or: [
+            { "contactInfo.laborConsultant": { $exists: false } },
+            { "contactInfo.laborConsultant": null },
+            { "contactInfo.laborConsultant": "" },
+            { "contactInfo.laborConsultant": "-" },
+          ],
+        },
+      ];
+    } else if (sportelloLavoroFilter) {
+      const sportelloRegex = buildExactRegex(sportelloLavoroFilter);
+      query["contactInfo.laborConsultant"] = sportelloRegex;
+    }
+
     const companies = await Company.find(query)
       .select("businessName companyName inpsCode matricola employees")
       .sort({ businessName: 1, companyName: 1 })

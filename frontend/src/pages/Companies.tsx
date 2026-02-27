@@ -11,6 +11,13 @@ const Companies: React.FC = () => {
   const [filteredCompanies, setFilteredCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportFilters, setExportFilters] = useState({
+    territorialManager: '',
+    sportelloLavoro: '',
+    excludeTerritorialManager: false,
+    excludeSportelloLavoro: false,
+  });
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
@@ -318,7 +325,12 @@ const Companies: React.FC = () => {
   const handleExportCompanies = async () => {
     try {
       setExporting(true);
-      const blob = await exportCompaniesXlsx();
+      const blob = await exportCompaniesXlsx({
+        territorialManager: exportFilters.territorialManager,
+        sportelloLavoro: exportFilters.sportelloLavoro,
+        excludeTerritorialManager: exportFilters.excludeTerritorialManager,
+        excludeSportelloLavoro: exportFilters.excludeSportelloLavoro,
+      });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       const date = new Date().toISOString().slice(0, 10);
@@ -328,6 +340,7 @@ const Companies: React.FC = () => {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
+      setShowExportModal(false);
     } catch (err) {
       console.error('Error exporting companies:', err);
       setError('Errore durante esportazione aziende');
@@ -335,6 +348,22 @@ const Companies: React.FC = () => {
       setExporting(false);
     }
   };
+
+  const territorialManagerOptions = Array.from(
+    new Set(
+      companies
+        .map((company) => getTerritorialManager(company))
+        .filter((value) => value && value !== '-')
+    )
+  ).sort((a, b) => a.localeCompare(b, 'it'));
+
+  const sportelloLavoroOptions = Array.from(
+    new Set(
+      companies
+        .map((company) => getSportelloLavoro(company))
+        .filter((value) => value && value !== '-')
+    )
+  ).sort((a, b) => a.localeCompare(b, 'it'));
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
     setSearchInputs({
@@ -404,7 +433,11 @@ const Companies: React.FC = () => {
       <div className="companies-header">
         <h1>Aziende</h1>
         <div className="header-actions">
-          <button className="export-button" onClick={handleExportCompanies} disabled={exporting}>
+          <button
+            className="export-button"
+            onClick={() => setShowExportModal(true)}
+            disabled={exporting}
+          >
             {exporting ? 'Esportazione...' : 'Esporta Aziende XLSX'}
           </button>
           <button className="add-button" onClick={handleAddCompany}>
@@ -838,6 +871,110 @@ const Companies: React.FC = () => {
               ))}
             </tbody>
           </table>
+          </div>
+        </div>
+      )}
+
+      {showExportModal && (
+        <div className="companies-export-modal-overlay" onClick={() => setShowExportModal(false)}>
+          <div
+            className="companies-export-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="companies-export-modal-header">
+              <h3>Esporta aziende</h3>
+              <button
+                className="companies-export-close"
+                onClick={() => setShowExportModal(false)}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="companies-export-grid">
+              <div className="companies-export-field">
+                <label>Responsabile territoriale</label>
+                <select
+                  value={exportFilters.territorialManager}
+                  onChange={(e) =>
+                    setExportFilters((prev) => ({ ...prev, territorialManager: e.target.value }))
+                  }
+                  disabled={exportFilters.excludeTerritorialManager}
+                >
+                  <option value="">Tutti</option>
+                  {territorialManagerOptions.map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
+                <label className="companies-export-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={exportFilters.excludeTerritorialManager}
+                    onChange={(e) =>
+                      setExportFilters((prev) => ({
+                        ...prev,
+                        excludeTerritorialManager: e.target.checked,
+                        territorialManager: e.target.checked ? '' : prev.territorialManager,
+                      }))
+                    }
+                  />
+                  Escludi tutti i responsabili territoriali
+                </label>
+              </div>
+
+              <div className="companies-export-field">
+                <label>Sportello lavoro</label>
+                <select
+                  value={exportFilters.sportelloLavoro}
+                  onChange={(e) =>
+                    setExportFilters((prev) => ({ ...prev, sportelloLavoro: e.target.value }))
+                  }
+                  disabled={exportFilters.excludeSportelloLavoro}
+                >
+                  <option value="">Tutti</option>
+                  {sportelloLavoroOptions.map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
+                <label className="companies-export-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={exportFilters.excludeSportelloLavoro}
+                    onChange={(e) =>
+                      setExportFilters((prev) => ({
+                        ...prev,
+                        excludeSportelloLavoro: e.target.checked,
+                        sportelloLavoro: e.target.checked ? '' : prev.sportelloLavoro,
+                      }))
+                    }
+                  />
+                  Escludi tutti gli sportelli lavoro
+                </label>
+              </div>
+            </div>
+
+            <div className="companies-export-actions">
+              <button
+                className="filter-cancel-button"
+                type="button"
+                onClick={() => setShowExportModal(false)}
+              >
+                Annulla
+              </button>
+              <button
+                className="filter-ok-button"
+                type="button"
+                onClick={handleExportCompanies}
+                disabled={exporting}
+              >
+                {exporting ? 'Generazione...' : 'Scarica XLSX'}
+              </button>
+            </div>
           </div>
         </div>
       )}

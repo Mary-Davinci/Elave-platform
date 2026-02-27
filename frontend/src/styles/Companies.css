@@ -730,3 +730,101 @@
 .header-actions .back-button {
   margin-right: 8px;
 }
+
+.companies-export-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  z-index: 1300;
+  padding: 64px 16px 16px;
+  overflow-y: auto;
+}
+
+.companies-export-modal {
+  width: 100%;
+  max-width: 560px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.22);
+  border: 1px solid var(--border-gray);
+  padding: 18px;
+}
+
+.companies-export-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.companies-export-modal-header h3 {
+  margin: 0;
+  color: var(--primary-color);
+  font-size: 22px;
+}
+
+.companies-export-close {
+  border: none;
+  background: transparent;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  color: #64748b;
+}
+
+.companies-export-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.companies-export-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.companies-export-field label {
+  font-size: 13px;
+  color: #334155;
+  font-weight: 600;
+}
+
+.companies-export-field select {
+  width: 100%;
+  border: 1px solid var(--border-gray);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  outline: none;
+}
+
+.companies-export-field select:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(54, 79, 139, 0.15);
+}
+
+.companies-export-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #475569;
+  font-weight: 500;
+}
+
+.companies-export-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary-color);
+}
+
+.companies-export-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}

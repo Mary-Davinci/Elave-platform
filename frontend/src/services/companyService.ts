@@ -31,9 +31,20 @@ export const getCompanyById = async (id: string): Promise<Company> => {
   }
 };
 
-export const exportCompaniesXlsx = async (): Promise<Blob> => {
+export const exportCompaniesXlsx = async (filters?: {
+  territorialManager?: string;
+  sportelloLavoro?: string;
+  excludeTerritorialManager?: boolean;
+  excludeSportelloLavoro?: boolean;
+}): Promise<Blob> => {
   try {
     const response = await api.get('/api/companies/export', {
+      params: {
+        ...(filters?.territorialManager ? { territorialManager: filters.territorialManager } : {}),
+        ...(filters?.sportelloLavoro ? { sportelloLavoro: filters.sportelloLavoro } : {}),
+        ...(filters?.excludeTerritorialManager ? { excludeTerritorialManager: 1 } : {}),
+        ...(filters?.excludeSportelloLavoro ? { excludeSportelloLavoro: 1 } : {}),
+      },
       responseType: 'blob',
     });
     return response.data;

@@ -559,7 +559,7 @@
   gap: 15px;
 }
 
-.add-button, .upload-button {
+.add-button, .upload-button, .export-button {
   padding: 12px 20px;
   border: none;
   border-radius: 8px;
@@ -590,6 +590,21 @@
   background-color: #1976D2;
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
+}
+
+.export-button {
+  background-color: var(--primary-color);
+}
+
+.export-button:hover:not(:disabled) {
+  background-color: #2c3f70;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.export-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .upload-icon {

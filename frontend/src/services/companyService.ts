@@ -31,6 +31,18 @@ export const getCompanyById = async (id: string): Promise<Company> => {
   }
 };
 
+export const exportCompaniesXlsx = async (): Promise<Blob> => {
+  try {
+    const response = await api.get('/api/companies/export', {
+      responseType: 'blob',
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error exporting companies:', error);
+    throw error;
+  }
+};
+
 export const getNextNumeroAnagrafica = async (): Promise<string> => {
   try {
     const response = await api.get<{ numeroAnagrafica: string }>(

@@ -7,6 +7,7 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc && node ./scripts/verify-dist.js",
     "clean": "rimraf dist",
+    "backup:run": "powershell -ExecutionPolicy Bypass -File ./scripts/mongo-backup.ps1 -RetentionDays 30",
     "lint": "eslint . --ext .ts",
     "prebuild": "npm run clean"
   },

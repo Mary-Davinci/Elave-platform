@@ -1,7 +1,7 @@
 // src/pages/Companies.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getCompanies, deleteCompany } from '../services/companyService';
+import { getCompanies, deleteCompany, exportCompaniesXlsx } from '../services/companyService';
 import { Company } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
 import '../styles/Companies.css';
@@ -10,6 +10,7 @@ const Companies: React.FC = () => {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [filteredCompanies, setFilteredCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
@@ -314,6 +315,27 @@ const Companies: React.FC = () => {
     }
   };
 
+  const handleExportCompanies = async () => {
+    try {
+      setExporting(true);
+      const blob = await exportCompaniesXlsx();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const date = new Date().toISOString().slice(0, 10);
+      link.href = url;
+      link.download = `aziende-export-${date}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error exporting companies:', err);
+      setError('Errore durante esportazione aziende');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
     setSearchInputs({
       ...searchInputs,
@@ -382,6 +404,9 @@ const Companies: React.FC = () => {
       <div className="companies-header">
         <h1>Aziende</h1>
         <div className="header-actions">
+          <button className="export-button" onClick={handleExportCompanies} disabled={exporting}>
+            {exporting ? 'Esportazione...' : 'Esporta Aziende XLSX'}
+          </button>
           <button className="add-button" onClick={handleAddCompany}>
             Crea Azienda
           </button>

@@ -85,13 +85,6 @@ export const login: CustomRequestHandler = async (req, res) => {
       role: user.role || "segnalatori" 
     };
 
-    console.log("Login response sending user data:", {
-      _id: user._id,
-      username: user.username,
-      email: user.email,
-      role: user.role
-    });
-    
     return res.json({ 
       token,
       user: userData

@@ -362,6 +362,57 @@ export const getNextNumeroAnagrafica: CustomRequestHandler = async (req, res) =>
   }
 };
 
+export const exportCompaniesXlsx: CustomRequestHandler = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+
+    let query: any = {};
+    if (!isPrivileged(req.user.role)) {
+      query = { user: req.user._id };
+    }
+
+    const companies = await Company.find(query)
+      .select("businessName companyName inpsCode matricola employees")
+      .sort({ businessName: 1, companyName: 1 })
+      .lean();
+
+    const headers = ["Matricola INPS", "Nome Azienda", "Numero Dipendenti"];
+    const dataRows = companies.map((company: any) => [
+      String(company.inpsCode || company.matricola || ""),
+      String(company.businessName || company.companyName || ""),
+      Number(company.employees || 0),
+    ]);
+
+    const ws = xlsx.utils.aoa_to_sheet([headers, ...dataRows]);
+    ws["!cols"] = [{ wch: 55 }, { wch: 45 }, { wch: 20 }];
+    ws["!autofilter"] = { ref: `A1:C${Math.max(dataRows.length + 1, 2)}` };
+
+    for (let rowIndex = 2; rowIndex <= dataRows.length + 1; rowIndex += 1) {
+      const cellRef = `C${rowIndex}`;
+      if (!ws[cellRef]) continue;
+      ws[cellRef].z = "0";
+    }
+    const wb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(wb, ws, "Aziende");
+    const buffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
+
+    const date = new Date().toISOString().slice(0, 10);
+    const filename = `aziende-export-${date}.xlsx`;
+
+    res.setHeader("Content-Disposition", `attachment; filename=\"${filename}\"`);
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    return res.send(buffer);
+  } catch (err: any) {
+    console.error("Export companies xlsx error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
 export const getCompanyById: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {

@@ -1106,6 +1106,15 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
         },
         { $unwind: { path: "$sportelloDoc", preserveNullAndEmptyArrays: true } },
         {
+          $lookup: {
+            from: "users",
+            localField: "user",
+            foreignField: "_id",
+            as: "requesterDoc",
+          },
+        },
+        { $unwind: { path: "$requesterDoc", preserveNullAndEmptyArrays: true } },
+        {
           $addFields: {
             companyName: {
               $ifNull: [
@@ -1160,6 +1169,27 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
                 },
               ],
             },
+            requesterName: {
+              $ifNull: [
+                "$requesterName",
+                {
+                  $ifNull: [
+                    {
+                      $trim: {
+                        input: {
+                          $concat: [
+                            { $ifNull: ["$requesterDoc.firstName", ""] },
+                            " ",
+                            { $ifNull: ["$requesterDoc.lastName", ""] },
+                          ],
+                        },
+                      },
+                    },
+                    { $ifNull: ["$requesterDoc.organization", "$requesterDoc.username"] },
+                  ],
+                },
+              ],
+            },
           },
         },
         ...(structuredClauses.length ? [{ $match: { $and: structuredClauses } }] : []),
@@ -1190,7 +1220,7 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
               { path: "contactInfo.laborConsultantId", select: "businessName agentName agreedCommission" },
             ],
           })
-          .populate({ path: "user", select: "firstName lastName username role" });
+          .populate({ path: "user", select: "firstName lastName username organization role" });
       }
 
       const result = await Promise.all([
@@ -1217,11 +1247,20 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
       const responsabileName =
         tx.responsabileName || company?.contractDetails?.territorialManager || responsabileFromCompanyUser;
       const sportelloName = tx.sportelloName || sportelloFromId || sportelloFromRaw;
+      const requesterRaw = tx.user;
+      const requesterName =
+        tx.requesterName ||
+        (typeof requesterRaw === "object" && requesterRaw
+          ? `${requesterRaw.firstName || ""} ${requesterRaw.lastName || ""}`.trim() ||
+            requesterRaw.organization ||
+            requesterRaw.username
+          : undefined);
       return {
         ...tx,
         companyName,
         responsabileName,
         sportelloName,
+        requesterName,
       };
     });
 
@@ -1660,6 +1699,9 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
                   },
                   { $unwind: { path: "$companyDoc", preserveNullAndEmptyArrays: true } },
                   ...(isResponsabileScope ? [{ $match: responsabileMatch }] : []),
+                  ...(isSportelloScope
+                    ? [{ $match: { company: { $in: sportelloCompanyIds } } }]
+                    : []),
                   {
                     $lookup: {
                       from: "users",
@@ -1849,6 +1891,9 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
 
     let sportelloReference: number | null = null;
     if (account === "servizi" && req.user.role === "sportello_lavoro") {
+      if (!sportelloCompanyIds.length) {
+        sportelloReference = 0;
+      } else {
       const sportelloRefMatch: any = {
         account: "proselitismo",
         type: "entrata",
@@ -1910,6 +1955,7 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
         },
       ]);
       sportelloReference = Number(sportelloRefAgg[0]?.total ?? 0);
+      }
     }
 
     let nonRiconciliateTotal = 0;
@@ -2043,19 +2089,32 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
       nonRiconciliateTotal = nonRiconciliateTotals[0]?.total ?? 0;
     }
 
+    const scopedResponsabileTotal =
+      account === "servizi" && req.user.role === "responsabile_territoriale"
+        ? Number(responsabileReference ?? 0)
+        : responsabileTotal;
+    const scopedSportelloTotal =
+      account === "servizi" && req.user.role === "sportello_lavoro"
+        ? Number(sportelloReference ?? 0)
+        : sportelloTotal;
+    const scopedBalance =
+      account === "servizi"
+        ? req.user.role === "sportello_lavoro"
+          ? scopedSportelloTotal
+          : req.user.role === "responsabile_territoriale"
+            ? scopedResponsabileTotal
+            : req.user.role === "admin" || req.user.role === "super_admin"
+              ? Number(fiacomReference ?? balance)
+              : balance
+        : balance;
+
     const payload = {
-      balance,
+      balance: scopedBalance,
       incoming,
       outgoing,
       nonRiconciliateTotal,
-      responsabileTotal:
-        account === "servizi" && req.user.role === "responsabile_territoriale"
-          ? Number(responsabileReference ?? 0)
-          : responsabileTotal,
-      sportelloTotal:
-        account === "servizi" && req.user.role === "sportello_lavoro"
-          ? Number(sportelloReference ?? 0)
-          : sportelloTotal,
+      responsabileTotal: scopedResponsabileTotal,
+      sportelloTotal: scopedSportelloTotal,
       totalElav,
       fiacomReference,
       updatedAt: new Date().toISOString(),

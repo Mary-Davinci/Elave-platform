@@ -28,7 +28,10 @@ export interface Transaction {
   status: TransactionStatus;
   category: string;
   userId?: string;
-  user?: { _id?: string } | string;
+  user?: { _id?: string; firstName?: string; lastName?: string; username?: string; organization?: string } | string;
+  requesterName?: string;
+  invoiceRequestId?: string;
+  selectedServices?: string[];
   createdBy?: string;
   ownerId?: string;
   companyName?: string;

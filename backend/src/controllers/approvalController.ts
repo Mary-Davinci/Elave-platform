@@ -475,9 +475,12 @@ export const approveInvoice: CustomRequestHandler = async (req, res) => {
       amount: -Math.abs(Number(invoice.amount || 0)),
       type: "uscita",
       status: "completata",
-      description: `Fattura servizi approvata | ${(invoice.selectedServices || []).join(" | ") || "Servizi"}`,
+      description: "Fattura servizi approvata",
       category: "Fattura servizi",
       user: invoice.requester,
+      invoiceRequestId: invoice._id,
+      selectedServices: invoice.selectedServices || [],
+      importKey: `servizi|invoice|${invoice._id}`,
       source: "manuale",
       date: new Date(),
     });

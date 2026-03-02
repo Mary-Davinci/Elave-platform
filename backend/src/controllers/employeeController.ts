@@ -168,16 +168,7 @@ export const createEmployee: CustomRequestHandler = async (req, res) => {
     if (!companyId) errors.push("Company ID is required");
     if (!nome) errors.push("Nome is required");
     if (!cognome) errors.push("Cognome is required");
-    if (!dataNascita) errors.push("Data di nascita is required");
-    if (!cittaNascita) errors.push("Città di nascita is required");
-    if (!provinciaNascita) errors.push("Provincia di nascita is required");
-    if (!genere) errors.push("Genere is required");
     if (!codiceFiscale) errors.push("Codice fiscale is required");
-    if (!indirizzo) errors.push("Indirizzo is required");
-    if (!numeroCivico) errors.push("Numero civico is required");
-    if (!citta) errors.push("Città is required");
-    if (!provincia) errors.push("Provincia is required");
-    if (!cap) errors.push("CAP is required");
 
     if (errors.length > 0) {
       console.log("Validation errors:", errors);
@@ -198,23 +189,24 @@ export const createEmployee: CustomRequestHandler = async (req, res) => {
 
     console.log("Company access verified. Creating employee...");
 
+    const clean = (value: unknown) => String(value || '').trim();
     const employeeData = {
       companyId: new mongoose.Types.ObjectId(companyId),
-      nome: nome.trim(),
-      cognome: cognome.trim(),
-      dataNascita,
-      cittaNascita: cittaNascita.trim(),
-      provinciaNascita: provinciaNascita.trim(),
-      genere,
-      codiceFiscale: codiceFiscale.trim().toUpperCase(),
-      indirizzo: indirizzo.trim(),
-      numeroCivico: numeroCivico.trim(),
-      citta: citta.trim(),
-      provincia: provincia.trim(),
-      cap: cap.trim(),
-      cellulare: cellulare?.trim() || '',
-      telefono: telefono?.trim() || '',
-      email: email?.trim() || '',
+      nome: clean(nome),
+      cognome: clean(cognome),
+      dataNascita: clean(dataNascita),
+      cittaNascita: clean(cittaNascita),
+      provinciaNascita: clean(provinciaNascita),
+      genere: clean(genere) || undefined,
+      codiceFiscale: clean(codiceFiscale).toUpperCase(),
+      indirizzo: clean(indirizzo),
+      numeroCivico: clean(numeroCivico),
+      citta: clean(citta),
+      provincia: clean(provincia),
+      cap: clean(cap),
+      cellulare: clean(cellulare),
+      telefono: clean(telefono),
+      email: clean(email),
       stato: attivo ? 'attivo' : 'inattivo'
     };
 
@@ -439,7 +431,7 @@ export const uploadEmployeesFromExcel: CustomRequestHandler = async (req, res) =
                      row['Stato'] === 'attivo') ? 'attivo' : 'inattivo'
             };
 
-            const requiredFields = ['nome', 'cognome', 'dataNascita', 'cittaNascita', 'provinciaNascita', 'genere', 'codiceFiscale', 'indirizzo', 'numeroCivico', 'citta', 'provincia', 'cap'];
+            const requiredFields = ['nome', 'cognome', 'codiceFiscale'];
             for (const field of requiredFields) {
               if (!employeeData[field as keyof typeof employeeData]) {
                 throw new Error(`${field} is required`);
@@ -481,3 +473,4 @@ export const uploadEmployeesFromExcel: CustomRequestHandler = async (req, res) =
     return res.status(500).json({ error: "Server error: " + err.message });
   }
 };
+

@@ -15,6 +15,8 @@ export interface IContoTransaction extends Document {
   category: string;
   user: mongoose.Types.ObjectId;
   company?: mongoose.Types.ObjectId;
+  invoiceRequestId?: mongoose.Types.ObjectId;
+  selectedServices?: string[];
   source: TransactionSource;
   importKey?: string;
   date: Date;
@@ -47,6 +49,8 @@ const ContoTransactionSchema = new Schema<IContoTransaction>(
     category: { type: String, required: true, default: "Competenza" },
     user: { type: Schema.Types.ObjectId, ref: "User", required: true },
     company: { type: Schema.Types.ObjectId, ref: "Company" },
+    invoiceRequestId: { type: Schema.Types.ObjectId, ref: "ServiziInvoiceRequest" },
+    selectedServices: { type: [String], default: [] },
     source: {
       type: String,
       enum: ["manuale", "xlsx"],

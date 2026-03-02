@@ -32,7 +32,7 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
     dataNascita: '',
     cittaNascita: '',
     provinciaNascita: '',
-    genere: 'M',
+    genere: '',
     codiceFiscale: '',
     indirizzo: '',
     numeroCivico: '',
@@ -103,7 +103,7 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
       dataNascita: '',
       cittaNascita: '',
       provinciaNascita: '',
-      genere: 'M',
+      genere: '',
       codiceFiscale: '',
       indirizzo: '',
       numeroCivico: '',
@@ -397,14 +397,14 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                     />
                   </div>
                   <div className="form-group">
-                    <label>Genere <span className="required">*</span></label>
+                    <label>Genere</label>
                     <select
                       name="genere"
                       value={newEmployee.genere}
                       onChange={handleInputChange}
-                      required
                       disabled={loading}
                     >
+                      <option value="">Non specificato</option>
                       <option value="M">Maschio</option>
                       <option value="F">Femmina</option>
                       <option value="A">Altro</option>
@@ -414,34 +414,31 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label>Data di nascita <span className="required">*</span></label>
+                    <label>Data di nascita</label>
                     <input
                       type="date"
                       name="dataNascita"
                       value={newEmployee.dataNascita}
                       onChange={handleInputChange}
-                      required
                       disabled={loading}
                     />
                   </div>
                   <div className="form-group">
-                    <label>Città di nascita <span className="required">*</span></label>
+                    <label>Citta di nascita</label>
                     <input
                       type="text"
                       name="cittaNascita"
                       value={newEmployee.cittaNascita}
-                      onChange={handleInputChange}
-                      required
+                      onChange={handleInputChange}                      
                       disabled={loading}
                     />
                   </div>
                   <div className="form-group">
-                    <label>Provincia di nascita <span className="required">*</span></label>
+                    <label>Provincia di nascita</label>
                     <select
                       name="provinciaNascita"
                       value={newEmployee.provinciaNascita}
                       onChange={handleInputChange}
-                      required
                       disabled={loading}
                     >
                       <option value="">Scegli la provincia</option>
@@ -485,35 +482,32 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label>Indirizzo di residenza <span className="required">*</span></label>
+                    <label>Indirizzo di residenza</label>
                     <input
                       type="text"
                       name="indirizzo"
                       value={newEmployee.indirizzo}
                       onChange={handleInputChange}
-                      required
                       disabled={loading}
                     />
                   </div>
                   <div className="form-group">
-                    <label>Numero civico <span className="required">*</span></label>
+                    <label>Numero civico</label>
                     <input
                       type="text"
                       name="numeroCivico"
                       value={newEmployee.numeroCivico}
                       onChange={handleInputChange}
-                      required
                       disabled={loading}
                     />
                   </div>
                   <div className="form-group">
-                    <label>Città di residenza <span className="required">*</span></label>
+                    <label>Citta di residenza</label>
                     <input
                       type="text"
                       name="citta"
                       value={newEmployee.citta}
-                      onChange={handleInputChange}
-                      required
+                      onChange={handleInputChange}                     
                       disabled={loading}
                     />
                   </div>
@@ -521,12 +515,11 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
 
                 <div className="form-row">
                   <div className="form-group">
-                    <label>Provincia di residenza <span className="required">*</span></label>
+                    <label>Provincia di residenza</label>
                     <select
                       name="provincia"
                       value={newEmployee.provincia}
                       onChange={handleInputChange}
-                      required
                       disabled={loading}
                     >
                       <option value="">Scegli la provincia</option>
@@ -541,13 +534,12 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                     </select>
                   </div>
                   <div className="form-group">
-                    <label>CAP di residenza <span className="required">*</span></label>
+                    <label>CAP di residenza</label>
                     <input
                       type="text"
                       name="cap"
                       value={newEmployee.cap}
                       onChange={handleInputChange}
-                      required
                       maxLength={5}
                       pattern="[0-9]{5}"
                       disabled={loading}
@@ -628,7 +620,6 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                       type="file"
                       accept=".xlsx, .xls"
                       onChange={handleFileChange}
-                      required
                       disabled={uploadLoading}
                     />
                     <div className="file-name">
@@ -656,3 +647,4 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
 };
 
 export default Employees;
+

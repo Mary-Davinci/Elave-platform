@@ -9,7 +9,7 @@ export interface EmployeeFormData {
   dataNascita: string;
   cittaNascita: string;
   provinciaNascita: string;
-  genere: 'M' | 'F' | 'A';
+  genere?: 'M' | 'F' | 'A' | '';
   codiceFiscale: string;
   indirizzo: string;
   numeroCivico: string;
@@ -55,7 +55,7 @@ export const createEmployee = async (employeeData: EmployeeFormData): Promise<Em
       dataNascita: employeeData.dataNascita,
       cittaNascita: employeeData.cittaNascita?.trim() || '',
       provinciaNascita: employeeData.provinciaNascita?.trim() || '',
-      genere: employeeData.genere,
+      genere: employeeData.genere || undefined,
       codiceFiscale: employeeData.codiceFiscale?.trim().toUpperCase() || '',
       indirizzo: employeeData.indirizzo?.trim() || '',
       numeroCivico: employeeData.numeroCivico?.trim() || '',
@@ -69,11 +69,7 @@ export const createEmployee = async (employeeData: EmployeeFormData): Promise<Em
     };
 
     // Validate required fields
-    const requiredFields = [
-      'companyId', 'nome', 'cognome', 'dataNascita', 'cittaNascita', 
-      'provinciaNascita', 'genere', 'codiceFiscale', 'indirizzo', 
-      'numeroCivico', 'citta', 'provincia', 'cap'
-    ];
+    const requiredFields = ['companyId', 'nome', 'cognome', 'codiceFiscale'];
 
     for (const field of requiredFields) {
       if (!preparedData[field as keyof typeof preparedData]) {

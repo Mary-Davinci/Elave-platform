@@ -198,16 +198,8 @@ const ensureAnagraficaCounterAtLeast = async (value: string) => {
 };
 
 const getNextCompanyNumeroAnagrafica = async (): Promise<number> => {
-  const counter = await Counter.findByIdAndUpdate(
-    COMPANY_ANAGRAFICA_COUNTER_ID,
-    [
-      { $set: { seq: { $ifNull: ["$seq", -1] } } },
-      { $set: { seq: { $add: ["$seq", 1] } } },
-    ],
-    { new: true, upsert: true }
-  );
-  if (!counter) return 0;
-  return counter.seq;
+  const currentCompanies = await Company.countDocuments({});
+  return currentCompanies + 1;
 };
 
 const compactCompanyDocuments = (docs: any) => {
@@ -338,16 +330,6 @@ export const getNextNumeroAnagrafica: CustomRequestHandler = async (req, res) =>
   try {
     if (!req.user) {
       return res.status(401).json({ error: "User not authenticated" });
-    }
-
-    const preview =
-      String(req.query?.preview || "").toLowerCase() === "1" ||
-      String(req.query?.preview || "").toLowerCase() === "true";
-
-    if (preview) {
-      const counter = await Counter.findById(COMPANY_ANAGRAFICA_COUNTER_ID);
-      const next = Number(counter?.seq ?? -1) + 1;
-      return res.json({ numeroAnagrafica: String(next) });
     }
 
     const next = await getNextCompanyNumeroAnagrafica();
@@ -1021,8 +1003,7 @@ export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) =
 
         let previewCounter = 0;
         if (isPreview) {
-          const counter = await Counter.findById(COMPANY_ANAGRAFICA_COUNTER_ID);
-          previewCounter = Number(counter?.seq ?? -1);
+          previewCounter = await Company.countDocuments({});
         }
 
         const normalizeKey = (value: unknown) => {

@@ -1001,13 +1001,13 @@ const Conto: React.FC = () => {
     if (isSportello) {
       return {
         label: 'Saldo Sportello',
-        value: pickScopedValue(sportelloValue, balanceValue, incomingValue),
+        value: Number.isFinite(sportelloValue) ? sportelloValue : 0,
       };
     }
     if (isResponsabile) {
       return {
         label: 'Saldo Responsabile',
-        value: pickScopedValue(responsabileValue, balanceValue, incomingValue),
+        value: Number.isFinite(responsabileValue) ? responsabileValue : 0,
       };
     }
     const fiacomReferenceValue = Number(summary.fiacomReference ?? serviziFiacomReference ?? 0);
@@ -1463,13 +1463,26 @@ const Conto: React.FC = () => {
             <thead>
               <tr style={{ textAlign: 'left' }}>
                 <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Data</th>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Aziende</th>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Responsabile Territoriale</th>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Sportello Lavoro</th>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Quota ELAV</th>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Tipo</th>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Stato</th>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Categoria</th>
+                {activeAccount === 'servizi' ? (
+                  <>
+                    <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>N. richiesta</th>
+                    <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Richiedente</th>
+                    <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Descrizione</th>
+                    <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Servizi</th>
+                    <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Uscita conto FIACOM</th>
+                    <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Stato</th>
+                  </>
+                ) : (
+                  <>
+                    <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Aziende</th>
+                    <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Responsabile Territoriale</th>
+                    <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Sportello Lavoro</th>
+                    <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Quota ELAV</th>
+                    <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Tipo</th>
+                    <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Stato</th>
+                    <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Categoria</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -1501,24 +1514,66 @@ const Conto: React.FC = () => {
                   activeAccount === 'proselitismo' && typeof t.rawAmount === 'number'
                     ? t.rawAmount
                     : t.amount;
+                const requesterName =
+                  t.requesterName ||
+                  (typeof t.user === 'object' && t.user
+                    ? `${t.user.firstName || ''} ${t.user.lastName || ''}`.trim() ||
+                      t.user.organization ||
+                      t.user.username
+                    : '') ||
+                  responsabile ||
+                  sportello ||
+                  '-';
+                const requestNumber = (() => {
+                  if (t.invoiceRequestId) return String(t.invoiceRequestId);
+                  if (t.importKey && t.importKey.startsWith('servizi|invoice|')) {
+                    return t.importKey.replace('servizi|invoice|', '');
+                  }
+                  return '-';
+                })();
+                const legacyServices = String(t.description || '')
+                  .split('|')
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+                  .filter((s) => s.toLowerCase() !== 'fattura servizi approvata');
+                const selectedServices = Array.isArray(t.selectedServices) && t.selectedServices.length
+                  ? t.selectedServices
+                  : legacyServices;
                 return (
                   <tr key={t.id || t._id || `${t.date}-${index}`} style={{ borderBottom: '1px solid #f1f1f1' }}>
                     <td style={{ padding: '8px' }}>{new Date(t.date).toLocaleDateString('it-IT')}</td>
-                    <td style={{ padding: '8px' }}>{companyName}</td>
-                    <td style={{ padding: '8px' }}>{responsabile}</td>
-                    <td style={{ padding: '8px' }}>{sportello}</td>
-                    <td style={{ padding: '8px', color: displayAmount < 0 ? '#e74c3c' : '#253676', fontWeight: 600 }}>
-                      {formatCurrency(displayAmount)}
-                    </td>
-                    <td style={{ padding: '8px', textTransform: 'capitalize' }}>{t.type}</td>
-                    <td style={{ padding: '8px', textTransform: 'capitalize' }}>{t.status.replace('_', ' ')}</td>
-                    <td style={{ padding: '8px' }}>{t.category}</td>
+                    {activeAccount === 'servizi' ? (
+                      <>
+                        <td style={{ padding: '8px' }}>{requestNumber}</td>
+                        <td style={{ padding: '8px' }}>{requesterName}</td>
+                        <td style={{ padding: '8px' }}>Fattura servizi approvata</td>
+                        <td style={{ padding: '8px' }}>
+                          {selectedServices.length ? selectedServices.join(' | ') : '-'}
+                        </td>
+                        <td style={{ padding: '8px', color: '#e74c3c', fontWeight: 600 }}>
+                          {formatCurrency(Math.abs(Number(t.amount || 0)))}
+                        </td>
+                        <td style={{ padding: '8px', textTransform: 'capitalize' }}>{String(t.status || '').replace('_', ' ')}</td>
+                      </>
+                    ) : (
+                      <>
+                        <td style={{ padding: '8px' }}>{companyName}</td>
+                        <td style={{ padding: '8px' }}>{responsabile}</td>
+                        <td style={{ padding: '8px' }}>{sportello}</td>
+                        <td style={{ padding: '8px', color: displayAmount < 0 ? '#e74c3c' : '#253676', fontWeight: 600 }}>
+                          {formatCurrency(displayAmount)}
+                        </td>
+                        <td style={{ padding: '8px', textTransform: 'capitalize' }}>{t.type}</td>
+                        <td style={{ padding: '8px', textTransform: 'capitalize' }}>{t.status.replace('_', ' ')}</td>
+                        <td style={{ padding: '8px' }}>{t.category}</td>
+                      </>
+                    )}
                   </tr>
                 );
               })}
               {filteredTx.length === 0 && (
                 <tr>
-                  <td colSpan={8} style={{ padding: 16, color: '#666' }}>Nessun movimento trovato.</td>
+                  <td colSpan={activeAccount === 'servizi' ? 7 : 8} style={{ padding: 16, color: '#666' }}>Nessun movimento trovato.</td>
                 </tr>
               )}
             </tbody>

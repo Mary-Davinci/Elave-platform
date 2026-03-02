@@ -62,13 +62,22 @@ const Companies: React.FC = () => {
   
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const getTerritorialManager = (company: Company) =>
-    company.territorialManager ||
-    company.contractDetails?.territorialManager ||
-    '-';
+  const getTerritorialManager = (company: Company) => {
+    const value =
+      company.territorialManager ||
+      company.contractDetails?.territorialManager ||
+      '-';
+    return String(value || '-').trim() || '-';
+  };
 
-  const getSportelloLavoro = (company: Company) =>
-    company.contactInfo?.laborConsultant || '-';
+  const getSportelloLavoro = (company: Company) => {
+    const raw: any = company.contactInfo?.laborConsultant;
+    if (typeof raw === 'string') return raw.trim() || '-';
+    if (raw && typeof raw === 'object') {
+      return String(raw.businessName || raw.agentName || '-').trim() || '-';
+    }
+    return '-';
+  };
 
   const getMatricolaInps = (company: Company) =>
     company.inpsCode || company.matricola || '-';
@@ -349,6 +358,16 @@ const Companies: React.FC = () => {
     }
   };
 
+  const openExportModal = () => {
+    setExportFilters({
+      territorialManager: '',
+      sportelloLavoro: '',
+      excludeTerritorialManager: false,
+      excludeSportelloLavoro: false,
+    });
+    setShowExportModal(true);
+  };
+
   const territorialManagerOptions = Array.from(
     new Set(
       companies
@@ -435,7 +454,7 @@ const Companies: React.FC = () => {
         <div className="header-actions">
           <button
             className="export-button"
-            onClick={() => setShowExportModal(true)}
+            onClick={openExportModal}
             disabled={exporting}
           >
             {exporting ? 'Esportazione...' : 'Esporta Aziende XLSX'}

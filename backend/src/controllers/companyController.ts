@@ -355,8 +355,14 @@ export const exportCompaniesXlsx: CustomRequestHandler = async (req, res) => {
       query = { user: req.user._id };
     }
 
-    const territorialManagerFilter = String(req.query?.territorialManager || "").trim();
-    const sportelloLavoroFilter = String(req.query?.sportelloLavoro || "").trim();
+    const territorialManagerFilter = String(req.query?.territorialManager || "")
+      .trim()
+      .replace(/^tutti$/i, "")
+      .replace(/^-$/, "");
+    const sportelloLavoroFilter = String(req.query?.sportelloLavoro || "")
+      .trim()
+      .replace(/^tutti$/i, "")
+      .replace(/^-$/, "");
     const excludeTerritorialManager =
       String(req.query?.excludeTerritorialManager || "").toLowerCase() === "1" ||
       String(req.query?.excludeTerritorialManager || "").toLowerCase() === "true";
@@ -364,69 +370,76 @@ export const exportCompaniesXlsx: CustomRequestHandler = async (req, res) => {
       String(req.query?.excludeSportelloLavoro || "").toLowerCase() === "1" ||
       String(req.query?.excludeSportelloLavoro || "").toLowerCase() === "true";
 
-    if (excludeTerritorialManager) {
-      query.$and = [
-        ...(query.$and || []),
-        {
-          $or: [
-            { territorialManager: { $exists: false } },
-            { territorialManager: null },
-            { territorialManager: "" },
-            { territorialManager: "-" },
-          ],
-        },
-        {
-          $or: [
-            { "contractDetails.territorialManager": { $exists: false } },
-            { "contractDetails.territorialManager": null },
-            { "contractDetails.territorialManager": "" },
-            { "contractDetails.territorialManager": "-" },
-          ],
-        },
-      ];
-    } else if (territorialManagerFilter) {
-      const tmRegex = buildExactRegex(territorialManagerFilter);
-      query.$or = [
-        { territorialManager: tmRegex },
-        { "contractDetails.territorialManager": tmRegex },
-      ];
-    }
-
-    if (excludeSportelloLavoro) {
-      query.$and = [
-        ...(query.$and || []),
-        {
-          $or: [
-            { "contactInfo.laborConsultant": { $exists: false } },
-            { "contactInfo.laborConsultant": null },
-            { "contactInfo.laborConsultant": "" },
-            { "contactInfo.laborConsultant": "-" },
-          ],
-        },
-      ];
-    } else if (sportelloLavoroFilter) {
-      const sportelloRegex = buildExactRegex(sportelloLavoroFilter);
-      query["contactInfo.laborConsultant"] = sportelloRegex;
-    }
-
     const companies = await Company.find(query)
-      .select("businessName companyName inpsCode matricola employees")
+      .select(
+        "businessName companyName inpsCode matricola employees territorialManager contractDetails.territorialManager contactInfo.laborConsultant contactInfo.laborConsultantId"
+      )
+      .populate("contactInfo.laborConsultantId", "businessName agentName")
       .sort({ businessName: 1, companyName: 1 })
       .lean();
 
-    const headers = ["Matricola INPS", "Nome Azienda", "Numero Dipendenti"];
-    const dataRows = companies.map((company: any) => [
-      String(company.inpsCode || company.matricola || ""),
-      String(company.businessName || company.companyName || ""),
-      Number(company.employees || 0),
-    ]);
+    const normalizeLabel = (value: unknown) =>
+      normalizeEntityName(String(value || "").trim());
+    const effectiveRows = companies.filter((company: any) => {
+      const tmValue =
+        company?.contractDetails?.territorialManager || company?.territorialManager || "";
+      const sportelloValue =
+        company?.contactInfo?.laborConsultant ||
+        company?.contactInfo?.laborConsultantId?.businessName ||
+        company?.contactInfo?.laborConsultantId?.agentName ||
+        "";
+
+      // If both "exclude all" flags are active, do not filter by these dimensions.
+      if (excludeTerritorialManager && excludeSportelloLavoro) {
+        return true;
+      }
+
+      if (!excludeTerritorialManager && territorialManagerFilter) {
+        if (normalizeLabel(tmValue) !== normalizeLabel(territorialManagerFilter)) return false;
+      }
+
+      if (!excludeSportelloLavoro && sportelloLavoroFilter) {
+        if (normalizeLabel(sportelloValue) !== normalizeLabel(sportelloLavoroFilter)) return false;
+      }
+
+      return true;
+    });
+
+    const headers = [
+      "Matricola INPS",
+      "Nome Azienda",
+      "Responsabile Territoriale",
+      "Sportello Lavoro",
+      "Numero Dipendenti",
+    ];
+    const dataRows = effectiveRows.map((company: any) => {
+      const responsabileValue = excludeTerritorialManager
+        ? ""
+        : String(company.contractDetails?.territorialManager || company.territorialManager || "");
+      const sportelloValue = excludeSportelloLavoro
+        ? ""
+        : String(
+            company.contactInfo?.laborConsultant ||
+              company.contactInfo?.laborConsultantId?.businessName ||
+              company.contactInfo?.laborConsultantId?.agentName ||
+              ""
+          );
+
+      return [
+        String(company.inpsCode || company.matricola || ""),
+        String(company.businessName || company.companyName || ""),
+        responsabileValue,
+        sportelloValue,
+        Number(company.employees || 0),
+      ];
+    });
 
     const ws = xlsx.utils.aoa_to_sheet([headers, ...dataRows]);
-    ws["!cols"] = [{ wch: 55 }, { wch: 45 }, { wch: 20 }];
-    ws["!autofilter"] = { ref: `A1:C${Math.max(dataRows.length + 1, 2)}` };
+    ws["!cols"] = [{ wch: 55 }, { wch: 45 }, { wch: 36 }, { wch: 36 }, { wch: 20 }];
+    ws["!autofilter"] = { ref: `A1:E${Math.max(dataRows.length + 1, 2)}` };
 
     for (let rowIndex = 2; rowIndex <= dataRows.length + 1; rowIndex += 1) {
-      const cellRef = `C${rowIndex}`;
+      const cellRef = `E${rowIndex}`;
       if (!ws[cellRef]) continue;
       ws[cellRef].z = "0";
     }

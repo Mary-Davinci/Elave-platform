@@ -2,6 +2,7 @@
 import express, { Express, Request, Response } from "express";
 import dotenv from "dotenv";
 import cors from "cors";
+import fs from "fs";
 import connectDB from "./config/db";
 import authRoutes from "./routes/authRoutes";
 import dashboardRoutes from "./routes/dashboardRoutes";
@@ -74,7 +75,16 @@ app.use(express.json());
 
 // Static files directory for file downloads
 app.use('/files', express.static(path.join(__dirname, '../files')));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+const uploadStaticDirs = [
+  path.join(__dirname, "uploads"),
+  path.join(__dirname, "../uploads"),
+  path.join(process.cwd(), "uploads"),
+];
+uploadStaticDirs.forEach((dirPath) => {
+  if (fs.existsSync(dirPath)) {
+    app.use("/uploads", express.static(dirPath));
+  }
+});
 
 const BUILD_VERSION = "2026-02-04-1";
 

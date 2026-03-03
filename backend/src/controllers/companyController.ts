@@ -10,6 +10,12 @@ import path from 'path';
 import fs from 'fs';
 import xlsx from 'xlsx';
 import { NotificationService } from "../models/notificationService";
+import {
+  buildCompanyDocumentStorageKey,
+  getObjectStorageDownloadUrl,
+  isObjectStorageEnabled,
+  uploadBufferToObjectStorage,
+} from "../services/objectStorage";
 
 const isPrivileged = (role: string) => role === 'admin' || role === 'super_admin';
 const COMPANY_ANAGRAFICA_COUNTER_ID = "companyNumeroAnagrafica";
@@ -217,6 +223,14 @@ const compactCompanyDocuments = (docs: any) => {
   return result;
 };
 
+const COMPANY_DOCUMENT_KEYS = [
+  "signedContractFile",
+  "privacyNoticeFile",
+  "legalRepresentativeDocumentFile",
+  "chamberOfCommerceFile",
+] as const;
+type CompanyDocumentKey = (typeof COMPANY_DOCUMENT_KEYS)[number];
+
 const storage = multer.diskStorage({
   destination: (req: Request, file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => {
     const uploadDir = path.join(__dirname, '../uploads');
@@ -267,7 +281,7 @@ const upload = multer({
 }).single('file');
 
 const companyDocumentsUpload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   fileFilter: (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
     const validExtensions = /\.(pdf|doc|docx|jpg|jpeg|png)$/i;
     const hasValidExtension = validExtensions.test(path.extname(file.originalname).toLowerCase());
@@ -288,6 +302,32 @@ export const companyDocumentsUploadMiddleware: CustomRequestHandler = async (req
     }
     return next();
   });
+};
+
+const buildCompanyDocumentMeta = async (file?: Express.Multer.File) => {
+  if (!file) return undefined;
+
+  const fallbackMeta = {
+    filename: file.filename || file.originalname,
+    originalName: file.originalname,
+    path: file.path || "",
+    mimetype: file.mimetype,
+    size: file.size,
+    uploadedAt: new Date(),
+  };
+
+  if (!file.buffer || !isObjectStorageEnabled()) {
+    return fallbackMeta;
+  }
+
+  const storageKey = buildCompanyDocumentStorageKey(file);
+  await uploadBufferToObjectStorage(storageKey, file.buffer, file.mimetype);
+
+  return {
+    ...fallbackMeta,
+    storageKey,
+    path: file.path || storageKey,
+  };
 };
 
 export const getCompanies: CustomRequestHandler = async (req, res) => {
@@ -497,6 +537,52 @@ export const getCompanyById: CustomRequestHandler = async (req, res) => {
   }
 };
 
+export const getCompanyDocumentPreviewUrl: CustomRequestHandler = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+
+    const { id, documentKey } = req.params as { id: string; documentKey: CompanyDocumentKey };
+    if (!COMPANY_DOCUMENT_KEYS.includes(documentKey)) {
+      return res.status(400).json({ error: "Tipo documento non valido" });
+    }
+
+    const company = await Company.findById(id).lean();
+    if (!company) {
+      return res.status(404).json({ error: "Company not found" });
+    }
+
+    if (!isPrivileged(req.user.role) && String(company.user) !== String(req.user._id)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const doc: any = (company as any)?.companyDocuments?.[documentKey];
+    if (!doc) {
+      return res.status(404).json({ error: "Documento non caricato" });
+    }
+
+    if (doc.storageKey && isObjectStorageEnabled()) {
+      const expiresIn = 900;
+      const url = await getObjectStorageDownloadUrl(doc.storageKey, expiresIn);
+      return res.status(200).json({ url, source: "object_storage", expiresIn });
+    }
+
+    const fileName = String(doc.path || "").split(/[/\\]/).pop();
+    if (!fileName) {
+      return res.status(404).json({ error: "Percorso documento non valido" });
+    }
+
+    const protocol = String(req.headers["x-forwarded-proto"] || req.protocol || "http");
+    const host = req.get("host");
+    const localUrl = `${protocol}://${host}/uploads/${encodeURIComponent(fileName)}`;
+    return res.status(200).json({ url: localUrl, source: "local" });
+  } catch (err: any) {
+    console.error("Get company document preview url error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
 export const createCompany: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
@@ -616,25 +702,16 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
     }
 
     const uploadedFiles = (req as any).files as Record<string, Express.Multer.File[] | undefined> | undefined;
-    const pickFileMeta = (key: string) => {
-      const file = uploadedFiles?.[key]?.[0];
-      if (!file) return undefined;
-      return {
-        filename: file.filename,
-        originalName: file.originalname,
-        path: file.path,
-        mimetype: file.mimetype,
-        size: file.size,
-        uploadedAt: new Date(),
-      };
-    };
-
-    const documentsForCreate = compactCompanyDocuments({
-      signedContractFile: pickFileMeta("signedContractFile"),
-      privacyNoticeFile: pickFileMeta("privacyNoticeFile"),
-      legalRepresentativeDocumentFile: pickFileMeta("legalRepresentativeDocumentFile"),
-      chamberOfCommerceFile: pickFileMeta("chamberOfCommerceFile"),
-    });
+    const createdDocsEntries = await Promise.all(
+      COMPANY_DOCUMENT_KEYS.map(async (key) => {
+        const file = uploadedFiles?.[key]?.[0];
+        const meta = await buildCompanyDocumentMeta(file);
+        return [key, meta] as const;
+      })
+    );
+    const documentsForCreate = compactCompanyDocuments(
+      Object.fromEntries(createdDocsEntries)
+    );
 
     const newCompany = new Company({
       businessName, 
@@ -837,23 +914,19 @@ export const updateCompany: CustomRequestHandler = async (req, res) => {
     if (isActive !== undefined) company.isActive = isActive;
 
     const uploadedFiles = (req as any).files as Record<string, Express.Multer.File[] | undefined> | undefined;
-    const pickFileMeta = (key: string) => {
-      const file = uploadedFiles?.[key]?.[0];
-      if (!file) return undefined;
-      return {
-        filename: file.filename,
-        originalName: file.originalname,
-        path: file.path,
-        mimetype: file.mimetype,
-        size: file.size,
-        uploadedAt: new Date(),
-      };
-    };
+    const updatedDocsEntries = await Promise.all(
+      COMPANY_DOCUMENT_KEYS.map(async (key) => {
+        const file = uploadedFiles?.[key]?.[0];
+        const meta = await buildCompanyDocumentMeta(file);
+        return [key, meta] as const;
+      })
+    );
+    const incomingDocs = Object.fromEntries(updatedDocsEntries) as Record<string, any>;
 
-    const signedContractFile = pickFileMeta("signedContractFile");
-    const privacyNoticeFile = pickFileMeta("privacyNoticeFile");
-    const legalRepresentativeDocumentFile = pickFileMeta("legalRepresentativeDocumentFile");
-    const chamberOfCommerceFile = pickFileMeta("chamberOfCommerceFile");
+    const signedContractFile = incomingDocs.signedContractFile;
+    const privacyNoticeFile = incomingDocs.privacyNoticeFile;
+    const legalRepresentativeDocumentFile = incomingDocs.legalRepresentativeDocumentFile;
+    const chamberOfCommerceFile = incomingDocs.chamberOfCommerceFile;
     if (
       signedContractFile ||
       privacyNoticeFile ||

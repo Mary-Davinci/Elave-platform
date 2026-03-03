@@ -31,6 +31,20 @@ export const getCompanyById = async (id: string): Promise<Company> => {
   }
 };
 
+export const getCompanyDocumentPreviewUrl = async (
+  companyId: string,
+  documentKey:
+    | 'signedContractFile'
+    | 'privacyNoticeFile'
+    | 'legalRepresentativeDocumentFile'
+    | 'chamberOfCommerceFile'
+): Promise<string> => {
+  const response = await api.get<{ url: string }>(
+    `/api/companies/${companyId}/documents/${documentKey}/url`
+  );
+  return response.data.url;
+};
+
 export const exportCompaniesXlsx = async (filters?: {
   territorialManager?: string;
   sportelloLavoro?: string;

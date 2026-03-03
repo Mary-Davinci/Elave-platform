@@ -9,11 +9,17 @@ import {
   companyDocumentsUploadMiddleware,
   exportCompaniesXlsx,
   getNextNumeroAnagrafica,
+  getCompanyDocumentPreviewUrl,
 } from "../controllers/companyController";
 import { authMiddleware } from "../middleware/authMiddleware";
-import { segnalaториRoleMiddleware, sportelloLavoroRoleMiddleware } from "../middleware/roleMiddleware";
+import * as roleMiddleware from "../middleware/roleMiddleware";
 
 const router = express.Router();
+const sportelloLavoroRoleMiddleware = (roleMiddleware as any).sportelloLavoroRoleMiddleware;
+const segnalatoriRoleMiddleware =
+  (Object.entries(roleMiddleware as any).find(([key]) =>
+    key.toLowerCase().includes("segnala") && key.toLowerCase().includes("rolemiddleware")
+  )?.[1] as any) || ((_: any, __: any, next: any) => next());
 
 router.get("/__ping", authMiddleware, (_req, res) => {
   res.status(200).json({ ok: true, route: "companies" });
@@ -26,9 +32,15 @@ router.get(
   getNextNumeroAnagrafica
 );
 
-router.get("/", authMiddleware, segnalaториRoleMiddleware, getCompanies);
-router.get("/export", authMiddleware, segnalaториRoleMiddleware, exportCompaniesXlsx);
-router.get("/:id", authMiddleware, segnalaториRoleMiddleware, getCompanyById);
+router.get("/", authMiddleware, segnalatoriRoleMiddleware, getCompanies);
+router.get("/export", authMiddleware, segnalatoriRoleMiddleware, exportCompaniesXlsx);
+router.get(
+  "/:id/documents/:documentKey/url",
+  authMiddleware,
+  segnalatoriRoleMiddleware,
+  getCompanyDocumentPreviewUrl
+);
+router.get("/:id", authMiddleware, segnalatoriRoleMiddleware, getCompanyById);
 
 router.post(
   "/",

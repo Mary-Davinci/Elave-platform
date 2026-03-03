@@ -1,7 +1,7 @@
 // src/pages/CompanyDetail.tsx - Updated version
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getCompanyById } from '../services/companyService';
+import { getCompanyById, getCompanyDocumentPreviewUrl } from '../services/companyService';
 import { getEmployeesByCompany } from '../services/employeeService';
 import { Company, Employee } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
@@ -18,10 +18,7 @@ const CompanyDetail: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'employees'>('dashboard');
   const [employeesLoading, setEmployeesLoading] = useState(false);
-  const apiBase =
-    (import.meta as any).env?.VITE_API_URL ||
-    (import.meta as any).env?.VITE_API_BASE_URL ||
-    'http://localhost:5000';
+  const [documentUrls, setDocumentUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -71,6 +68,38 @@ const CompanyDetail: React.FC = () => {
     fetchEmployees();
   }, [id, activeTab]);
 
+  useEffect(() => {
+    const loadDocumentUrls = async () => {
+      if (!id || !company?.companyDocuments) {
+        setDocumentUrls({});
+        return;
+      }
+
+      const keys = [
+        'signedContractFile',
+        'privacyNoticeFile',
+        'legalRepresentativeDocumentFile',
+        'chamberOfCommerceFile',
+      ] as const;
+
+      const entries = await Promise.all(
+        keys.map(async (key) => {
+          if (!company.companyDocuments?.[key]) return [key, ''] as const;
+          try {
+            const url = await getCompanyDocumentPreviewUrl(id, key);
+            return [key, url] as const;
+          } catch {
+            return [key, ''] as const;
+          }
+        })
+      );
+
+      setDocumentUrls(Object.fromEntries(entries));
+    };
+
+    loadDocumentUrls();
+  }, [company, id]);
+
   if (loading) {
     return (
       <div className="loading-container">
@@ -93,14 +122,6 @@ const CompanyDetail: React.FC = () => {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
-  };
-
-  const getFileUrl = (doc?: { path?: string }) => {
-    if (!doc?.path) return null;
-    const normalizedBase = String(apiBase).replace(/\/+$/, '');
-    const fileName = doc.path.split(/[/\\]/).pop();
-    if (!fileName) return null;
-    return `${normalizedBase}/uploads/${fileName}`;
   };
 
   const companyDocuments = [
@@ -241,7 +262,7 @@ const CompanyDetail: React.FC = () => {
                     <h4>Documenti azienda</h4>
                     <ul className="company-documents-list">
                       {companyDocuments.map((item) => {
-                        const url = getFileUrl(item.file as any);
+                        const url = documentUrls[item.key] || null;
                         return (
                           <li key={item.key}>
                             <strong>{item.label}:</strong>{' '}

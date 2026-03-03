@@ -66,6 +66,7 @@ export interface Company {
       filename?: string;
       originalName?: string;
       path?: string;
+      storageKey?: string;
       mimetype?: string;
       size?: number;
       uploadedAt?: string;
@@ -74,6 +75,7 @@ export interface Company {
       filename?: string;
       originalName?: string;
       path?: string;
+      storageKey?: string;
       mimetype?: string;
       size?: number;
       uploadedAt?: string;
@@ -82,6 +84,7 @@ export interface Company {
       filename?: string;
       originalName?: string;
       path?: string;
+      storageKey?: string;
       mimetype?: string;
       size?: number;
       uploadedAt?: string;
@@ -90,6 +93,7 @@ export interface Company {
       filename?: string;
       originalName?: string;
       path?: string;
+      storageKey?: string;
       mimetype?: string;
       size?: number;
       uploadedAt?: string;

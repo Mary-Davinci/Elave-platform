@@ -7,6 +7,7 @@ import { CompanyFormData, Company } from '../types/interfaces';
 import {
   getCompanyById,   // <-- make sure these exist in companyService
   updateCompany,
+  getCompanyDocumentPreviewUrl,
 } from '../services/companyService';
 
 const emptyForm: CompanyFormData = {
@@ -91,10 +92,7 @@ const CompanyEdit: React.FC = () => {
     legalRepresentativeDocumentFile: null,
     chamberOfCommerceFile: null,
   });
-  const apiBase =
-    (import.meta as any).env?.VITE_API_URL ||
-    (import.meta as any).env?.VITE_API_BASE_URL ||
-    'http://localhost:5000';
+  const [documentUrls, setDocumentUrls] = React.useState<Record<string, string>>({});
 
   // Redirect if not authenticated
   React.useEffect(() => {
@@ -187,6 +185,38 @@ const CompanyEdit: React.FC = () => {
       ignore = true;
     };
   }, [id]);
+
+  React.useEffect(() => {
+    const loadDocumentUrls = async () => {
+      if (!id || !existingDocuments) {
+        setDocumentUrls({});
+        return;
+      }
+
+      const keys = [
+        'signedContractFile',
+        'privacyNoticeFile',
+        'legalRepresentativeDocumentFile',
+        'chamberOfCommerceFile',
+      ] as const;
+
+      const entries = await Promise.all(
+        keys.map(async (key) => {
+          if (!existingDocuments?.[key]) return [key, ''] as const;
+          try {
+            const url = await getCompanyDocumentPreviewUrl(id, key);
+            return [key, url] as const;
+          } catch {
+            return [key, ''] as const;
+          }
+        })
+      );
+
+      setDocumentUrls(Object.fromEntries(entries));
+    };
+
+    loadDocumentUrls();
+  }, [existingDocuments, id]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -291,14 +321,6 @@ const CompanyEdit: React.FC = () => {
       setError(msg);
       setSaving(false);
     }
-  };
-
-  const getFileUrl = (doc?: { path?: string }) => {
-    if (!doc?.path) return null;
-    const normalizedBase = String(apiBase).replace(/\/+$/, '');
-    const fileName = doc.path.split(/[/\\]/).pop();
-    if (!fileName) return null;
-    return `${normalizedBase}/uploads/${fileName}`;
   };
 
   if (loading) {
@@ -595,7 +617,7 @@ const CompanyEdit: React.FC = () => {
               },
             ].map((item) => {
               const current = documentFiles[item.key as keyof typeof documentFiles];
-              const existingUrl = getFileUrl(item.existing as any);
+              const existingUrl = documentUrls[item.key] || null;
               return (
                 <div className="company-file-field" key={item.key}>
                   <label>{item.label}</label>

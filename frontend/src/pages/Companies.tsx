@@ -27,6 +27,7 @@ const Companies: React.FC = () => {
   const [searchInputs, setSearchInputs] = useState({
     date: '',
     matricola: '',
+    numeroAnagrafica: '',
     businessName: '',
     vatNumber: '',
     territorialManager: '',
@@ -41,6 +42,7 @@ const Companies: React.FC = () => {
   const [filterOptions, setFilterOptions] = useState<Record<string, Set<string>>>({
     date: new Set(),
     matricola: new Set(),
+    numeroAnagrafica: new Set(),
     businessName: new Set(),
     vatNumber: new Set(),
     territorialManager: new Set(),
@@ -52,6 +54,7 @@ const Companies: React.FC = () => {
   const [selectedFilters, setSelectedFilters] = useState<Record<string, string[]>>({
     date: [],
     matricola: [],
+    numeroAnagrafica: [],
     businessName: [],
     vatNumber: [],
     territorialManager: [],
@@ -81,6 +84,8 @@ const Companies: React.FC = () => {
 
   const getMatricolaInps = (company: Company) =>
     company.inpsCode || company.matricola || '-';
+  const getNumeroAnagrafica = (company: Company) =>
+    company.numeroAnagrafica || '-';
 
   
   const positionFilterDropdown = useCallback((field: string) => {
@@ -158,6 +163,7 @@ const Companies: React.FC = () => {
         const options: Record<string, Set<string>> = {
           date: new Set(),
           matricola: new Set(),
+          numeroAnagrafica: new Set(),
           businessName: new Set(),
           vatNumber: new Set(),
           territorialManager: new Set(),
@@ -169,6 +175,8 @@ const Companies: React.FC = () => {
           options.date.add(new Date(company.createdAt).toLocaleDateString());
           const matricolaInps = getMatricolaInps(company);
           if (matricolaInps !== '-') options.matricola.add(matricolaInps);
+          const numeroAnagrafica = getNumeroAnagrafica(company);
+          if (numeroAnagrafica !== '-') options.numeroAnagrafica.add(numeroAnagrafica);
           options.businessName.add(company.businessName);
           const vatDisplay =
             company.vatNumber && company.vatNumber.startsWith('NO-PIVA-') ? '-' : company.vatNumber;
@@ -203,6 +211,12 @@ const Companies: React.FC = () => {
     if (searchInputs.matricola) {
       result = result.filter(company => 
         getMatricolaInps(company).toLowerCase().includes(searchInputs.matricola.toLowerCase())
+      );
+    }
+
+    if (searchInputs.numeroAnagrafica) {
+      result = result.filter(company =>
+        getNumeroAnagrafica(company).toLowerCase().includes(searchInputs.numeroAnagrafica.toLowerCase())
       );
     }
     
@@ -250,6 +264,10 @@ const Companies: React.FC = () => {
         } else if (field === 'matricola') {
           result = result.filter(company => 
             values.includes(getMatricolaInps(company))
+          );
+        } else if (field === 'numeroAnagrafica') {
+          result = result.filter(company =>
+            values.includes(getNumeroAnagrafica(company))
           );
         } else if (field === 'businessName') {
           result = result.filter(company => 
@@ -585,6 +603,63 @@ const Companies: React.FC = () => {
                 <th>
                   <div className="th-content">
                     <div className="th-header">
+                      <span>N. Anagrafica</span>
+                      <button
+                        className="filter-button"
+                        onClick={() => toggleFilterDropdown('numeroAnagrafica')}
+                        title="Filtra per numero anagrafica"
+                      >
+                        &#9660;
+                      </button>
+                    </div>
+                    <div className="search-bar-container">
+                      <input
+                        type="text"
+                        placeholder="Cerca..."
+                        value={searchInputs.numeroAnagrafica}
+                        onChange={(e) => handleSearchChange(e, 'numeroAnagrafica')}
+                        className="search-input-com"
+                      />
+                      <span className="search-icon-comp">{'🔍'}</span>
+                    </div>
+                    {activeFilterDropdown === 'numeroAnagrafica' && (
+                      <div className="filter-dropdown">
+                        <div className="filter-options">
+                          <label className="filter-option">
+                            <input
+                              type="checkbox"
+                              onChange={(e) => handleSelectAll('numeroAnagrafica', e.target.checked)}
+                              checked={
+                                selectedFilters.numeroAnagrafica.length === filterOptions.numeroAnagrafica.size &&
+                                filterOptions.numeroAnagrafica.size > 0
+                              }
+                            />
+                            Select All
+                          </label>
+                          {Array.from(filterOptions.numeroAnagrafica).map((value) => (
+                            <label key={value} className="filter-option">
+                              <input
+                                type="checkbox"
+                                checked={selectedFilters.numeroAnagrafica.includes(value)}
+                                onChange={(e) =>
+                                  handleFilterChange('numeroAnagrafica', value, e.target.checked)
+                                }
+                              />
+                              {value}
+                            </label>
+                          ))}
+                        </div>
+                        <div className="filter-actions">
+                          <button onClick={handleFilterOk} className="filter-ok-button">OK</button>
+                          <button onClick={handleFilterCancel} className="filter-cancel-button">Cancel</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </th>
+                <th>
+                  <div className="th-content">
+                    <div className="th-header">
                       <span>Ragione Sociale</span>
                       <button
                         className="filter-button"
@@ -852,6 +927,7 @@ const Companies: React.FC = () => {
                 <tr key={company._id}>
                   <td>{new Date(company.createdAt).toLocaleDateString()}</td>
                   <td>{getMatricolaInps(company)}</td>
+                  <td>{getNumeroAnagrafica(company)}</td>
                   <td>{company.businessName}</td>
                   <td>
                     {company.vatNumber && company.vatNumber.startsWith('NO-PIVA-') ? '-' : company.vatNumber}

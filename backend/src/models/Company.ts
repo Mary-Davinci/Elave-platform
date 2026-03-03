@@ -53,6 +53,7 @@ export interface ICompany extends Document {
       filename: string;
       originalName: string;
       path: string;
+      storageKey?: string;
       mimetype: string;
       size: number;
       uploadedAt: Date;
@@ -61,6 +62,7 @@ export interface ICompany extends Document {
       filename: string;
       originalName: string;
       path: string;
+      storageKey?: string;
       mimetype: string;
       size: number;
       uploadedAt: Date;
@@ -69,6 +71,7 @@ export interface ICompany extends Document {
       filename: string;
       originalName: string;
       path: string;
+      storageKey?: string;
       mimetype: string;
       size: number;
       uploadedAt: Date;
@@ -77,6 +80,7 @@ export interface ICompany extends Document {
       filename: string;
       originalName: string;
       path: string;
+      storageKey?: string;
       mimetype: string;
       size: number;
       uploadedAt: Date;
@@ -195,6 +199,7 @@ const CompanySchema = new Schema<ICompany>(
         filename: { type: String },
         originalName: { type: String },
         path: { type: String },
+        storageKey: { type: String },
         mimetype: { type: String },
         size: { type: Number },
         uploadedAt: { type: Date },
@@ -203,6 +208,7 @@ const CompanySchema = new Schema<ICompany>(
         filename: { type: String },
         originalName: { type: String },
         path: { type: String },
+        storageKey: { type: String },
         mimetype: { type: String },
         size: { type: Number },
         uploadedAt: { type: Date },
@@ -211,6 +217,7 @@ const CompanySchema = new Schema<ICompany>(
         filename: { type: String },
         originalName: { type: String },
         path: { type: String },
+        storageKey: { type: String },
         mimetype: { type: String },
         size: { type: Number },
         uploadedAt: { type: Date },
@@ -219,6 +226,7 @@ const CompanySchema = new Schema<ICompany>(
         filename: { type: String },
         originalName: { type: String },
         path: { type: String },
+        storageKey: { type: String },
         mimetype: { type: String },
         size: { type: Number },
         uploadedAt: { type: Date },

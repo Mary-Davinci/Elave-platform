@@ -7,7 +7,10 @@ const region = process.env.B2_REGION || process.env.BACKBLAZE_REGION || "us-east
 const accessKeyId =
   process.env.B2_KEY_ID || process.env.BACKBLAZE_KEY_ID || process.env.B2_APPLICATION_KEY_ID || "";
 const secretAccessKey =
-  process.env.B2_APPLICATION_KEY || process.env.BACKBLAZE_APPLICATION_KEY || "";
+  process.env.B2_APPLICATION_KEY ||
+  process.env.B2_APP_KEY ||
+  process.env.BACKBLAZE_APPLICATION_KEY ||
+  "";
 
 const enabled = Boolean(bucketName && endpoint && accessKeyId && secretAccessKey);
 

@@ -6,6 +6,17 @@ interface Recipient {
   email: string;
   firstName: string;
   lastName: string;
+  role?: string;
+  organization?: string;
+  managedBy?: {
+    _id: string;
+    username: string;
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    role?: string;
+    organization?: string;
+  };
 }
 
 interface Attachment {

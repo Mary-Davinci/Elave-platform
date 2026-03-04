@@ -283,10 +283,8 @@ const upload = multer({
 const companyDocumentsUpload = multer({
   storage: multer.memoryStorage(),
   fileFilter: (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-    const validExtensions = /\.(pdf|doc|docx|jpg|jpeg|png)$/i;
-    const hasValidExtension = validExtensions.test(path.extname(file.originalname).toLowerCase());
-    if (hasValidExtension) return cb(null, true);
-    return cb(new Error("Formato file non supportato. Usa PDF, DOC, DOCX, JPG o PNG."));
+    // Per documenti azienda accettiamo qualsiasi tipo file.
+    return cb(null, true);
   },
 }).fields([
   { name: "signedContractFile", maxCount: 1 },
@@ -307,6 +305,12 @@ export const companyDocumentsUploadMiddleware: CustomRequestHandler = async (req
 const buildCompanyDocumentMeta = async (file?: Express.Multer.File) => {
   if (!file) return undefined;
 
+  if (!isObjectStorageEnabled()) {
+    throw new Error(
+      "Storage documenti non configurato: impossibile salvare il file. Verifica variabili B2_* nel backend."
+    );
+  }
+
   const fallbackMeta = {
     filename: file.filename || file.originalname,
     originalName: file.originalname,
@@ -316,8 +320,8 @@ const buildCompanyDocumentMeta = async (file?: Express.Multer.File) => {
     uploadedAt: new Date(),
   };
 
-  if (!file.buffer || !isObjectStorageEnabled()) {
-    return fallbackMeta;
+  if (!file.buffer) {
+    throw new Error("Caricamento file non valido: buffer assente.");
   }
 
   const storageKey = buildCompanyDocumentStorageKey(file);
@@ -770,6 +774,14 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
     });
   } catch (err: any) {
     console.error("Create company error:", err);
+
+    if (
+      typeof err?.message === "string" &&
+      (err.message.includes("Storage documenti non configurato") ||
+        err.message.includes("Caricamento file non valido"))
+    ) {
+      return res.status(400).json({ error: err.message });
+    }
     
     if (err.code === 11000 && err.keyPattern && err.keyPattern.vatNumber) {
       return res.status(400).json({ error: "VAT number already exists" });
@@ -952,6 +964,14 @@ export const updateCompany: CustomRequestHandler = async (req, res) => {
     return res.json(company);
   } catch (err: any) {
     console.error("Update company error:", err);
+
+    if (
+      typeof err?.message === "string" &&
+      (err.message.includes("Storage documenti non configurato") ||
+        err.message.includes("Caricamento file non valido"))
+    ) {
+      return res.status(400).json({ error: err.message });
+    }
     
     if (err?.name === "ValidationError") {
       const details = Object.values(err.errors || {})

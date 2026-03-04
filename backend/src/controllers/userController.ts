@@ -490,40 +490,34 @@ export const searchUsers: CustomRequestHandler = async (req, res) => {
 
     const { query } = req.query;
 
-    if (!query || typeof query !== 'string') {
-      return res.status(400).json({ error: "Search query is required" });
-    }
+    const normalizedQuery = typeof query === 'string' ? query.trim() : '';
+    const searchRegex = normalizedQuery ? { $regex: normalizedQuery, $options: 'i' } : undefined;
 
-    let searchQuery = {};
+    const baseConditions: any[] = [
+      { _id: { $ne: req.user._id } },
+      { isActive: { $ne: false } },
+      { isApproved: { $ne: false } },
+    ];
 
-    if (!hasMinimumRole(req.user.role, "admin")) {
-      searchQuery = {
-        $and: [
-          { managedBy: req.user._id },
-          {
-            $or: [
-              { username: { $regex: query, $options: 'i' } },
-              { email: { $regex: query, $options: 'i' } },
-              { firstName: { $regex: query, $options: 'i' } },
-              { lastName: { $regex: query, $options: 'i' } }
-            ]
-          }
-        ]
-      };
-    } else {
-      searchQuery = {
+    if (searchRegex) {
+      baseConditions.push({
         $or: [
-          { username: { $regex: query, $options: 'i' } },
-          { email: { $regex: query, $options: 'i' } },
-          { firstName: { $regex: query, $options: 'i' } },
-          { lastName: { $regex: query, $options: 'i' } }
-        ]
-      };
+          { username: searchRegex },
+          { email: searchRegex },
+          { firstName: searchRegex },
+          { lastName: searchRegex },
+          { organization: searchRegex },
+        ],
+      });
     }
+
+    const searchQuery = { $and: baseConditions };
 
     const users = await User.find(searchQuery)
-      .select('_id username email firstName lastName role')
-      .limit(10); 
+      .select('_id username email firstName lastName role managedBy organization')
+      .populate('managedBy', '_id username email firstName lastName role organization')
+      .sort({ firstName: 1, lastName: 1, username: 1 })
+      .limit(normalizedQuery ? 50 : 300);
 
     return res.json(users);
   } catch (error) {

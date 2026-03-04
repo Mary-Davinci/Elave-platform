@@ -9,12 +9,24 @@ interface Recipient {
   email: string;
   firstName: string;
   lastName: string;
+  role?: string;
+  organization?: string;
+  managedBy?: {
+    _id: string;
+    username: string;
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    role?: string;
+    organization?: string;
+  };
 }
 
 const NuovoMessaggio: React.FC = () => {
   const navigate = useNavigate();
   const { id: draftId } = useParams<{ id: string }>();
   const [recipients, setRecipients] = useState<Recipient[]>([]);
+  const [ccRecipients, setCcRecipients] = useState<Recipient[]>([]);
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [attachments, setAttachments] = useState<File[]>([]);
@@ -22,6 +34,7 @@ const NuovoMessaggio: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<Recipient[]>([]);
+  const [allRecipients, setAllRecipients] = useState<Recipient[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +46,18 @@ const NuovoMessaggio: React.FC = () => {
     }
   }, [draftId]);
 
+  useEffect(() => {
+    const loadAllRecipients = async () => {
+      try {
+        const users = await searchRecipients('');
+        setAllRecipients(users);
+      } catch (err) {
+        console.error('Error loading recipients:', err);
+      }
+    };
+    loadAllRecipients();
+  }, []);
+
   const loadDraft = async (id: string) => {
     try {
       setLoading(true);
@@ -43,6 +68,7 @@ const NuovoMessaggio: React.FC = () => {
       }
       
       setRecipients(draft.recipients);
+      setCcRecipients([]);
       setSubject(draft.subject);
       setMessage(draft.body);
       setExistingAttachments(draft.attachments);
@@ -68,8 +94,15 @@ const NuovoMessaggio: React.FC = () => {
         setSearchResults([]);
       }
     } else {
-      setIsSearching(false);
-      setSearchResults([]);
+      setIsSearching(true);
+      setSearchResults(allRecipients);
+    }
+  };
+
+  const handleRecipientFocus = () => {
+    setIsSearching(true);
+    if (searchTerm.trim().length <= 1) {
+      setSearchResults(allRecipients);
     }
   };
 
@@ -77,6 +110,27 @@ const NuovoMessaggio: React.FC = () => {
     if (!recipients.some(r => r._id === recipient._id)) {
       setRecipients([...recipients, recipient]);
     }
+
+    if (
+      recipient.role === 'sportello_lavoro' &&
+      recipient.managedBy &&
+      recipient.managedBy.role === 'responsabile_territoriale'
+    ) {
+      const responsabile: Recipient = {
+        _id: recipient.managedBy._id,
+        username: recipient.managedBy.username,
+        email: recipient.managedBy.email,
+        firstName: recipient.managedBy.firstName || '',
+        lastName: recipient.managedBy.lastName || '',
+        role: recipient.managedBy.role,
+        organization: recipient.managedBy.organization,
+      };
+      setCcRecipients((prev) => {
+        if (prev.some((r) => r._id === responsabile._id)) return prev;
+        return [...prev, responsabile];
+      });
+    }
+
     setSearchTerm('');
     setIsSearching(false);
     setSearchResults([]);
@@ -84,6 +138,10 @@ const NuovoMessaggio: React.FC = () => {
 
   const removeRecipient = (id: string) => {
     setRecipients(recipients.filter(r => r._id !== id));
+  };
+
+  const removeCcRecipient = (id: string) => {
+    setCcRecipients(ccRecipients.filter(r => r._id !== id));
   };
 
   const handleAttachmentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -122,7 +180,9 @@ const NuovoMessaggio: React.FC = () => {
       const formData = new FormData();
       
       // Add recipients
-      recipients.forEach(recipient => {
+      [...recipients, ...ccRecipients]
+        .filter((recipient, index, arr) => arr.findIndex(r => r._id === recipient._id) === index)
+        .forEach(recipient => {
         formData.append('recipients', recipient._id);
       });
       
@@ -163,7 +223,9 @@ const NuovoMessaggio: React.FC = () => {
       const formData = new FormData();
       
       // Add recipients
-      recipients.forEach(recipient => {
+      [...recipients, ...ccRecipients]
+        .filter((recipient, index, arr) => arr.findIndex(r => r._id === recipient._id) === index)
+        .forEach(recipient => {
         formData.append('recipients', recipient._id);
       });
       
@@ -248,6 +310,7 @@ const NuovoMessaggio: React.FC = () => {
                 placeholder={recipients.length ? '' : 'Cerca destinatari...'}
                 value={searchTerm}
                 onChange={handleSearchChange}
+                onFocus={handleRecipientFocus}
               />
             </div>
             
@@ -269,6 +332,31 @@ const NuovoMessaggio: React.FC = () => {
                 )}
               </div>
             )}
+          </div>
+        </div>
+
+        <div className="form-group recipients-group">
+          <label>C.C. (automatico):</label>
+          <div className="recipients-input-container">
+            <div className="recipients-tags">
+              {ccRecipients.length === 0 && (
+                <span style={{ color: '#6b7280', fontSize: '13px' }}>
+                  Nessun destinatario in C.C.
+                </span>
+              )}
+              {ccRecipients.map(recipient => (
+                <div key={recipient._id} className="recipient-tag">
+                  <span className="recipient-name">{getUserDisplayName(recipient)}</span>
+                  <button
+                    className="remove-recipient"
+                    onClick={() => removeCcRecipient(recipient._id)}
+                    type="button"
+                  >
+                    Ã—
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
         

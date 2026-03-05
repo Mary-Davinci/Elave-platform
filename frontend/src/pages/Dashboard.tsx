@@ -111,19 +111,34 @@ const Dashboard: React.FC = () => {
   const serviziBalance = React.useMemo(() => {
     if (!serviziSummary) return Number(dashboardData?.accounts.servizi.balance || 0);
     const isAdminRole = user?.role === 'admin' || user?.role === 'super_admin';
-    if (isAdminRole) {
-      const value = Number(serviziSummary.fiacomReference ?? 0);
-      return Number.isFinite(value) ? value : 0;
-    }
-    if (user?.role === 'responsabile_territoriale') {
-      const value = Number(serviziSummary.responsabileTotal ?? 0);
-      return Number.isFinite(value) ? value : 0;
-    }
-    if (user?.role === 'sportello_lavoro') {
-      const value = Number(serviziSummary.sportelloTotal ?? 0);
-      return Number.isFinite(value) ? value : 0;
-    }
-    return Number(serviziSummary.balance || 0);
+    const balanceValue = Number(serviziSummary.balance || 0);
+    const incomingValue = Number(serviziSummary.incoming || 0);
+    const fiacomReferenceValue = Number(serviziSummary.fiacomReference ?? 0);
+    const responsabileValue = Number(serviziSummary.responsabileTotal ?? 0);
+    const sportelloValue = Number(serviziSummary.sportelloTotal ?? 0);
+    const outgoingValue = Number(serviziSummary.outgoing || 0);
+
+    const pickScopedValue = (...values: number[]) => {
+      const firstNonZero = values.find((v) => Number.isFinite(v) && Math.abs(v) > 0);
+      if (firstNonZero !== undefined) return firstNonZero;
+      return values.find((v) => Number.isFinite(v)) ?? 0;
+    };
+
+    const walletValue = (() => {
+      if (isAdminRole) {
+        return pickScopedValue(fiacomReferenceValue, balanceValue, incomingValue);
+      }
+      if (user?.role === 'responsabile_territoriale') {
+        return Number.isFinite(responsabileValue) ? responsabileValue : 0;
+      }
+      if (user?.role === 'sportello_lavoro') {
+        return Number.isFinite(sportelloValue) ? sportelloValue : 0;
+      }
+      return Number.isFinite(balanceValue) ? balanceValue : 0;
+    })();
+
+    const saldoValue = walletValue - (Number.isFinite(outgoingValue) ? outgoingValue : 0);
+    return Number.isFinite(saldoValue) ? saldoValue : 0;
   }, [dashboardData?.accounts.servizi.balance, serviziSummary, user?.role]);
 
   // Handle file upload

@@ -10,12 +10,14 @@ import {
   exportCompaniesXlsx,
   getNextNumeroAnagrafica,
   getCompanyDocumentPreviewUrl,
+  deleteCompanyDocument,
 } from "../controllers/companyController";
 import { authMiddleware } from "../middleware/authMiddleware";
 import * as roleMiddleware from "../middleware/roleMiddleware";
 
 const router = express.Router();
 const sportelloLavoroRoleMiddleware = (roleMiddleware as any).sportelloLavoroRoleMiddleware;
+const adminRoleMiddleware = (roleMiddleware as any).adminRoleMiddleware;
 const segnalatoriRoleMiddleware =
   (Object.entries(roleMiddleware as any).find(([key]) =>
     key.toLowerCase().includes("segnala") && key.toLowerCase().includes("rolemiddleware")
@@ -39,6 +41,12 @@ router.get(
   authMiddleware,
   segnalatoriRoleMiddleware,
   getCompanyDocumentPreviewUrl
+);
+router.delete(
+  "/:id/documents/:documentKey",
+  authMiddleware,
+  adminRoleMiddleware,
+  deleteCompanyDocument
 );
 router.get("/:id", authMiddleware, segnalatoriRoleMiddleware, getCompanyById);
 

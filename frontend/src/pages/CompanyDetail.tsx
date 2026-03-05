@@ -1,17 +1,23 @@
 // src/pages/CompanyDetail.tsx - Updated version
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getCompanyById, getCompanyDocumentPreviewUrl } from '../services/companyService';
+import { getCompanyById, getCompanyDocumentPreviewUrl, deleteCompanyDocument } from '../services/companyService';
 import { getEmployeesByCompany } from '../services/employeeService';
 import { Company, Employee } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
 import Employees from './Employees';
 import '../styles/CompanyDetail.css';
 
+type CompanyDocumentKey =
+  | 'signedContractFile'
+  | 'privacyNoticeFile'
+  | 'legalRepresentativeDocumentFile'
+  | 'chamberOfCommerceFile';
+
 const CompanyDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [company, setCompany] = useState<Company | null>(null);
   const [companyEmployees, setCompanyEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,6 +25,9 @@ const CompanyDetail: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'employees'>('dashboard');
   const [employeesLoading, setEmployeesLoading] = useState(false);
   const [documentUrls, setDocumentUrls] = useState<Record<string, string>>({});
+  const [pendingDocDelete, setPendingDocDelete] = useState<{ key: CompanyDocumentKey; label: string } | null>(null);
+  const [deletingDoc, setDeletingDoc] = useState(false);
+  const isAdminUser = user?.role === 'admin' || user?.role === 'super_admin';
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -124,7 +133,11 @@ const CompanyDetail: React.FC = () => {
     return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
   };
 
-  const companyDocuments = [
+  const companyDocuments: Array<{
+    key: CompanyDocumentKey;
+    label: string;
+    file: any;
+  }> = [
     {
       key: 'signedContractFile',
       label: 'Contratto firmato',
@@ -146,6 +159,34 @@ const CompanyDetail: React.FC = () => {
       file: company.companyDocuments?.chamberOfCommerceFile,
     },
   ];
+
+  const handleDeleteDocument = async (documentKey: CompanyDocumentKey, label: string) => {
+    if (!isAdminUser) return;
+    setPendingDocDelete({ key: documentKey, label });
+  };
+
+  const confirmDeleteDocument = async () => {
+    if (!id || !pendingDocDelete || deletingDoc) return;
+    const { key } = pendingDocDelete;
+    if (!isAdminUser) return;
+    try {
+      setDeletingDoc(true);
+      await deleteCompanyDocument(id, key);
+      setCompany((prev) => {
+        if (!prev) return prev;
+        const next = { ...(prev as any) };
+        next.companyDocuments = { ...(prev.companyDocuments || {}) };
+        delete next.companyDocuments[key];
+        return next;
+      });
+      setDocumentUrls((prev) => ({ ...prev, [key]: '' }));
+      setPendingDocDelete(null);
+    } catch (err: any) {
+      alert(err?.response?.data?.error || 'Errore durante eliminazione documento.');
+    } finally {
+      setDeletingDoc(false);
+    }
+  };
 
   return (
     <div className="company-detail-container">
@@ -267,9 +308,58 @@ const CompanyDetail: React.FC = () => {
                           <li key={item.key}>
                             <strong>{item.label}:</strong>{' '}
                             {url ? (
-                              <a href={url} target="_blank" rel="noreferrer">
-                                {item.file?.originalName || 'Scarica documento'}
-                              </a>
+                              <>
+                                <a href={url} target="_blank" rel="noreferrer">
+                                  {item.file?.originalName || 'Scarica documento'}
+                                </a>
+                                {isAdminUser && (
+                                  <button
+                                    type="button"
+                                    className="bin-button"
+                                    onClick={() => handleDeleteDocument(item.key, item.label)}
+                                    aria-label={`Elimina ${item.label}`}
+                                    title={`Elimina ${item.label}`}
+                                  >
+                                    <svg
+                                      className="bin-top"
+                                      viewBox="0 0 39 7"
+                                      fill="none"
+                                      xmlns="http://www.w3.org/2000/svg"
+                                    >
+                                      <line y1="5" x2="39" y2="5" stroke="white" strokeWidth="4" />
+                                      <line x1="12" y1="1.5" x2="26.0357" y2="1.5" stroke="white" strokeWidth="3" />
+                                    </svg>
+                                    <svg
+                                      className="bin-bottom"
+                                      viewBox="0 0 33 39"
+                                      fill="none"
+                                      xmlns="http://www.w3.org/2000/svg"
+                                    >
+                                      <mask id="path-1-inside-1_8_19" fill="white">
+                                        <path d="M2 5H31V35.5C31 37.433 29.433 39 27.5 39H5.5C3.567 39 2 37.433 2 35.5V5Z" />
+                                      </mask>
+                                      <path
+                                        d="M2 5H31H2ZM32 5V35.5C32 37.985 29.985 40 27.5 40H5.5C3.015 40 1 37.985 1 35.5V5H3V35.5C3 36.881 4.119 38 5.5 38H27.5C28.881 38 30 36.881 30 35.5V5H32Z"
+                                        fill="white"
+                                        mask="url(#path-1-inside-1_8_19)"
+                                      />
+                                      <path d="M12 11L12 31" stroke="white" strokeWidth="4" />
+                                      <path d="M21 11L21 31" stroke="white" strokeWidth="4" />
+                                    </svg>
+                                    <svg
+                                      className="garbage"
+                                      viewBox="0 0 14 16"
+                                      fill="none"
+                                      xmlns="http://www.w3.org/2000/svg"
+                                    >
+                                      <path
+                                        d="M6.5 1L7.5 1L8 2H12V3.5H2V2H6L6.5 1ZM3.2 5H10.8L10.2 14.2C10.15 14.95 9.52 15.5 8.76 15.5H5.24C4.48 15.5 3.85 14.95 3.8 14.2L3.2 5Z"
+                                        fill="white"
+                                      />
+                                    </svg>
+                                  </button>
+                                )}
+                              </>
                             ) : (
                               <span>Non caricato</span>
                             )}
@@ -317,6 +407,27 @@ const CompanyDetail: React.FC = () => {
           </div>
         )}
       </div>
+      {pendingDocDelete && (
+        <div className="company-confirm-modal-overlay" onClick={() => !deletingDoc && setPendingDocDelete(null)}>
+          <div className="company-confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="company-confirm-modal-title">Conferma eliminazione documento</h3>
+            <p className="company-confirm-modal-text">
+              Vuoi eliminare il documento <strong>{pendingDocDelete.label}</strong>?
+            </p>
+            <p className="company-confirm-modal-note">
+              L'operazione rimuove il file dal bucket e dal database.
+            </p>
+            <div className="company-confirm-modal-actions">
+              <button type="button" className="company-confirm-modal-cancel" onClick={() => setPendingDocDelete(null)} disabled={deletingDoc}>
+                Annulla
+              </button>
+              <button type="button" className="company-confirm-modal-danger" onClick={confirmDeleteDocument} disabled={deletingDoc}>
+                {deletingDoc ? 'Elimino...' : 'Conferma eliminazione'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

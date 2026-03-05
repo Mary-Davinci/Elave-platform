@@ -37,6 +37,20 @@ type ContoAccount = "proselitismo" | "servizi";
 // 5) Aggiungere test di regressione su proselitismo/servizi prima della rimozione finale.
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
+const parseDateStart = (value?: string) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+const parseDateEnd = (value?: string) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setHours(23, 59, 59, 999);
+  return date;
+};
 const getRequestedContoAccount = (
   req: Parameters<CustomRequestHandler>[0]
 ): ContoAccount => {
@@ -921,11 +935,21 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
         }
 
         if (!existingImport) {
+          const importKeys = Array.from(
+            new Set(
+              [
+                ...transactionsToInsert.map((item: any) => item.importKey),
+                ...nonRiconciliateToInsert.map((item: any) => item.importKey),
+              ].filter(Boolean)
+            )
+          );
           await ContoImport.create({
             fileHash,
+            account: targetAccount,
             originalName: file.originalname,
             uploadedBy: uploaderId,
             rowCount: rows.length - 1,
+            importKeys,
           });
         }
 
@@ -998,8 +1022,11 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
     if (status) query.status = status;
     if (from || to) {
       query.date = {};
-      if (from) query.date.$gte = new Date(from);
-      if (to) query.date.$lte = new Date(to);
+      const fromDate = parseDateStart(from);
+      const toDate = parseDateEnd(to);
+      if (fromDate) query.date.$gte = fromDate;
+      if (toDate) query.date.$lte = toDate;
+      if (!fromDate && !toDate) delete query.date;
     }
 
     const structuredClauses: any[] = [];
@@ -1330,6 +1357,40 @@ const collectTransactionsForExport = async (
   return allTransactions;
 };
 
+const extractCompanyFromDescription = (description: unknown): string => {
+  const text = String(description || "");
+  const match = text.match(/Azienda:\s*([^|]+)/i);
+  return match ? String(match[1] || "").trim() : "";
+};
+
+const parseLooseNumber = (value: unknown): number => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : NaN;
+  if (typeof value !== "string") return NaN;
+  const normalized = value.trim().replace(/\./g, "").replace(",", ".");
+  const num = Number(normalized);
+  return Number.isFinite(num) ? num : NaN;
+};
+
+const extractRiconciliataFromDescription = (description: unknown): number => {
+  const text = String(description || "");
+  const match = text.match(/Riconciliata:\s*([-+]?[0-9][0-9.,]*)/i);
+  if (!match) return NaN;
+  return parseLooseNumber(match[1]);
+};
+
+const getQuotaElavForReport = (transaction: any): number => {
+  const fromRaw = Number(transaction?.rawAmount);
+  if (Number.isFinite(fromRaw) && fromRaw > 0) return fromRaw;
+
+  const fromDescription = extractRiconciliataFromDescription(transaction?.description);
+  if (Number.isFinite(fromDescription) && fromDescription > 0) return fromDescription;
+
+  const fromAmount = Number(transaction?.amount);
+  if (Number.isFinite(fromAmount) && fromAmount > 0) return fromAmount;
+
+  return 0;
+};
+
 const buildControlloRows = (allTransactions: any[]) => {
   const monthlyMap = new Map<
     string,
@@ -1344,16 +1405,22 @@ const buildControlloRows = (allTransactions: any[]) => {
   >();
 
   for (const t of allTransactions) {
+    if (String(t?.type || "").toLowerCase() !== "entrata") continue;
     const date = t?.date ? new Date(t.date) : null;
     if (!date || Number.isNaN(date.getTime())) continue;
 
     const periodo = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
     const azienda = String(
-      t?.companyName || t?.company?.companyName || t?.company?.businessName || ""
+      t?.companyName ||
+        t?.company?.companyName ||
+        t?.company?.businessName ||
+        extractCompanyFromDescription(t?.description) ||
+        "Azienda non specificata"
     ).trim();
     const responsabile = String(t?.responsabileName || "").trim();
     const sportello = String(t?.sportelloName || "").trim();
-    const quotaElav = Number(t?.rawAmount ?? t?.amount ?? 0) || 0;
+    const quotaElav = getQuotaElavForReport(t);
+    if (quotaElav <= 0) continue;
     const key = [periodo, azienda, responsabile, sportello].join("|");
 
     const current = monthlyMap.get(key);
@@ -1406,14 +1473,18 @@ const buildFatturazioneRows = (allTransactions: any[], req: any) => {
   >();
 
   for (const t of allTransactions) {
+    if (String(t?.type || "").toLowerCase() !== "entrata") continue;
     const azienda = String(
-      t?.companyName || t?.company?.companyName || t?.company?.businessName || ""
+      t?.companyName ||
+        t?.company?.companyName ||
+        t?.company?.businessName ||
+        extractCompanyFromDescription(t?.description) ||
+        "Azienda non specificata"
     ).trim();
-    if (!azienda) continue;
 
     const responsabile = String(t?.responsabileName || "").trim();
     const sportello = String(t?.sportelloName || "").trim();
-    const quotaElav = Number(t?.rawAmount ?? t?.amount ?? 0) || 0;
+    const quotaElav = getQuotaElavForReport(t);
     if (quotaElav <= 0) continue;
 
     const companyKey = azienda.toLowerCase();
@@ -1643,8 +1714,11 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
     if (q) match.description = { $regex: q, $options: "i" };
     if (from || to) {
       match.date = {};
-      if (from) match.date.$gte = new Date(from);
-      if (to) match.date.$lte = new Date(to);
+      const fromDate = parseDateStart(from);
+      const toDate = parseDateEnd(to);
+      if (fromDate) match.date.$gte = fromDate;
+      if (toDate) match.date.$lte = toDate;
+      if (!fromDate && !toDate) delete match.date;
     }
 
     const useRawForFiacom = account === "proselitismo";
@@ -1836,8 +1910,11 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
       };
       if (from || to) {
         responsabileRefMatch.date = {};
-        if (from) responsabileRefMatch.date.$gte = new Date(from);
-        if (to) responsabileRefMatch.date.$lte = new Date(to);
+        const fromDate = parseDateStart(from);
+        const toDate = parseDateEnd(to);
+        if (fromDate) responsabileRefMatch.date.$gte = fromDate;
+        if (toDate) responsabileRefMatch.date.$lte = toDate;
+        if (!fromDate && !toDate) delete responsabileRefMatch.date;
       }
       if (q) {
         responsabileRefMatch.description = { $regex: q, $options: "i" };
@@ -1902,8 +1979,11 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
       };
       if (from || to) {
         sportelloRefMatch.date = {};
-        if (from) sportelloRefMatch.date.$gte = new Date(from);
-        if (to) sportelloRefMatch.date.$lte = new Date(to);
+        const fromDate = parseDateStart(from);
+        const toDate = parseDateEnd(to);
+        if (fromDate) sportelloRefMatch.date.$gte = fromDate;
+        if (toDate) sportelloRefMatch.date.$lte = toDate;
+        if (!fromDate && !toDate) delete sportelloRefMatch.date;
       }
       if (q) {
         sportelloRefMatch.description = { $regex: q, $options: "i" };
@@ -1970,8 +2050,11 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
       }
       if (from || to) {
         matchNonRiconciliate.date = {};
-        if (from) matchNonRiconciliate.date.$gte = new Date(from);
-        if (to) matchNonRiconciliate.date.$lte = new Date(to);
+        const fromDate = parseDateStart(from);
+        const toDate = parseDateEnd(to);
+        if (fromDate) matchNonRiconciliate.date.$gte = fromDate;
+        if (toDate) matchNonRiconciliate.date.$lte = toDate;
+        if (!fromDate && !toDate) delete matchNonRiconciliate.date;
       }
 
       const items = await ContoNonRiconciliata.find(matchNonRiconciliate)
@@ -2073,8 +2156,11 @@ export const getContoSummary: CustomRequestHandler = async (req, res) => {
       }
       if (from || to) {
         matchNonRiconciliate.date = {};
-        if (from) matchNonRiconciliate.date.$gte = new Date(from);
-        if (to) matchNonRiconciliate.date.$lte = new Date(to);
+        const fromDate = parseDateStart(from);
+        const toDate = parseDateEnd(to);
+        if (fromDate) matchNonRiconciliate.date.$gte = fromDate;
+        if (toDate) matchNonRiconciliate.date.$lte = toDate;
+        if (!fromDate && !toDate) delete matchNonRiconciliate.date;
       }
 
       const nonRiconciliateTotals = await ContoNonRiconciliata.aggregate([
@@ -2133,13 +2219,156 @@ export const getContoImports: CustomRequestHandler = async (req, res) => {
       return res.status(401).json({ error: "User not authenticated" });
     }
 
-    const imports = await ContoImport.find({})
+    const { account } = req.query as Record<string, string>;
+    const query: any = {};
+    if (account === "proselitismo" || account === "servizi") {
+      query.$or = [{ account }, { account: { $exists: false } }];
+    }
+
+    const imports = await ContoImport.find(query)
       .sort({ createdAt: -1 })
-      .select("fileHash originalName uploadedBy rowCount createdAt");
+      .select("fileHash account originalName uploadedBy rowCount createdAt");
 
     return res.json(imports);
   } catch (err: any) {
     console.error("Get conto imports error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
+export const deleteContoImport: CustomRequestHandler = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+    if (req.user.role !== "admin" && req.user.role !== "super_admin") {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const { fileHash } = req.params as { fileHash?: string };
+    const { account } = req.query as Record<string, string>;
+    const normalizedHash = String(fileHash || "").trim();
+    if (!normalizedHash) {
+      return res.status(400).json({ error: "fileHash mancante" });
+    }
+
+    const importDoc = await ContoImport.findOne({ fileHash: normalizedHash }).lean();
+    if (!importDoc) {
+      return res.status(404).json({ error: "File flusso non trovato" });
+    }
+
+    const selectedAccount = account === "servizi" ? "servizi" : "proselitismo";
+    if (importDoc.account && importDoc.account !== selectedAccount) {
+      return res.status(400).json({ error: "Il file flusso appartiene a un account diverso" });
+    }
+
+    let importKeys = Array.isArray(importDoc.importKeys)
+      ? importDoc.importKeys.filter((value) => typeof value === "string" && value.trim().length > 0)
+      : [];
+
+    if (!importKeys.length) {
+      // Legacy fallback: for older imports that did not store importKeys, try to
+      // reconstruct the batch using createdAt proximity buckets.
+      const batchCreatedAt =
+        importDoc.createdAt instanceof Date
+          ? importDoc.createdAt
+          : importDoc.createdAt
+            ? new Date(importDoc.createdAt as any)
+            : null;
+      if (batchCreatedAt && !Number.isNaN(batchCreatedAt.getTime())) {
+        const createdAtMs = batchCreatedAt.getTime();
+        const windowStart = new Date(createdAtMs - 15 * 60 * 1000);
+        const windowEnd = new Date(createdAtMs + 2 * 60 * 1000);
+
+        const [legacyTx, legacyNonRic] = await Promise.all([
+          ContoTransaction.find(
+            {
+              account: selectedAccount,
+              source: "xlsx",
+              createdAt: { $gte: windowStart, $lte: windowEnd },
+              importKey: { $exists: true, $ne: "" },
+            },
+            { importKey: 1, createdAt: 1 }
+          )
+            .sort({ createdAt: -1 })
+            .lean(),
+          ContoNonRiconciliata.find(
+            {
+              account: selectedAccount,
+              source: "xlsx",
+              createdAt: { $gte: windowStart, $lte: windowEnd },
+              importKey: { $exists: true, $ne: "" },
+            },
+            { importKey: 1, createdAt: 1 }
+          )
+            .sort({ createdAt: -1 })
+            .lean(),
+        ]);
+
+        const bucketMap = new Map<
+          number,
+          {
+            keys: Set<string>;
+            docs: number;
+          }
+        >();
+        for (const row of [...legacyTx, ...legacyNonRic]) {
+          const key = String((row as any)?.importKey || "").trim();
+          const ts = new Date((row as any)?.createdAt || 0).getTime();
+          if (!key || !Number.isFinite(ts) || ts <= 0) continue;
+          const bucketTs = Math.floor(ts / 1000) * 1000; // second precision bucket
+          const bucket = bucketMap.get(bucketTs) || { keys: new Set<string>(), docs: 0 };
+          bucket.keys.add(key);
+          bucket.docs += 1;
+          bucketMap.set(bucketTs, bucket);
+        }
+
+        const targetRows = Number(importDoc.rowCount || 0);
+        const rankedBuckets = Array.from(bucketMap.entries())
+          .map(([ts, bucket]) => {
+            const timeDistance = Math.abs(createdAtMs - ts);
+            const sizeDistance = targetRows > 0 ? Math.abs(bucket.docs - targetRows) : 0;
+            return { ts, bucket, timeDistance, sizeDistance };
+          })
+          .sort((a, b) => {
+            if (a.sizeDistance !== b.sizeDistance) return a.sizeDistance - b.sizeDistance;
+            return a.timeDistance - b.timeDistance;
+          });
+
+        const chosen = rankedBuckets[0];
+        importKeys = chosen ? Array.from(chosen.bucket.keys) : [];
+      }
+      if (!importKeys.length) {
+        return res.status(409).json({
+          error:
+            "Impossibile eliminare questo flusso storico automaticamente: manca la mappatura righe/importKey. Ricarica i nuovi flussi per usare questa funzione.",
+        });
+      }
+    }
+
+    const [deletedTransactions, deletedNonRiconciliate] = await Promise.all([
+      ContoTransaction.deleteMany({
+        account: selectedAccount,
+        source: "xlsx",
+        importKey: { $in: importKeys },
+      }),
+      ContoNonRiconciliata.deleteMany({
+        account: selectedAccount,
+        source: "xlsx",
+        importKey: { $in: importKeys },
+      }),
+    ]);
+
+    await ContoImport.deleteOne({ _id: importDoc._id });
+    clearComputedContoCaches();
+
+    return res.json({
+      message: "File flusso eliminato con successo",
+      deletedTransactions: deletedTransactions.deletedCount || 0,
+      deletedNonRiconciliate: deletedNonRiconciliate.deletedCount || 0,
+    });
+  } catch (err: any) {
+    console.error("Delete conto import error:", err);
     return res.status(500).json({ error: "Server error" });
   }
 };
@@ -2191,8 +2420,11 @@ export const getNonRiconciliate: CustomRequestHandler = async (req, res) => {
     }
     if (from || to) {
       query.date = {};
-      if (from) query.date.$gte = new Date(from);
-      if (to) query.date.$lte = new Date(to);
+      const fromDate = parseDateStart(from);
+      const toDate = parseDateEnd(to);
+      if (fromDate) query.date.$gte = fromDate;
+      if (toDate) query.date.$lte = toDate;
+      if (!fromDate && !toDate) delete query.date;
     }
 
     const pageNum = Math.max(1, Number(page) || 1);
@@ -2389,8 +2621,11 @@ export const getContoBreakdown: CustomRequestHandler = async (req, res) => {
     if (q) match.description = { $regex: q, $options: "i" };
     if (from || to) {
       match.date = {};
-      if (from) match.date.$gte = new Date(from);
-      if (to) match.date.$lte = new Date(to);
+      const fromDate = parseDateStart(from);
+      const toDate = parseDateEnd(to);
+      if (fromDate) match.date.$gte = fromDate;
+      if (toDate) match.date.$lte = toDate;
+      if (!fromDate && !toDate) delete match.date;
     }
 
     const pipeline: any[] = [

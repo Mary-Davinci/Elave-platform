@@ -5,6 +5,7 @@ import {
   getNonRiconciliate as getNonRiconciliateShared,
   getContoBreakdown as getContoBreakdownShared,
   getContoImports as getContoImportsShared,
+  deleteContoImport as deleteContoImportShared,
   previewContoFromExcel as previewContoFromExcelShared,
   uploadContoFromExcel as uploadContoFromExcelShared,
 } from "./contoController";
@@ -38,6 +39,11 @@ export const getContoServiziBreakdown: CustomRequestHandler = async (req, res, n
 export const getContoServiziImports: CustomRequestHandler = async (req, res, next) => {
   forceServiziAccount(req);
   return getContoImportsShared(req, res, next);
+};
+
+export const deleteContoServiziImport: CustomRequestHandler = async (req, res, next) => {
+  forceServiziAccount(req);
+  return deleteContoImportShared(req, res, next);
 };
 
 export const previewContoServiziFromExcel: CustomRequestHandler = async (req, res, next) => {

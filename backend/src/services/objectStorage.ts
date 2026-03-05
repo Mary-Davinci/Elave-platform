@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const bucketName = process.env.B2_BUCKET_NAME || process.env.BACKBLAZE_BUCKET || "";
@@ -65,6 +65,19 @@ export const getObjectStorageDownloadUrl = async (key: string, expiresInSeconds 
       Key: key,
     }),
     { expiresIn: expiresInSeconds }
+  );
+};
+
+export const deleteObjectFromObjectStorage = async (key: string) => {
+  if (!client || !enabled) {
+    throw new Error("Object storage is not configured");
+  }
+
+  await client.send(
+    new DeleteObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+    })
   );
 };
 

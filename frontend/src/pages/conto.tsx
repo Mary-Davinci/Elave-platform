@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import '../styles/Dashboard.css';
 import '../styles/Conto.css';
-import { contoService, type AccountType, type Transaction, type ContoFilters, type Summary, getContoImports, type ContoImportItem, getNonRiconciliate, type NonRiconciliataItem, type BreakdownRow, createServiziInvoiceRequest, downloadProselitismoReportXlsx, downloadProselitismoMonthlyCompanyReportXlsx, previewProselitismoReport, previewProselitismoMonthlyCompanyReport, type ProselitismoReportPreviewResponse } from '../services/contoService';
+import { contoService, type AccountType, type Transaction, type ContoFilters, type Summary, getContoImports, deleteContoImport, type ContoImportItem, getNonRiconciliate, type NonRiconciliataItem, type BreakdownRow, createServiziInvoiceRequest, downloadProselitismoReportXlsx, downloadProselitismoMonthlyCompanyReportXlsx, previewProselitismoReport, previewProselitismoMonthlyCompanyReport, type ProselitismoReportPreviewResponse } from '../services/contoService';
 import { getCompanies } from '../services/companyService';
 import type { Company } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
@@ -53,8 +53,15 @@ const contoServiziOptions = [
   'Consulenza del lavoro',
 ];
 
-const Conto: React.FC = () => {
+  const Conto: React.FC = () => {
   const { user } = useAuth();
+  const isAdminUser = user?.role === 'admin' || user?.role === 'super_admin';
+  const accountDisplayName = useMemo(() => {
+    const fullName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
+    if (fullName) return fullName;
+    if (user?.username) return user.username;
+    return 'account';
+  }, [user?.firstName, user?.lastName, user?.username]);
   const isSportello = user?.role === 'sportello_lavoro';
   const isResponsabile = user?.role === 'responsabile_territoriale';
   const isRestrictedView = isSportello || isResponsabile;
@@ -107,6 +114,8 @@ const Conto: React.FC = () => {
   const [reportLoading, setReportLoading] = useState(false);
   const [reportPreviewLoading, setReportPreviewLoading] = useState(false);
   const [reportPreview, setReportPreview] = useState<ProselitismoReportPreviewResponse | null>(null);
+  const [pendingImportDelete, setPendingImportDelete] = useState<ContoImportItem | null>(null);
+  const [importDeleting, setImportDeleting] = useState(false);
   const [reportMode, setReportMode] = useState<'controllo' | 'fatturazione'>('controllo');
   const [reportFilters, setReportFilters] = useState<ContoFilters>({
     from: '',
@@ -313,6 +322,26 @@ const Conto: React.FC = () => {
       setError(err?.response?.data?.error || 'Errore generazione report.');
     } finally {
       setReportLoading(false);
+    }
+  };
+
+  const handleDeleteImport = async (item: ContoImportItem) => {
+    if (!isAdminUser) return;
+    setPendingImportDelete(item);
+  };
+
+  const confirmDeleteImport = async () => {
+    if (!pendingImportDelete || importDeleting) return;
+    try {
+      setImportDeleting(true);
+      const result = await deleteContoImport(pendingImportDelete.fileHash, activeAccount);
+      alert(result?.message || 'File flusso eliminato con successo');
+      setImports((prev) => prev.filter((row) => row.fileHash !== pendingImportDelete.fileHash));
+      setPendingImportDelete(null);
+    } catch (err: any) {
+      alert(err?.response?.data?.error || 'Errore durante eliminazione file flusso.');
+    } finally {
+      setImportDeleting(false);
     }
   };
 
@@ -987,7 +1016,7 @@ const Conto: React.FC = () => {
     return () => cancelAnimationFrame(raf);
   }, [showSportelliModal]);
 
-  const serviziSaldoCard = useMemo(() => {
+  const serviziWalletCard = useMemo(() => {
     if (activeAccount !== 'servizi') return null as null | { label: string; value: number };
     const balanceValue = Number(summary.balance || 0);
     const incomingValue = Number(summary.incoming || 0);
@@ -1012,7 +1041,7 @@ const Conto: React.FC = () => {
     }
     const fiacomReferenceValue = Number(summary.fiacomReference ?? serviziFiacomReference ?? 0);
     return {
-      label: 'Saldo FIACOM (80%)',
+      label: 'Wallet',
       value: pickScopedValue(fiacomReferenceValue, balanceValue, incomingValue),
     };
   }, [activeAccount, isSportello, isResponsabile, summary.balance, summary.incoming, summary.responsabileTotal, summary.sportelloTotal, summary.fiacomReference, serviziFiacomReference]);
@@ -1041,11 +1070,23 @@ const Conto: React.FC = () => {
         </div>
       </div>
       <div className="projects-section conto-summaries" style={{ marginBottom: 20 }}>
-        {activeAccount === 'servizi' && serviziSaldoCard ? (
-          <div className="project-card-dash conto-saldo-card">
-            <div className="project-number">{formatCurrency(serviziSaldoCard.value)}</div>
-            <div className="project-title">{serviziSaldoCard.label}</div>
-          </div>
+        {activeAccount === 'servizi' && serviziWalletCard ? (
+          <>
+            <div className="project-card-dash conto-saldo-card">
+              <div className="project-number">{formatCurrency(serviziWalletCard.value)}</div>
+              <div className="project-title">Wallet</div>
+            </div>
+            <div className="project-card-dash conto-saldo-card">
+              <div className="project-number">{formatCurrency(summary.outgoing || 0)}</div>
+              <div className="project-title">Totale competenze</div>
+            </div>
+            <div className="project-card-dash conto-saldo-card">
+              <div className="project-number">
+                {formatCurrency((serviziWalletCard.value || 0) - Number(summary.outgoing || 0))}
+              </div>
+              <div className="project-title">{`Saldo ${accountDisplayName}`}</div>
+            </div>
+          </>
         ) : isSportello ? (
           <>
             <div className="project-card-dash conto-saldo-card">
@@ -1455,6 +1496,42 @@ const Conto: React.FC = () => {
           </div>
         </div>
       ), document.body)}
+
+      {pendingImportDelete && createPortal(
+        <div className="conto-modal-overlay" onClick={() => !importDeleting && setPendingImportDelete(null)}>
+          <div className="conto-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="conto-modal-header">
+              <h3>Conferma eliminazione flusso</h3>
+              <button type="button" onClick={() => !importDeleting && setPendingImportDelete(null)}>×</button>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              Sei sicuro di voler eliminare il file flusso <strong>{pendingImportDelete.originalName}</strong>?
+            </div>
+            <div style={{ marginBottom: 16, color: '#6b7280' }}>
+              Verranno rimossi anche i movimenti collegati in database.
+            </div>
+            <div className="conto-modal-actions">
+              <button
+                type="button"
+                className="conto-report-button secondary"
+                onClick={() => setPendingImportDelete(null)}
+                disabled={importDeleting}
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                className="conto-report-button"
+                onClick={confirmDeleteImport}
+                disabled={importDeleting}
+              >
+                {importDeleting ? 'Elimino...' : 'Conferma eliminazione'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       <div className="utility-section">
         <div className="section-header">{movementsTitle}</div>
@@ -1958,6 +2035,7 @@ const Conto: React.FC = () => {
                   <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Nome file</th>
                   <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Chiave univoca</th>
                   <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Righe</th>
+                  {isAdminUser && <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Azioni</th>}
                 </tr>
               </thead>
               <tbody>
@@ -1970,12 +2048,36 @@ const Conto: React.FC = () => {
                       <td style={{ padding: '8px' }}>{item.originalName}</td>
                       <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: 12 }}>{item.fileHash}</td>
                       <td style={{ padding: '8px' }}>{item.rowCount}</td>
+                      {isAdminUser && (
+                        <td style={{ padding: '8px' }}>
+                          <button
+                            type="button"
+                            className="flow-delete-button"
+                            onClick={() => handleDeleteImport(item)}
+                            title="Elimina file flusso"
+                          >
+                            <span className="flow-delete-button__text">Elimina</span>
+                            <span className="flow-delete-button__icon" aria-hidden="true">
+                              <svg
+                                className="flow-delete-button__svg"
+                                viewBox="0 0 448 512"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <path
+                                  fill="currentColor"
+                                  d="M135.2 17.7C140.9 7.3 151.8 0 163.8 0H284.2c12 0 22.9 7.3 28.6 17.7L328 32H432c8.8 0 16 7.2 16 16v32c0 8.8-7.2 16-16 16H16C7.2 96 0 88.8 0 80V48c0-8.8 7.2-16 16-16H120l15.2-14.3zM53.2 467c1.7 25.3 22.7 45 48 45H346.8c25.3 0 46.3-19.7 48-45L416 128H32L53.2 467z"
+                                />
+                              </svg>
+                            </span>
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
                 {imports.length === 0 && (
                   <tr>
-                    <td colSpan={5} style={{ padding: 16, color: '#666' }}>Nessun file flussi caricato.</td>
+                    <td colSpan={isAdminUser ? 6 : 5} style={{ padding: 16, color: '#666' }}>Nessun file flussi caricato.</td>
                   </tr>
                 )}
               </tbody>

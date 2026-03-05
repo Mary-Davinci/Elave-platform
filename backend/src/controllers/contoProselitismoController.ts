@@ -5,6 +5,7 @@ import {
   getNonRiconciliate as getNonRiconciliateShared,
   getContoBreakdown as getContoBreakdownShared,
   getContoImports as getContoImportsShared,
+  deleteContoImport as deleteContoImportShared,
   previewContoFromExcel as previewContoFromExcelShared,
   uploadContoFromExcel as uploadContoFromExcelShared,
   exportContoTransactionsXlsx as exportContoTransactionsXlsxShared,
@@ -41,6 +42,11 @@ export const getContoProselitismoBreakdown: CustomRequestHandler = async (req, r
 export const getContoProselitismoImports: CustomRequestHandler = async (req, res, next) => {
   forceProselitismoAccount(req);
   return getContoImportsShared(req, res, next);
+};
+
+export const deleteContoProselitismoImport: CustomRequestHandler = async (req, res, next) => {
+  forceProselitismoAccount(req);
+  return deleteContoImportShared(req, res, next);
 };
 
 export const previewContoProselitismoFromExcel: CustomRequestHandler = async (req, res, next) => {

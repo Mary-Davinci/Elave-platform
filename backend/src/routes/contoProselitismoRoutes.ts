@@ -7,6 +7,7 @@ import {
   getContoProselitismoNonRiconciliate,
   getContoProselitismoBreakdown,
   getContoProselitismoImports,
+  deleteContoProselitismoImport,
   previewContoProselitismoFromExcel,
   uploadContoProselitismoFromExcel,
   exportContoProselitismoXlsx,
@@ -22,6 +23,7 @@ router.get("/summary", authMiddleware, getContoProselitismoSummary);
 router.get("/breakdown", authMiddleware, getContoProselitismoBreakdown);
 router.get("/non-riconciliate", authMiddleware, getContoProselitismoNonRiconciliate);
 router.get("/imports", authMiddleware, getContoProselitismoImports);
+router.delete("/imports/:fileHash", authMiddleware, adminRoleMiddleware, deleteContoProselitismoImport);
 router.get("/export", authMiddleware, exportContoProselitismoXlsx);
 router.get("/export-monthly", authMiddleware, exportContoProselitismoMonthlyCompanyXlsx);
 router.get("/export/preview", authMiddleware, previewContoProselitismoReport);

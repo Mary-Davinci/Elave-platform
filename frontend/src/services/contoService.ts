@@ -101,6 +101,7 @@ export interface ContoUploadResponse {
 export interface ContoImportItem {
   _id: string;
   fileHash: string;
+  account?: AccountType;
   originalName: string;
   uploadedBy: string;
   rowCount: number;
@@ -334,6 +335,22 @@ export const getContoImports = async (
   if (Array.isArray(res.data)) return res.data as ContoImportItem[];
   if (Array.isArray(res.data?.imports)) return res.data.imports as ContoImportItem[];
   return [];
+};
+
+export const deleteContoImport = async (
+  fileHash: string,
+  account: AccountType = 'proselitismo'
+): Promise<{ message: string; deletedTransactions?: number; deletedNonRiconciliate?: number }> => {
+  let res: any;
+  try {
+    res = await api.delete(`/api/conto/${account}/imports/${encodeURIComponent(fileHash)}`);
+  } catch (error: any) {
+    if (error?.response?.status !== 404) throw error;
+    res = await api.delete(`/api/conto/imports/${encodeURIComponent(fileHash)}`, {
+      params: { account },
+    });
+  }
+  return res.data || { message: 'File flusso eliminato' };
 };
 
 export const getNonRiconciliate = async (

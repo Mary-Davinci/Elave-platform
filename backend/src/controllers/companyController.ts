@@ -12,6 +12,7 @@ import xlsx from 'xlsx';
 import { NotificationService } from "../models/notificationService";
 import {
   buildCompanyDocumentStorageKey,
+  deleteObjectFromObjectStorage,
   getObjectStorageDownloadUrl,
   isObjectStorageEnabled,
   uploadBufferToObjectStorage,
@@ -583,6 +584,64 @@ export const getCompanyDocumentPreviewUrl: CustomRequestHandler = async (req, re
     return res.status(200).json({ url: localUrl, source: "local" });
   } catch (err: any) {
     console.error("Get company document preview url error:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
+export const deleteCompanyDocument: CustomRequestHandler = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+    if (!isPrivileged(req.user.role)) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const { id, documentKey } = req.params as { id: string; documentKey: CompanyDocumentKey };
+    if (!COMPANY_DOCUMENT_KEYS.includes(documentKey)) {
+      return res.status(400).json({ error: "Tipo documento non valido" });
+    }
+
+    const company = await Company.findById(id);
+    if (!company) {
+      return res.status(404).json({ error: "Company not found" });
+    }
+
+    const doc: any = (company as any)?.companyDocuments?.[documentKey];
+    if (!doc) {
+      return res.status(404).json({ error: "Documento non caricato" });
+    }
+
+    if (doc.storageKey) {
+      if (isObjectStorageEnabled()) {
+        try {
+          await deleteObjectFromObjectStorage(doc.storageKey);
+        } catch (deleteError) {
+          console.warn("[company] impossibile eliminare oggetto dal bucket", {
+            companyId: id,
+            documentKey,
+            storageKey: doc.storageKey,
+          });
+        }
+      }
+    } else if (doc.path) {
+      const fileName = String(doc.path).split(/[/\\]/).pop();
+      if (fileName) {
+        const localPath = path.join(__dirname, "../uploads", fileName);
+        if (fs.existsSync(localPath)) {
+          fs.unlinkSync(localPath);
+        }
+      }
+    }
+
+    await Company.updateOne(
+      { _id: id },
+      { $unset: { [`companyDocuments.${documentKey}`]: 1 } }
+    );
+
+    return res.json({ message: "Documento eliminato con successo" });
+  } catch (err: any) {
+    console.error("Delete company document error:", err);
     return res.status(500).json({ error: "Server error" });
   }
 };

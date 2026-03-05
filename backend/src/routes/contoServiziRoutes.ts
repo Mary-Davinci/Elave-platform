@@ -7,6 +7,7 @@ import {
   getContoServiziNonRiconciliate,
   getContoServiziBreakdown,
   getContoServiziImports,
+  deleteContoServiziImport,
   previewContoServiziFromExcel,
   uploadContoServiziFromExcel,
   createServiziInvoiceRequest,
@@ -19,6 +20,7 @@ router.get("/summary", authMiddleware, getContoServiziSummary);
 router.get("/breakdown", authMiddleware, getContoServiziBreakdown);
 router.get("/non-riconciliate", authMiddleware, getContoServiziNonRiconciliate);
 router.get("/imports", authMiddleware, getContoServiziImports);
+router.delete("/imports/:fileHash", authMiddleware, adminRoleMiddleware, deleteContoServiziImport);
 router.post("/preview", authMiddleware, adminRoleMiddleware, previewContoServiziFromExcel);
 router.post("/upload", authMiddleware, adminRoleMiddleware, uploadContoServiziFromExcel);
 router.post("/invoice-request", authMiddleware, createServiziInvoiceRequest);

@@ -45,6 +45,20 @@ export const getCompanyDocumentPreviewUrl = async (
   return response.data.url;
 };
 
+export const deleteCompanyDocument = async (
+  companyId: string,
+  documentKey:
+    | 'signedContractFile'
+    | 'privacyNoticeFile'
+    | 'legalRepresentativeDocumentFile'
+    | 'chamberOfCommerceFile'
+): Promise<{ message: string }> => {
+  const response = await api.delete<{ message: string }>(
+    `/api/companies/${companyId}/documents/${documentKey}`
+  );
+  return response.data;
+};
+
 export const exportCompaniesXlsx = async (filters?: {
   territorialManager?: string;
   sportelloLavoro?: string;

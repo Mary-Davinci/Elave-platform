@@ -137,7 +137,7 @@ const contoServiziOptions = [
   const nonRicCacheRef = useRef(
     new Map<string, { data: NonRiconciliataItem[]; total?: number; ts: number }>()
   );
-  const TX_CACHE_VERSION = 'v3';
+  const TX_CACHE_VERSION = 'v4';
   const NON_RIC_CACHE_VERSION = 'v1';
   const CACHE_TTL_MS = 5 * 60_000;
 
@@ -566,6 +566,7 @@ const contoServiziOptions = [
           }
           if (!cancelled) setTransactionsLoading(false);
         }
+        const useLiteTransactions = activeAccount === 'proselitismo';
         const res = await contoService.getTransactions(
           activeAccount,
           apiFilters,
@@ -573,7 +574,7 @@ const contoServiziOptions = [
           currentPage,
           PAGE_SIZE,
           controller.signal,
-          true
+          useLiteTransactions
         );
         const tx = res.transactions || [];
         txCacheRef.current.set(cacheKey, { data: tx, total: res.total, ts: now });
@@ -613,7 +614,7 @@ const contoServiziOptions = [
                   nextPage,
                   PAGE_SIZE,
                   undefined,
-                  true
+                  useLiteTransactions
                 )
                 .then((nextRes) => {
                   const nextTx = nextRes.transactions || [];

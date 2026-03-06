@@ -7,7 +7,7 @@ import MainLayout from './layouts/MainLayout';
 
 // Pages
 import Login from './pages/Login';
-import Register from './pages/Register';
+import RecoverPassword from './pages/RecoverPassword';
 import Dashboard from './pages/Dashboard';
 import Companies from './pages/Companies';
 import NewCompany from './pages/NewCompany';
@@ -58,7 +58,8 @@ const App: React.FC = () => {
         <Routes>
           {/* Public routes without layout */}
           <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+          <Route path="/recover-password" element={<RecoverPassword />} />
+          <Route path="/register" element={<Navigate to="/recover-password" replace />} />
           
           {/* Protected routes with MainLayout */}
           <Route path="/dashboard" element={

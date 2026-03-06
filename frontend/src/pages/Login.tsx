@@ -79,7 +79,7 @@ const Login: React.FC = () => {
         </form>
 
         <div className="auth-footer">
-          Don't have an account? <Link to="/register">Register</Link>
+          Password dimenticata? <Link to="/recover-password">Recupera password</Link>
         </div>
       </div>
     </div>

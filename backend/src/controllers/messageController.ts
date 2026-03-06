@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import Message, { IAttachment } from "../models/Message";
 import User from "../models/User";
+import SportelloLavoro from "../models/sportello";
 import { CustomRequestHandler } from "../types/express";
 import path from "path";
 import fs from "fs";
@@ -16,6 +17,61 @@ interface MulterRequest extends Request {
 
 const toObjectIdArray = (ids: string[]) =>
   ids.filter(Boolean).map((id) => new mongoose.Types.ObjectId(id));
+
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const resolveResponsabileForSportelloUser = async (userDoc: any): Promise<string | null> => {
+  if (!userDoc || userDoc.role !== "sportello_lavoro") return null;
+
+  const manager = userDoc?.managedBy;
+  if (
+    manager?._id &&
+    manager?.role === "responsabile_territoriale" &&
+    manager?.isActive !== false &&
+    manager?.isApproved !== false
+  ) {
+    return String(manager._id);
+  }
+
+  const candidateNames = Array.from(
+    new Set(
+      [
+        String(userDoc?.organization || "").trim(),
+        String(userDoc?.username || "").trim(),
+        `${String(userDoc?.firstName || "").trim()} ${String(userDoc?.lastName || "").trim()}`.trim(),
+      ].filter(Boolean)
+    )
+  );
+  const email = String(userDoc?.email || "").trim().toLowerCase();
+  const emailLocal = email.includes("@") ? email.split("@")[0].trim() : "";
+
+  const orClauses: any[] = [];
+  for (const value of [...candidateNames, emailLocal]) {
+    if (!value) continue;
+    const rx = new RegExp(`^\\s*${escapeRegex(value)}\\s*$`, "i");
+    orClauses.push({ businessName: rx }, { agentName: rx }, { email: rx });
+  }
+  if (!orClauses.length) return null;
+
+  const sportello = await SportelloLavoro.findOne({
+    $or: orClauses,
+    isActive: { $ne: false },
+  })
+    .select("user")
+    .lean();
+  if (!sportello?.user) return null;
+
+  const responsabile = await User.findOne({
+    _id: sportello.user,
+    role: "responsabile_territoriale",
+    isActive: { $ne: false },
+    isApproved: { $ne: false },
+  })
+    .select("_id")
+    .lean();
+
+  return responsabile?._id ? String(responsabile._id) : null;
+};
 
 const storage = multer.diskStorage({
   destination: (req: Express.Request, file: Express.Multer.File, cb: Function) => {
@@ -183,17 +239,49 @@ export const sendMessage: CustomRequestHandler = async (req, res) => {
     }
 
    
-    let recipientUsers = [];
+    let recipientUsers: any[] = [];
     try {
       recipientUsers = await User.find({ 
         _id: { $in: recipients } 
-      }).select('_id email firstName lastName');
+      })
+        .select('_id email firstName lastName role managedBy isActive isApproved')
+        .populate('managedBy', '_id email firstName lastName role isActive isApproved');
     } catch (err) {
       return res.status(400).json({ error: "Invalid recipient IDs" });
     }
 
     if (recipientUsers.length === 0) {
       return res.status(400).json({ error: "No valid recipients found" });
+    }
+
+    // Auto-CC rules:
+    // 1) If sender is sportello_lavoro => add their responsabile territoriale.
+    // 2) If a recipient is sportello_lavoro => add that recipient's responsabile territoriale.
+    const autoCcIds = new Set<string>();
+    if (req.user.role === "sportello_lavoro") {
+      const sender = await User.findById(req.user._id)
+        .select('_id role managedBy username email firstName lastName organization')
+        .populate('managedBy', '_id role isActive isApproved');
+      const senderResponsabileId = await resolveResponsabileForSportelloUser(sender);
+      if (senderResponsabileId) autoCcIds.add(senderResponsabileId);
+    }
+
+    for (const recipient of recipientUsers) {
+      if (recipient?.role !== "sportello_lavoro") continue;
+      const recipientResponsabileId = await resolveResponsabileForSportelloUser(recipient);
+      if (recipientResponsabileId) autoCcIds.add(recipientResponsabileId);
+    }
+
+    const recipientIds = new Set(recipientUsers.map((u) => String(u._id)));
+    const missingAutoCcIds = Array.from(autoCcIds).filter((id) => !recipientIds.has(id));
+    if (missingAutoCcIds.length > 0) {
+      const autoCcUsers = await User.find({
+        _id: { $in: missingAutoCcIds },
+        role: "responsabile_territoriale",
+        isActive: { $ne: false },
+        isApproved: { $ne: false },
+      }).select('_id email firstName lastName role');
+      recipientUsers = [...recipientUsers, ...autoCcUsers];
     }
 
     // Process attachments if present

@@ -17,6 +17,7 @@ import {
   isObjectStorageEnabled,
   uploadBufferToObjectStorage,
 } from "../services/objectStorage";
+import { getSportelloScopedCompanyIds } from "../services/contoScopeService";
 
 const isPrivileged = (role: string) => role === 'admin' || role === 'super_admin';
 const COMPANY_ANAGRAFICA_COUNTER_ID = "companyNumeroAnagrafica";
@@ -341,10 +342,14 @@ export const getCompanies: CustomRequestHandler = async (req, res) => {
       return res.status(401).json({ error: "User not authenticated" });
     }
 
-    let query = {};
-    
+    let query: any = {};
     if (!isPrivileged(req.user.role)) {
-      query = { user: req.user._id };
+      if (req.user.role === "sportello_lavoro") {
+        const companyIds = await getSportelloScopedCompanyIds(req.user._id);
+        query = { _id: { $in: companyIds } };
+      } else {
+        query = { user: req.user._id };
+      }
     }
 
     const companies = await Company.find(query)
@@ -397,7 +402,12 @@ export const exportCompaniesXlsx: CustomRequestHandler = async (req, res) => {
 
     let query: any = {};
     if (!isPrivileged(req.user.role)) {
-      query = { user: req.user._id };
+      if (req.user.role === "sportello_lavoro") {
+        const companyIds = await getSportelloScopedCompanyIds(req.user._id);
+        query = { _id: { $in: companyIds } };
+      } else {
+        query = { user: req.user._id };
+      }
     }
 
     const territorialManagerFilter = String(req.query?.territorialManager || "")
@@ -417,7 +427,7 @@ export const exportCompaniesXlsx: CustomRequestHandler = async (req, res) => {
 
     const companies = await Company.find(query)
       .select(
-        "businessName companyName inpsCode matricola employees territorialManager contractDetails.territorialManager contactInfo.laborConsultant contactInfo.laborConsultantId"
+        "businessName companyName vatNumber inpsCode matricola employees territorialManager contractDetails.territorialManager contactInfo.laborConsultant contactInfo.laborConsultantId"
       )
       .populate("contactInfo.laborConsultantId", "businessName agentName")
       .sort({ businessName: 1, companyName: 1 })
@@ -453,6 +463,7 @@ export const exportCompaniesXlsx: CustomRequestHandler = async (req, res) => {
     const headers = [
       "Matricola INPS",
       "Nome Azienda",
+      "Partita IVA",
       "Responsabile Territoriale",
       "Sportello Lavoro",
       "Numero Dipendenti",
@@ -473,6 +484,7 @@ export const exportCompaniesXlsx: CustomRequestHandler = async (req, res) => {
       return [
         String(company.inpsCode || company.matricola || ""),
         String(company.businessName || company.companyName || ""),
+        String(company.vatNumber || ""),
         responsabileValue,
         sportelloValue,
         Number(company.employees || 0),
@@ -480,11 +492,11 @@ export const exportCompaniesXlsx: CustomRequestHandler = async (req, res) => {
     });
 
     const ws = xlsx.utils.aoa_to_sheet([headers, ...dataRows]);
-    ws["!cols"] = [{ wch: 55 }, { wch: 45 }, { wch: 36 }, { wch: 36 }, { wch: 20 }];
-    ws["!autofilter"] = { ref: `A1:E${Math.max(dataRows.length + 1, 2)}` };
+    ws["!cols"] = [{ wch: 55 }, { wch: 45 }, { wch: 24 }, { wch: 36 }, { wch: 36 }, { wch: 20 }];
+    ws["!autofilter"] = { ref: `A1:F${Math.max(dataRows.length + 1, 2)}` };
 
     for (let rowIndex = 2; rowIndex <= dataRows.length + 1; rowIndex += 1) {
-      const cellRef = `E${rowIndex}`;
+      const cellRef = `F${rowIndex}`;
       if (!ws[cellRef]) continue;
       ws[cellRef].z = "0";
     }

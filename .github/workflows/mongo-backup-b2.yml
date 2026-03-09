@@ -21,10 +21,15 @@ jobs:
       - name: Install backend dependencies
         run: npm ci --prefix backend
 
-      - name: Install MongoDB Database Tools
+      - name: Install MongoDB Database Tools (mongodump)
         run: |
           sudo apt-get update
-          sudo apt-get install -y mongodb-database-tools zip
+          sudo apt-get install -y zip curl tar
+          TOOLS_VERSION="100.13.0"
+          TOOLS_ARCHIVE="mongodb-database-tools-ubuntu2204-x86_64-${TOOLS_VERSION}.tgz"
+          curl -fsSL "https://fastdl.mongodb.org/tools/db/${TOOLS_ARCHIVE}" -o "/tmp/${TOOLS_ARCHIVE}"
+          tar -xzf "/tmp/${TOOLS_ARCHIVE}" -C /tmp
+          echo "/tmp/mongodb-database-tools-ubuntu2204-x86_64-${TOOLS_VERSION}/bin" >> $GITHUB_PATH
 
       - name: Create Mongo dump + zip
         env:

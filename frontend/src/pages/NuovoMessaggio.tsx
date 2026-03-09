@@ -1,6 +1,12 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { sendMessage, getMessageById, saveDraft, searchRecipients } from '../services/messageService';
+import {
+  sendMessage,
+  getMessageById,
+  saveDraft,
+  searchRecipients,
+  getDefaultCcRecipients,
+} from '../services/messageService';
 import '../styles/NuovoMessaggio.css';
 
 interface Recipient {
@@ -35,6 +41,7 @@ const NuovoMessaggio: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<Recipient[]>([]);
   const [allRecipients, setAllRecipients] = useState<Recipient[]>([]);
+  const [defaultCcRecipients, setDefaultCcRecipients] = useState<Recipient[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +65,22 @@ const NuovoMessaggio: React.FC = () => {
     loadAllRecipients();
   }, []);
 
+  useEffect(() => {
+    const loadDefaultCc = async () => {
+      try {
+        const cc = await getDefaultCcRecipients();
+        setDefaultCcRecipients(cc);
+        setCcRecipients((prev) => {
+          if (prev.length > 0) return prev;
+          return cc;
+        });
+      } catch (err) {
+        console.error('Error loading default C.C. recipients:', err);
+      }
+    };
+    loadDefaultCc();
+  }, []);
+
   const loadDraft = async (id: string) => {
     try {
       setLoading(true);
@@ -68,7 +91,7 @@ const NuovoMessaggio: React.FC = () => {
       }
       
       setRecipients(draft.recipients);
-      setCcRecipients([]);
+      setCcRecipients(defaultCcRecipients);
       setSubject(draft.subject);
       setMessage(draft.body);
       setExistingAttachments(draft.attachments);
@@ -140,10 +163,6 @@ const NuovoMessaggio: React.FC = () => {
     setRecipients(recipients.filter(r => r._id !== id));
   };
 
-  const removeCcRecipient = (id: string) => {
-    setCcRecipients(ccRecipients.filter(r => r._id !== id));
-  };
-
   const handleAttachmentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
@@ -209,7 +228,17 @@ const NuovoMessaggio: React.FC = () => {
       navigate('/posta/in-arrivo');
     } catch (err) {
       console.error('Error sending message:', err);
-      setError('Failed to send message. Please try again.');
+      const apiError = (err as any)?.response?.data?.error;
+      const unauthorizedRecipients = (err as any)?.response?.data?.unauthorizedRecipients;
+      if (Array.isArray(unauthorizedRecipients) && unauthorizedRecipients.length > 0) {
+        const names = unauthorizedRecipients
+          .map((r: any) => r?.name || r?.email)
+          .filter(Boolean)
+          .join(', ');
+        setError(`${apiError || 'Destinatari non consentiti.'} (${names})`);
+      } else {
+        setError(apiError || 'Failed to send message. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -336,7 +365,7 @@ const NuovoMessaggio: React.FC = () => {
         </div>
 
         <div className="form-group recipients-group">
-          <label>C.C. (automatico):</label>
+          <label>C.C. (obbligatorio):</label>
           <div className="recipients-input-container">
             <div className="recipients-tags">
               {ccRecipients.length === 0 && (
@@ -347,13 +376,6 @@ const NuovoMessaggio: React.FC = () => {
               {ccRecipients.map(recipient => (
                 <div key={recipient._id} className="recipient-tag">
                   <span className="recipient-name">{getUserDisplayName(recipient)}</span>
-                  <button
-                    className="remove-recipient"
-                    onClick={() => removeCcRecipient(recipient._id)}
-                    type="button"
-                  >
-                    Ã—
-                  </button>
                 </div>
               ))}
             </div>
@@ -460,3 +482,4 @@ const NuovoMessaggio: React.FC = () => {
 };
 
 export default NuovoMessaggio;
+

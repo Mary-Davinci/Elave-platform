@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import User from "../models/User";
+import SportelloLavoro from "../models/sportello";
 import { CustomRequestHandler } from "../types/express";
 
 const ROLE_HIERARCHY = {
@@ -16,6 +17,61 @@ const hasMinimumRole = (userRole: string, requiredRole: string): boolean => {
   const userLevel = ROLE_HIERARCHY[userRole as keyof typeof ROLE_HIERARCHY] || 0;
   const requiredLevel = ROLE_HIERARCHY[requiredRole as keyof typeof ROLE_HIERARCHY] || 0;
   return userLevel >= requiredLevel;
+};
+
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const resolveResponsabileForSportelloUser = async (userDoc: any): Promise<string | null> => {
+  if (!userDoc || userDoc.role !== "sportello_lavoro") return null;
+
+  const manager = userDoc?.managedBy;
+  if (
+    manager?._id &&
+    manager?.role === "responsabile_territoriale" &&
+    manager?.isActive !== false &&
+    manager?.isApproved !== false
+  ) {
+    return String(manager._id);
+  }
+
+  const candidateNames = Array.from(
+    new Set(
+      [
+        String(userDoc?.organization || "").trim(),
+        String(userDoc?.username || "").trim(),
+        `${String(userDoc?.firstName || "").trim()} ${String(userDoc?.lastName || "").trim()}`.trim(),
+      ].filter(Boolean)
+    )
+  );
+  const email = String(userDoc?.email || "").trim().toLowerCase();
+  const emailLocal = email.includes("@") ? email.split("@")[0].trim() : "";
+
+  const orClauses: any[] = [];
+  for (const value of [...candidateNames, emailLocal]) {
+    if (!value) continue;
+    const rx = new RegExp(`^\\s*${escapeRegex(value)}\\s*$`, "i");
+    orClauses.push({ businessName: rx }, { agentName: rx }, { email: rx });
+  }
+  if (!orClauses.length) return null;
+
+  const sportello = await SportelloLavoro.findOne({
+    $or: orClauses,
+    isActive: { $ne: false },
+  })
+    .select("user")
+    .lean();
+  if (!sportello?.user) return null;
+
+  const responsabile = await User.findOne({
+    _id: sportello.user,
+    role: "responsabile_territoriale",
+    isActive: { $ne: false },
+    isApproved: { $ne: false },
+  })
+    .select("_id")
+    .lean();
+
+  return responsabile?._id ? String(responsabile._id) : null;
 };
 
 
@@ -498,6 +554,44 @@ export const searchUsers: CustomRequestHandler = async (req, res) => {
       { isActive: { $ne: false } },
       { isApproved: { $ne: false } },
     ];
+
+    if (!["admin", "super_admin"].includes(req.user.role)) {
+      const adminUsers = await User.find({
+        role: { $in: ["admin", "super_admin"] },
+        isActive: { $ne: false },
+        isApproved: { $ne: false },
+      }).select("_id");
+
+      const allowedIds = new Set<string>(adminUsers.map((u) => String(u._id)));
+
+      if (req.user.role === "responsabile_territoriale") {
+        const ownSportelli = await User.find({
+          role: "sportello_lavoro",
+          managedBy: req.user._id,
+          isActive: { $ne: false },
+          isApproved: { $ne: false },
+        }).select("_id");
+        ownSportelli.forEach((u) => allowedIds.add(String(u._id)));
+      } else if (req.user.role === "sportello_lavoro") {
+        const sender = await User.findById(req.user._id)
+          .select("_id role managedBy username email firstName lastName organization")
+          .populate("managedBy", "_id role isActive isApproved");
+        const responsabileId = await resolveResponsabileForSportelloUser(sender);
+        if (responsabileId) {
+          allowedIds.add(responsabileId);
+        }
+      }
+
+      const allowedObjectIds = Array.from(allowedIds)
+        .filter((id) => mongoose.Types.ObjectId.isValid(id))
+        .map((id) => new mongoose.Types.ObjectId(id));
+
+      if (allowedObjectIds.length === 0) {
+        return res.json([]);
+      }
+
+      baseConditions.push({ _id: { $in: allowedObjectIds } });
+    }
 
     if (searchRegex) {
       baseConditions.push({

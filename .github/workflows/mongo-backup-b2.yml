@@ -1,0 +1,75 @@
+name: Mongo Backup to Backblaze B2
+
+on:
+  schedule:
+    - cron: "30 1 * * *" # ogni giorno alle 01:30 UTC
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install backend dependencies
+        run: npm ci --prefix backend
+
+      - name: Install MongoDB Database Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mongodb-database-tools zip
+
+      - name: Create Mongo dump + zip
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+        run: |
+          if [ -z "$MONGO_URI" ]; then
+            echo "MONGO_URI non configurata nei secrets"
+            exit 1
+          fi
+
+          TS=$(date +"%Y%m%d-%H%M%S")
+          TMP_DIR="backup-tmp-$TS"
+          ZIP_FILE="mongo-backup-$TS.zip"
+
+          mongodump --uri="$MONGO_URI" --out="$TMP_DIR"
+          zip -r "$ZIP_FILE" "$TMP_DIR"
+
+          echo "BACKUP_ZIP=$ZIP_FILE" >> $GITHUB_ENV
+
+      - name: Upload backup to Backblaze B2
+        env:
+          B2_ENDPOINT: ${{ secrets.B2_ENDPOINT }}
+          B2_REGION: ${{ secrets.B2_REGION }}
+          B2_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          B2_APP_KEY: ${{ secrets.B2_APP_KEY }}
+          B2_BUCKET_NAME: ${{ secrets.B2_BUCKET_NAME }}
+          B2_PREFIX: ${{ secrets.B2_PREFIX }}
+          BACKUP_RETENTION_DAYS: ${{ secrets.BACKUP_RETENTION_DAYS }}
+        run: |
+          if [ -z "$B2_ENDPOINT" ] || [ -z "$B2_KEY_ID" ] || [ -z "$B2_APP_KEY" ] || [ -z "$B2_BUCKET_NAME" ]; then
+            echo "Secrets B2_* mancanti"
+            exit 1
+          fi
+
+          node backend/scripts/upload-backup-to-b2.mjs \
+            --file "$BACKUP_ZIP" \
+            --bucket "$B2_BUCKET_NAME" \
+            --endpoint "$B2_ENDPOINT" \
+            --region "${B2_REGION:-us-east-005}" \
+            --keyId "$B2_KEY_ID" \
+            --appKey "$B2_APP_KEY" \
+            --prefix "${B2_PREFIX:-mongo-backups/}" \
+            --retentionDays "${BACKUP_RETENTION_DAYS:-30}"
+
+      - name: Cleanup local artifacts
+        if: always()
+        run: |
+          rm -rf backup-tmp-* mongo-backup-*.zip || true

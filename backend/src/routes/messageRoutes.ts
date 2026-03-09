@@ -2,6 +2,7 @@ import express from 'express';
 import {
   getMessages,
   getMessageById,
+  getDefaultCcRecipients,
   sendMessage,
   saveDraft,
   moveToTrash,
@@ -46,6 +47,7 @@ router.get('/stats', (req, res, next) => {
 }, getMessageStats);
 
 router.get('/search', searchMessages);
+router.get('/default-cc', getDefaultCcRecipients);
 router.get('/:id', getMessageById);
 router.get('/:messageId/attachments/:attachmentId', downloadAttachment);
 

@@ -135,3 +135,8 @@ export const searchRecipients = async (query: string): Promise<Recipient[]> => {
   const response = await api.get(`/api/users/search?query=${query}`);
   return response.data;
 };
+
+export const getDefaultCcRecipients = async (): Promise<Recipient[]> => {
+  const response = await api.get('/api/messages/default-cc');
+  return response.data;
+};

@@ -73,6 +73,48 @@ const resolveResponsabileForSportelloUser = async (userDoc: any): Promise<string
   return responsabile?._id ? String(responsabile._id) : null;
 };
 
+const getAllowedRecipientIdsForSender = async (sender: any): Promise<Set<string> | null> => {
+  if (!sender) return new Set<string>();
+  if (sender.role === "admin" || sender.role === "super_admin") {
+    return null; // unrestricted
+  }
+
+  const allowedIds = new Set<string>();
+
+  const adminUsers = await User.find({
+    role: { $in: ["admin", "super_admin"] },
+    isActive: { $ne: false },
+    isApproved: { $ne: false },
+  })
+    .select("_id")
+    .lean();
+  adminUsers.forEach((u: any) => allowedIds.add(String(u._id)));
+
+  if (sender.role === "responsabile_territoriale") {
+    const ownSportelli = await User.find({
+      role: "sportello_lavoro",
+      managedBy: sender._id,
+      isActive: { $ne: false },
+      isApproved: { $ne: false },
+    })
+      .select("_id")
+      .lean();
+    ownSportelli.forEach((u: any) => allowedIds.add(String(u._id)));
+  }
+
+  if (sender.role === "sportello_lavoro") {
+    const senderDoc = await User.findById(sender._id)
+      .select("_id role managedBy username email firstName lastName organization")
+      .populate("managedBy", "_id role isActive isApproved");
+    const responsabileId = await resolveResponsabileForSportelloUser(senderDoc);
+    if (responsabileId) {
+      allowedIds.add(responsabileId);
+    }
+  }
+
+  return allowedIds;
+};
+
 const storage = multer.diskStorage({
   destination: (req: Express.Request, file: Express.Multer.File, cb: Function) => {
     const uploadDir = path.join(__dirname, "../uploads/attachments");
@@ -252,6 +294,29 @@ export const sendMessage: CustomRequestHandler = async (req, res) => {
 
     if (recipientUsers.length === 0) {
       return res.status(400).json({ error: "No valid recipients found" });
+    }
+
+    const allowedRecipientIds = await getAllowedRecipientIdsForSender(req.user);
+    if (allowedRecipientIds) {
+      const unauthorized = recipientUsers.filter(
+        (u) => !allowedRecipientIds.has(String(u._id))
+      );
+      if (unauthorized.length > 0) {
+        const unauthorizedRecipients = unauthorized.map((u) => ({
+          _id: String(u._id),
+          name:
+            `${String(u.firstName || "").trim()} ${String(u.lastName || "").trim()}`.trim() ||
+            u.username ||
+            u.email,
+          email: u.email || "",
+          role: u.role || "",
+        }));
+        return res.status(403).json({
+          error:
+            "Destinatari non consentiti. Puoi inviare solo a FIACOM (admin/super admin) e ai tuoi affiliati consentiti.",
+          unauthorizedRecipients,
+        });
+      }
     }
 
     // Auto-CC rules:
@@ -742,6 +807,43 @@ export const downloadAttachment: CustomRequestHandler = async (req, res) => {
     fileStream.pipe(res);
   } catch (error) {
     console.error("Download attachment error:", error);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
+export const getDefaultCcRecipients: CustomRequestHandler = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+
+    if (req.user.role !== "sportello_lavoro") {
+      return res.json([]);
+    }
+
+    const sender = await User.findById(req.user._id)
+      .select("_id role managedBy username email firstName lastName organization")
+      .populate("managedBy", "_id role isActive isApproved");
+
+    const responsabileId = await resolveResponsabileForSportelloUser(sender);
+    if (!responsabileId) {
+      return res.json([]);
+    }
+
+    const responsabile = await User.findOne({
+      _id: responsabileId,
+      role: "responsabile_territoriale",
+      isActive: { $ne: false },
+      isApproved: { $ne: false },
+    }).select("_id username email firstName lastName role organization");
+
+    if (!responsabile) {
+      return res.json([]);
+    }
+
+    return res.json([responsabile]);
+  } catch (error) {
+    console.error("Get default CC recipients error:", error);
     return res.status(500).json({ error: "Server error" });
   }
 };

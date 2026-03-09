@@ -435,14 +435,28 @@ export const exportCompaniesXlsx: CustomRequestHandler = async (req, res) => {
 
     const normalizeLabel = (value: unknown) =>
       normalizeEntityName(String(value || "").trim());
-    const effectiveRows = companies.filter((company: any) => {
-      const tmValue =
-        company?.contractDetails?.territorialManager || company?.territorialManager || "";
-      const sportelloValue =
-        company?.contactInfo?.laborConsultant ||
+    const getTerritorialManagerValue = (company: any) =>
+      String(company?.contractDetails?.territorialManager || company?.territorialManager || "").trim();
+    const getSportelloValue = (company: any) => {
+      const tmValue = getTerritorialManagerValue(company);
+      const fromConsultantId = String(
         company?.contactInfo?.laborConsultantId?.businessName ||
-        company?.contactInfo?.laborConsultantId?.agentName ||
-        "";
+          company?.contactInfo?.laborConsultantId?.agentName ||
+          ""
+      ).trim();
+      const fromLegacyText = String(company?.contactInfo?.laborConsultant || "").trim();
+
+      // Prefer canonical relation (laborConsultantId). Legacy text can be stale/wrong.
+      if (fromConsultantId) return fromConsultantId;
+      if (fromLegacyText && normalizeLabel(fromLegacyText) !== normalizeLabel(tmValue)) {
+        return fromLegacyText;
+      }
+      return "";
+    };
+
+    const effectiveRows = companies.filter((company: any) => {
+      const tmValue = getTerritorialManagerValue(company);
+      const sportelloValue = getSportelloValue(company);
 
       // If both "exclude all" flags are active, do not filter by these dimensions.
       if (excludeTerritorialManager && excludeSportelloLavoro) {
@@ -471,15 +485,10 @@ export const exportCompaniesXlsx: CustomRequestHandler = async (req, res) => {
     const dataRows = effectiveRows.map((company: any) => {
       const responsabileValue = excludeTerritorialManager
         ? ""
-        : String(company.contractDetails?.territorialManager || company.territorialManager || "");
+        : getTerritorialManagerValue(company);
       const sportelloValue = excludeSportelloLavoro
         ? ""
-        : String(
-            company.contactInfo?.laborConsultant ||
-              company.contactInfo?.laborConsultantId?.businessName ||
-              company.contactInfo?.laborConsultantId?.agentName ||
-              ""
-          );
+        : getSportelloValue(company);
 
       return [
         String(company.inpsCode || company.matricola || ""),
@@ -1265,19 +1274,22 @@ export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) =
               user: req.user?._id
             };
 
-            const sportelloCandidates = [
+            const sportelloCandidatesRaw = [
               pick(row, ['Responsabile Sportello', 'Sportello', 'Sportello di riferimento', 'Agente di riferimento']),
               pick(row, ['Sportello Lavoro', 'Consulente del Lavoro', 'Consulente del lavoro']),
             ]
               .map((value) => String(value || '').trim())
               .filter((value, idx, arr) => value && arr.indexOf(value) === idx);
-            if (sportelloCandidates.length > 0) {
-              companyData.contactInfo.laborConsultant = sportelloCandidates[0];
-            }
 
             const normalizedTerritorialManager = String(companyData.contractDetails?.territorialManager || '')
               .trim()
               .toLowerCase();
+            const sportelloCandidates = sportelloCandidatesRaw.filter(
+              (candidate) => normalizeEntityName(candidate) !== normalizeEntityName(normalizedTerritorialManager)
+            );
+            if (sportelloCandidates.length > 0) {
+              companyData.contactInfo.laborConsultant = sportelloCandidates[0];
+            }
             const normalizedLaborConsultant = String(companyData.contactInfo?.laborConsultant || '')
               .trim()
               .toLowerCase();
@@ -1341,7 +1353,11 @@ export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) =
               }
             }
 
-            if (sportelloCandidates.length > 0) {
+            if (sportelloCandidatesRaw.length > 0 && sportelloCandidates.length === 0) {
+              rowErrors.push(
+                `Sportello lavoro non valido: coincide con il responsabile territoriale ("${companyData.contractDetails?.territorialManager}")`
+              );
+            } else if (sportelloCandidates.length > 0) {
               let resolvedSportello: any = null;
               let rawSportelloName = '';
               for (const candidate of sportelloCandidates) {
@@ -1358,17 +1374,10 @@ export const uploadCompaniesFromExcel: CustomRequestHandler = async (req, res) =
                 );
               } else {
                 companyData.contactInfo.laborConsultantId = resolvedSportello._id;
-                const normalizedRaw = normalizeEntityName(rawSportelloName);
-                const normalizedAgent = normalizeEntityName(resolvedSportello.agentName || '');
-                const normalizedBusiness = normalizeEntityName(resolvedSportello.businessName || '');
-                if (normalizedRaw && normalizedRaw === normalizedAgent) {
-                  companyData.contactInfo.laborConsultant = resolvedSportello.agentName;
-                } else if (normalizedRaw && normalizedRaw === normalizedBusiness) {
-                  companyData.contactInfo.laborConsultant = resolvedSportello.businessName;
-                } else {
-                  companyData.contactInfo.laborConsultant =
-                    resolvedSportello.agentName || resolvedSportello.businessName || rawSportelloName;
-                }
+                // Canonical source: if an ID is resolved, always persist the consultant label from the sportello entity.
+                // Prefer agentName to avoid inheriting stale businessName values that may match territorial managers.
+                companyData.contactInfo.laborConsultant =
+                  resolvedSportello.agentName || resolvedSportello.businessName || rawSportelloName;
               }
             }
 

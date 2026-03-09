@@ -73,12 +73,35 @@ const Companies: React.FC = () => {
     return String(value || '-').trim() || '-';
   };
 
+  const normalizeEntityName = (value: string) =>
+    String(value || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\b(srls?|s p a|spa|s a s|sas|snc|s n c|s a p a|sapa)\b/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
   const getSportelloLavoro = (company: Company) => {
-    const raw: any = company.contactInfo?.laborConsultant;
-    if (typeof raw === 'string') return raw.trim() || '-';
-    if (raw && typeof raw === 'object') {
-      return String(raw.businessName || raw.agentName || '-').trim() || '-';
+    const territorialManager = getTerritorialManager(company);
+    const consultantRef: any = company.contactInfo?.laborConsultantId;
+    const fromConsultantRef = String(
+      consultantRef?.businessName || consultantRef?.agentName || ''
+    ).trim();
+    const fromLegacy = String((company.contactInfo as any)?.laborConsultant || '').trim();
+
+    // Priorita al riferimento canonico (laborConsultantId) se presente.
+    if (fromConsultantRef) return fromConsultantRef;
+
+    // Evita di proporre il responsabile nel campo sportello quando il dato legacy e sporco.
+    if (
+      fromLegacy &&
+      normalizeEntityName(fromLegacy) !== normalizeEntityName(territorialManager)
+    ) {
+      return fromLegacy;
     }
+
     return '-';
   };
 

@@ -359,7 +359,7 @@ export const getCompanies: CustomRequestHandler = async (req, res) => {
 
     const normalized = companies.map((company: any) => {
       const consultant = company?.contactInfo?.laborConsultantId;
-      const consultantName = consultant?.businessName || consultant?.agentName;
+      const consultantName = consultant?.agentName || consultant?.businessName;
       if (consultantName) {
         company.contactInfo = company.contactInfo || {};
         if (!company.contactInfo.laborConsultant) {
@@ -440,8 +440,8 @@ export const exportCompaniesXlsx: CustomRequestHandler = async (req, res) => {
     const getSportelloValue = (company: any) => {
       const tmValue = getTerritorialManagerValue(company);
       const fromConsultantId = String(
-        company?.contactInfo?.laborConsultantId?.businessName ||
-          company?.contactInfo?.laborConsultantId?.agentName ||
+        company?.contactInfo?.laborConsultantId?.agentName ||
+          company?.contactInfo?.laborConsultantId?.businessName ||
           ""
       ).trim();
       const fromLegacyText = String(company?.contactInfo?.laborConsultant || "").trim();
@@ -548,7 +548,7 @@ export const getCompanyById: CustomRequestHandler = async (req, res) => {
       return res.status(403).json({ error: "Access denied" });
     }
     const consultant = company?.contactInfo?.laborConsultantId as any;
-    const consultantName = consultant?.businessName || consultant?.agentName;
+    const consultantName = consultant?.agentName || consultant?.businessName;
     if (consultantName) {
       company.contactInfo = company.contactInfo || {};
       if (!company.contactInfo.laborConsultant) {

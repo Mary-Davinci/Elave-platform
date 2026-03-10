@@ -87,7 +87,7 @@ const Companies: React.FC = () => {
     const territorialManager = getTerritorialManager(company);
     const consultantRef: any = company.contactInfo?.laborConsultantId;
     const fromConsultantRef = String(
-      consultantRef?.businessName || consultantRef?.agentName || ''
+      consultantRef?.agentName || consultantRef?.businessName || ''
     ).trim();
     const fromLegacy = String((company.contactInfo as any)?.laborConsultant || '').trim();
 

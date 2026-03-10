@@ -11,6 +11,15 @@ import { useAuth } from '../contexts/AuthContext';
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(value);
 
+const getMonthYearParts = (value: string | Date) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return { month: '-', year: '-' };
+  return {
+    month: String(date.getMonth() + 1).padStart(2, '0'),
+    year: String(date.getFullYear()),
+  };
+};
+
 const normalizeCompanyKey = (value: string) =>
   value
     .toLowerCase()
@@ -45,12 +54,70 @@ const preferReadableLabel = (current: string, candidate: string) => {
   return current;
 };
 
+const normalizeDateBoundary = (value: string | undefined, boundary: 'start' | 'end'): string => {
+  if (!value) return '';
+  const raw = String(value).trim();
+  if (!raw) return '';
+
+  const monthMatch = raw.match(/^(\d{4})-(\d{2})$/);
+  if (monthMatch) {
+    const year = Number(monthMatch[1]);
+    const month = Number(monthMatch[2]);
+    if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return '';
+    const day = boundary === 'start' ? 1 : new Date(year, month, 0).getDate();
+    return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+
+  const fullDateMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (fullDateMatch) return raw;
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return '';
+  const year = parsed.getFullYear();
+  const month = parsed.getMonth() + 1;
+  const day = parsed.getDate();
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+};
+
+const splitYearMonth = (value?: string) => {
+  const raw = String(value || '').trim();
+  const monthOnly = raw.match(/^(\d{4})-(\d{2})$/);
+  if (monthOnly) return { year: monthOnly[1], month: monthOnly[2] };
+  const fullDate = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (fullDate) return { year: fullDate[1], month: fullDate[2] };
+  return { year: '', month: '' };
+};
+
+const buildYearMonth = (year: string, month: string) => {
+  const normalizedYear = String(year || '').replace(/\D/g, '').slice(0, 4);
+  const normalizedMonth = String(month || '').replace(/\D/g, '').slice(0, 2);
+  if (normalizedYear.length !== 4 || normalizedMonth.length !== 2) return '';
+  const monthNum = Number(normalizedMonth);
+  if (!Number.isFinite(monthNum) || monthNum < 1 || monthNum > 12) return '';
+  return `${normalizedYear}-${normalizedMonth}`;
+};
+
 const contoServiziOptions = [
   'Supporto agli associati con assistenza contrattuale',
   'Promozione attività formative inerenti la sicurezza e salute sui luoghi di lavoro',
   'Promozione del fondo sanitario e del welfare aziendale',
   'Promozione e sviluppo della formazione professionale e delle pari opportunità',
   'Consulenza del lavoro',
+];
+
+const monthOptions = [
+  { value: '01', label: 'Gennaio' },
+  { value: '02', label: 'Febbraio' },
+  { value: '03', label: 'Marzo' },
+  { value: '04', label: 'Aprile' },
+  { value: '05', label: 'Maggio' },
+  { value: '06', label: 'Giugno' },
+  { value: '07', label: 'Luglio' },
+  { value: '08', label: 'Agosto' },
+  { value: '09', label: 'Settembre' },
+  { value: '10', label: 'Ottobre' },
+  { value: '11', label: 'Novembre' },
+  { value: '12', label: 'Dicembre' },
 ];
 
   const Conto: React.FC = () => {
@@ -124,6 +191,14 @@ const contoServiziOptions = [
     responsabile: '',
     sportello: '',
   });
+  const [mainDateParts, setMainDateParts] = useState(() => splitYearMonth(filters.from));
+  const [reportDateParts, setReportDateParts] = useState(() => splitYearMonth(reportFilters.from));
+  const yearOptions = useMemo(() => {
+    const now = new Date().getFullYear();
+    const start = 2018;
+    const end = now + 3;
+    return Array.from({ length: end - start + 1 }, (_, idx) => String(start + idx));
+  }, []);
   const [debouncedQ, setDebouncedQ] = useState((filters.q || '').toString());
   const [debouncedCompany, setDebouncedCompany] = useState((filters.company || '').toString());
   const [debouncedResponsabile, setDebouncedResponsabile] = useState((filters.responsabile || '').toString());
@@ -140,6 +215,10 @@ const contoServiziOptions = [
   const TX_CACHE_VERSION = 'v4';
   const NON_RIC_CACHE_VERSION = 'v1';
   const CACHE_TTL_MS = 5 * 60_000;
+  const apiFrom = useMemo(() => normalizeDateBoundary(filters.from, 'start'), [filters.from]);
+  const apiTo = useMemo(() => normalizeDateBoundary(filters.to, 'end'), [filters.to]);
+  const reportApiFrom = useMemo(() => normalizeDateBoundary(reportFilters.from, 'start'), [reportFilters.from]);
+  const reportApiTo = useMemo(() => normalizeDateBoundary(reportFilters.to, 'end'), [reportFilters.to]);
 
   // Local mock fallback
   const mockTx: Transaction[] = [
@@ -171,8 +250,8 @@ const contoServiziOptions = [
       .filter((t) => t.account === activeAccount)
       .filter((t) => (filters.type ? t.type === filters.type : true))
       .filter((t) => (filters.status ? t.status === filters.status : true))
-      .filter((t) => (filters.from ? new Date(t.date) >= new Date(filters.from) : true))
-      .filter((t) => (filters.to ? new Date(t.date) <= new Date(filters.to) : true))
+      .filter((t) => (apiFrom ? new Date(t.date) >= new Date(apiFrom) : true))
+      .filter((t) => (apiTo ? new Date(t.date) <= new Date(apiTo) : true))
       .filter((t) => {
         if (serverPagingActive) return true;
         if (!qTerm) return true;
@@ -218,10 +297,38 @@ const contoServiziOptions = [
   const loading = summaryLoading || transactionsLoading;
 
   const onFilterChange = (patch: Partial<ContoFilters>) => setFilters((f) => ({ ...f, ...patch }));
+  const updateMainDatePart = (part: 'month' | 'year', value: string) => {
+    setMainDateParts((prev) => {
+      const next = {
+        ...prev,
+        [part]: value,
+      };
+      const yearMonth = buildYearMonth(next.year, next.month);
+      const from = yearMonth || (next.year.length === 4 ? `${next.year}-01` : '');
+      const to = yearMonth || (next.year.length === 4 ? `${next.year}-12` : '');
+      onFilterChange({ from, to });
+      return next;
+    });
+  };
+  const updateReportDatePart = (part: 'month' | 'year', value: string) => {
+    setReportDateParts((prev) => {
+      const next = {
+        ...prev,
+        [part]: value,
+      };
+      const yearMonth = buildYearMonth(next.year, next.month);
+      const from = yearMonth || (next.year.length === 4 ? `${next.year}-01` : '');
+      const to = yearMonth || (next.year.length === 4 ? `${next.year}-12` : '');
+      setReportFilters((current) => ({ ...current, from, to }));
+      return next;
+    });
+  };
   const getApiFilters = (): ContoFilters => {
     if (activeAccount === 'proselitismo') {
       return {
         ...filters,
+        from: apiFrom,
+        to: apiTo,
         q: '',
         company: debouncedCompany,
         responsabile: debouncedResponsabile,
@@ -294,8 +401,8 @@ const contoServiziOptions = [
     try {
       setReportLoading(true);
       const filtersPayload = {
-        from: reportFilters.from,
-        to: reportFilters.to,
+        from: reportApiFrom,
+        to: reportApiTo,
         company: reportFilters.company,
         responsabile: reportFilters.responsabile,
         sportello: reportFilters.sportello,
@@ -350,8 +457,8 @@ const contoServiziOptions = [
     try {
       setReportPreviewLoading(true);
       const filtersPayload = {
-        from: reportFilters.from,
-        to: reportFilters.to,
+        from: reportApiFrom,
+        to: reportApiTo,
         company: reportFilters.company,
         responsabile: reportFilters.responsabile,
         sportello: reportFilters.sportello,
@@ -367,6 +474,14 @@ const contoServiziOptions = [
       setReportPreviewLoading(false);
     }
   };
+
+  useEffect(() => {
+    setMainDateParts(splitYearMonth(filters.from));
+  }, [filters.from]);
+
+  useEffect(() => {
+    setReportDateParts(splitYearMonth(reportFilters.from));
+  }, [reportFilters.from]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -1229,22 +1344,34 @@ const contoServiziOptions = [
         {activeAccount === 'proselitismo' ? (
           <div className="conto-filters-grid">
             <div className="filter-field">
-              <label className="filter-label">Da</label>
-              <input
-                className="filter-input"
-                type="date"
-                value={filters.from || ''}
-                onChange={(e) => onFilterChange({ from: e.target.value })}
-              />
+              <label className="filter-label">Mese</label>
+              <select
+                className="filter-select"
+                value={mainDateParts.month}
+                onChange={(e) => updateMainDatePart('month', e.target.value)}
+              >
+                <option value="">Tutti</option>
+                {monthOptions.map((month) => (
+                  <option key={`main-month-${month.value}`} value={month.value}>
+                    {month.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="filter-field">
-              <label className="filter-label">A</label>
-              <input
-                className="filter-input"
-                type="date"
-                value={filters.to || ''}
-                onChange={(e) => onFilterChange({ to: e.target.value })}
-              />
+              <label className="filter-label">Anno</label>
+              <select
+                className="filter-select"
+                value={mainDateParts.year}
+                onChange={(e) => updateMainDatePart('year', e.target.value)}
+              >
+                <option value="">Tutti</option>
+                {yearOptions.map((year) => (
+                  <option key={`main-year-${year}`} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
             </div>
             <>
               <div className="filter-field">
@@ -1382,22 +1509,34 @@ const contoServiziOptions = [
             </div>
             <div className="conto-modal-grid">
               <div className="filter-field">
-                <label className="filter-label">Da</label>
-                <input
-                  className="filter-input"
-                  type="date"
-                  value={reportFilters.from || ''}
-                  onChange={(e) => setReportFilters((p) => ({ ...p, from: e.target.value }))}
-                />
+                <label className="filter-label">Mese</label>
+                <select
+                  className="filter-select"
+                  value={reportDateParts.month}
+                  onChange={(e) => updateReportDatePart('month', e.target.value)}
+                >
+                  <option value="">Tutti</option>
+                  {monthOptions.map((month) => (
+                    <option key={`report-from-month-${month.value}`} value={month.value}>
+                      {month.label}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="filter-field">
-                <label className="filter-label">A</label>
-                <input
-                  className="filter-input"
-                  type="date"
-                  value={reportFilters.to || ''}
-                  onChange={(e) => setReportFilters((p) => ({ ...p, to: e.target.value }))}
-                />
+                <label className="filter-label">Anno</label>
+                <select
+                  className="filter-select"
+                  value={reportDateParts.year}
+                  onChange={(e) => updateReportDatePart('year', e.target.value)}
+                >
+                  <option value="">Tutti</option>
+                  {yearOptions.map((year) => (
+                    <option key={`report-from-year-${year}`} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="filter-field">
                 <label className="filter-label">Azienda</label>
@@ -1540,9 +1679,9 @@ const contoServiziOptions = [
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ textAlign: 'left' }}>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Data</th>
                 {activeAccount === 'servizi' ? (
                   <>
+                    <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Data</th>
                     <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>N. richiesta</th>
                     <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Richiedente</th>
                     <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Descrizione</th>
@@ -1552,6 +1691,8 @@ const contoServiziOptions = [
                   </>
                 ) : (
                   <>
+                    <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Mese</th>
+                    <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Anno</th>
                     <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Aziende</th>
                     <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Responsabile Territoriale</th>
                     <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Sportello Lavoro</th>
@@ -1617,11 +1758,12 @@ const contoServiziOptions = [
                 const selectedServices = Array.isArray(t.selectedServices) && t.selectedServices.length
                   ? t.selectedServices
                   : legacyServices;
+                const dateParts = getMonthYearParts(t.date);
                 return (
                   <tr key={t.id || t._id || `${t.date}-${index}`} style={{ borderBottom: '1px solid #f1f1f1' }}>
-                    <td style={{ padding: '8px' }}>{new Date(t.date).toLocaleDateString('it-IT')}</td>
                     {activeAccount === 'servizi' ? (
                       <>
+                        <td style={{ padding: '8px' }}>{new Date(t.date).toLocaleDateString('it-IT')}</td>
                         <td style={{ padding: '8px' }}>{requestNumber}</td>
                         <td style={{ padding: '8px' }}>{requesterName}</td>
                         <td style={{ padding: '8px' }}>Fattura servizi approvata</td>
@@ -1635,6 +1777,8 @@ const contoServiziOptions = [
                       </>
                     ) : (
                       <>
+                        <td style={{ padding: '8px' }}>{dateParts.month}</td>
+                        <td style={{ padding: '8px' }}>{dateParts.year}</td>
                         <td style={{ padding: '8px' }}>{companyName}</td>
                         <td style={{ padding: '8px' }}>{responsabile}</td>
                         <td style={{ padding: '8px' }}>{sportello}</td>
@@ -1651,7 +1795,7 @@ const contoServiziOptions = [
               })}
               {filteredTx.length === 0 && (
                 <tr>
-                  <td colSpan={activeAccount === 'servizi' ? 7 : 8} style={{ padding: 16, color: '#666' }}>Nessun movimento trovato.</td>
+                  <td colSpan={activeAccount === 'servizi' ? 7 : 9} style={{ padding: 16, color: '#666' }}>Nessun movimento trovato.</td>
                 </tr>
               )}
             </tbody>
@@ -1940,7 +2084,8 @@ const contoServiziOptions = [
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ textAlign: 'left' }}>
-                  <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Data</th>
+                  <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Mese</th>
+                  <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Anno</th>
                   <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Aziende</th>
                   <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Responsabile Territoriale</th>
                   <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Sportello Lavoro</th>
@@ -1948,20 +2093,24 @@ const contoServiziOptions = [
                 </tr>
               </thead>
               <tbody>
-                {pagedNonRiconciliate.map((t) => (
-                  <tr key={t._id} style={{ borderBottom: '1px solid #f1f1f1' }}>
-                    <td style={{ padding: '8px' }}>{new Date(t.date).toLocaleDateString('it-IT')}</td>
-                    <td style={{ padding: '8px' }}>{t.companyName || '-'}</td>
-                    <td style={{ padding: '8px' }}>{t.responsabileName || '-'}</td>
-                    <td style={{ padding: '8px' }}>{t.sportelloName || '-'}</td>
-                    <td style={{ padding: '8px', color: '#e67e22', fontWeight: 600 }}>
-                      {formatCurrency(t.amount)}
-                    </td>
-                  </tr>
-                ))}
+                {pagedNonRiconciliate.map((t) => {
+                  const dateParts = getMonthYearParts(t.date);
+                  return (
+                    <tr key={t._id} style={{ borderBottom: '1px solid #f1f1f1' }}>
+                      <td style={{ padding: '8px' }}>{dateParts.month}</td>
+                      <td style={{ padding: '8px' }}>{dateParts.year}</td>
+                      <td style={{ padding: '8px' }}>{t.companyName || '-'}</td>
+                      <td style={{ padding: '8px' }}>{t.responsabileName || '-'}</td>
+                      <td style={{ padding: '8px' }}>{t.sportelloName || '-'}</td>
+                      <td style={{ padding: '8px', color: '#e67e22', fontWeight: 600 }}>
+                        {formatCurrency(t.amount)}
+                      </td>
+                    </tr>
+                  );
+                })}
                 {nonRiconciliate.length === 0 && (
                   <tr>
-                    <td colSpan={5} style={{ padding: 16, color: '#666' }}>Nessuna quota non riconciliata.</td>
+                    <td colSpan={6} style={{ padding: 16, color: '#666' }}>Nessuna quota non riconciliata.</td>
                   </tr>
                 )}
               </tbody>

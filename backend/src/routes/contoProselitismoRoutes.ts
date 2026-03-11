@@ -12,6 +12,7 @@ import {
   uploadContoProselitismoFromExcel,
   exportContoProselitismoXlsx,
   exportContoProselitismoMonthlyCompanyXlsx,
+  exportContoProselitismoCollectedRecoveryXlsx,
   previewContoProselitismoReport,
   previewContoProselitismoMonthlyCompanyReport,
 } from "../controllers/contoProselitismoController";
@@ -26,6 +27,7 @@ router.get("/imports", authMiddleware, getContoProselitismoImports);
 router.delete("/imports/:fileHash", authMiddleware, adminRoleMiddleware, deleteContoProselitismoImport);
 router.get("/export", authMiddleware, exportContoProselitismoXlsx);
 router.get("/export-monthly", authMiddleware, exportContoProselitismoMonthlyCompanyXlsx);
+router.get("/export-collected-recovery", authMiddleware, exportContoProselitismoCollectedRecoveryXlsx);
 router.get("/export/preview", authMiddleware, previewContoProselitismoReport);
 router.get("/export-monthly/preview", authMiddleware, previewContoProselitismoMonthlyCompanyReport);
 router.post("/preview", authMiddleware, adminRoleMiddleware, previewContoProselitismoFromExcel);

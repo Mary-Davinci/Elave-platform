@@ -10,6 +10,7 @@ import {
   uploadContoFromExcel as uploadContoFromExcelShared,
   exportContoTransactionsXlsx as exportContoTransactionsXlsxShared,
   exportMonthlyCompanyTotalsXlsx as exportMonthlyCompanyTotalsXlsxShared,
+  exportCollectedAndRecoveryXlsx as exportCollectedAndRecoveryXlsxShared,
   previewContoTransactionsReport as previewContoTransactionsReportShared,
   previewMonthlyCompanyTotalsReport as previewMonthlyCompanyTotalsReportShared,
 } from "./contoController";
@@ -67,6 +68,11 @@ export const exportContoProselitismoXlsx: CustomRequestHandler = async (req, res
 export const exportContoProselitismoMonthlyCompanyXlsx: CustomRequestHandler = async (req, res, next) => {
   forceProselitismoAccount(req);
   return exportMonthlyCompanyTotalsXlsxShared(req, res, next);
+};
+
+export const exportContoProselitismoCollectedRecoveryXlsx: CustomRequestHandler = async (req, res, next) => {
+  forceProselitismoAccount(req);
+  return exportCollectedAndRecoveryXlsxShared(req, res, next);
 };
 
 export const previewContoProselitismoReport: CustomRequestHandler = async (req, res, next) => {

@@ -1,4 +1,4 @@
-import { Response } from "express";
+﻿import { Response } from "express";
 import { CustomRequestHandler } from "../types/express";
 import ContoTransaction from "../models/ContoTransaction";
 import ContoNonRiconciliata from "../models/ContoNonRiconciliata";
@@ -896,7 +896,7 @@ export const uploadContoFromExcel: CustomRequestHandler = async (req, res) => {
           if (existingKeys.size > 0) {
             rowKeys.forEach((row) => {
               if (existingKeys.has(row.key)) {
-                duplicateRows.push({ rowNumber: row.rowNumber, reason: "Duplicato già presente", data: row.data });
+                duplicateRows.push({ rowNumber: row.rowNumber, reason: "Duplicato giÃ  presente", data: row.data });
               }
             });
           }
@@ -1357,6 +1357,127 @@ const collectTransactionsForExport = async (
   return allTransactions;
 };
 
+const collectNonRiconciliateForExport = async (
+  req: any
+): Promise<any[] | { errorStatus: number; errorPayload: any }> => {
+  const limit = 500;
+  let page = 1;
+  let total = Number.MAX_SAFE_INTEGER;
+  const allItems: any[] = [];
+
+  while (allItems.length < total) {
+    const capture: { statusCode?: number; payload?: any } = {};
+    const fakeRes = {
+      status(code: number) {
+        capture.statusCode = code;
+        return this;
+      },
+      json(payload: any) {
+        capture.payload = payload;
+        return this;
+      },
+    } as unknown as Response;
+
+    const fakeReq = {
+      ...req,
+      query: {
+        ...(req.query || {}),
+        page: String(page),
+        limit: String(limit),
+      },
+    } as any;
+
+    await getNonRiconciliate(fakeReq, fakeRes, undefined as any);
+
+    if ((capture.statusCode || 200) >= 400) {
+      return {
+        errorStatus: capture.statusCode || 500,
+        errorPayload: capture.payload || { error: "Export failed" },
+      };
+    }
+
+    const items = Array.isArray(capture.payload?.items) ? capture.payload.items : [];
+    allItems.push(...items);
+    total = Number(capture.payload?.total || allItems.length);
+    if (!items.length || page > 200) break;
+    page += 1;
+  }
+
+  return allItems;
+};
+
+const normalizeReportLabel = (value: unknown) =>
+  String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const getCompanySportelloName = (company: any) => {
+  const fromRef = String(
+    company?.contactInfo?.laborConsultantId?.agentName ||
+      company?.contactInfo?.laborConsultantId?.businessName ||
+      ""
+  ).trim();
+  if (fromRef) return fromRef;
+  return String(company?.contactInfo?.laborConsultant || "").trim();
+};
+
+const getCompanyResponsabileName = (company: any) =>
+  String(
+    company?.contractDetails?.territorialManager ||
+      company?.territorialManager ||
+      company?.user?.organization ||
+      `${company?.user?.firstName || ""} ${company?.user?.lastName || ""}`.trim() ||
+      company?.user?.username ||
+      ""
+  ).trim();
+
+const collectScopedCompaniesForProselitismoReport = async (req: any) => {
+  const role = req.user?.role;
+  const userId = getEffectiveUserId(req);
+  const isResponsabileScope = role === "responsabile_territoriale";
+  const isSportelloScope = role === "sportello_lavoro";
+
+  let query: any = {};
+  if (userId && !isResponsabileScope && !isSportelloScope) {
+    query.user = new mongoose.Types.ObjectId(userId);
+  }
+  if (isResponsabileScope) {
+    const scope = await getResponsabileScope(req.user._id);
+    query._id = { $in: scope.responsabileCompanyIds };
+  }
+  if (isSportelloScope) {
+    const companyIds = await getSportelloScopedCompanyIds(req.user._id);
+    query._id = { $in: companyIds };
+  }
+
+  const companies = await Company.find(query)
+    .select("businessName companyName inpsCode matricola territorialManager contractDetails.territorialManager contactInfo.laborConsultant contactInfo.laborConsultantId user")
+    .populate("contactInfo.laborConsultantId", "businessName agentName")
+    .populate("user", "firstName lastName username organization")
+    .lean();
+
+  const companyFilter = String(req.query?.company || "").trim();
+  const responsabileFilter = String(req.query?.responsabile || "").trim();
+  const sportelloFilter = String(req.query?.sportello || "").trim();
+  const companyNeedle = normalizeReportLabel(companyFilter);
+  const responsabileNeedle = normalizeReportLabel(responsabileFilter);
+  const sportelloNeedle = normalizeReportLabel(sportelloFilter);
+
+  return companies.filter((company: any) => {
+    const companyName = String(company?.businessName || company?.companyName || "").trim();
+    const responsabileName = getCompanyResponsabileName(company);
+    const sportelloName = getCompanySportelloName(company);
+    if (companyNeedle && !normalizeReportLabel(companyName).includes(companyNeedle)) return false;
+    if (responsabileNeedle && !normalizeReportLabel(responsabileName).includes(responsabileNeedle)) return false;
+    if (sportelloNeedle && !normalizeReportLabel(sportelloName).includes(sportelloNeedle)) return false;
+    return true;
+  });
+};
+
 const extractCompanyFromDescription = (description: unknown): string => {
   const text = String(description || "");
   const match = text.match(/Azienda:\s*([^|]+)/i);
@@ -1663,6 +1784,185 @@ export const exportMonthlyCompanyTotalsXlsx: CustomRequestHandler = async (req, 
   } catch (err: any) {
     console.error("Export monthly company totals xlsx error:", err);
     return res.status(500).json({ error: "Server error while exporting monthly report" });
+  }
+};
+
+export const exportCollectedAndRecoveryXlsx: CustomRequestHandler = async (req, res, next) => {
+  try {
+    const collected = await collectTransactionsForExport(req, next);
+    if (!Array.isArray(collected)) {
+      return res.status(collected.errorStatus).json(collected.errorPayload);
+    }
+    const scopedCompanies = await collectScopedCompaniesForProselitismoReport(req);
+    const fromDate = parseDateStart(String(req.query?.from || ""));
+    const toDate = parseDateEnd(String(req.query?.to || ""));
+    const txYears = Array.from(
+      new Set(
+        collected
+          .map((tx) => (tx?.date ? new Date(tx.date) : null))
+          .filter((d): d is Date => !!d && !Number.isNaN(d.getTime()))
+          .map((d) => d.getFullYear())
+      )
+    ).sort((a, b) => b - a);
+    const fallbackYear = txYears[0] ?? new Date().getFullYear();
+    const targetYear = fromDate?.getFullYear() || toDate?.getFullYear() || fallbackYear;
+    const startMonth = fromDate && fromDate.getFullYear() === targetYear ? fromDate.getMonth() : 0;
+    const endMonth = toDate && toDate.getFullYear() === targetYear ? toDate.getMonth() : 11;
+    const rangeStart = Math.min(startMonth, endMonth);
+    const rangeEnd = Math.max(startMonth, endMonth);
+    const periodMonths = Array.from({ length: rangeEnd - rangeStart + 1 }, (_, idx) => rangeStart + idx);
+    const monthNames = [
+      "gennaio",
+      "febbraio",
+      "marzo",
+      "aprile",
+      "maggio",
+      "giugno",
+      "luglio",
+      "agosto",
+      "settembre",
+      "ottobre",
+      "novembre",
+      "dicembre",
+    ];
+
+    const companyKey = (value: string) => normalizeReportLabel(value);
+    const formatEuro = (value: number) =>
+      `${Number(value || 0).toLocaleString("it-IT", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })} €`;
+
+    const companyRows = scopedCompanies.map((company: any) => {
+      const azienda = String(company?.businessName || company?.companyName || "").trim();
+      const matricola = String(company?.inpsCode || company?.matricola || "").trim();
+      const responsabile = getCompanyResponsabileName(company);
+      const sportello = getCompanySportelloName(company);
+      return {
+        key: companyKey(azienda),
+        azienda,
+        matricola,
+        responsabile,
+        sportello,
+      };
+    });
+
+    const monthlyPaid = new Map<string, number[]>();
+    for (const tx of collected) {
+      if (String(tx?.type || "").toLowerCase() !== "entrata") continue;
+      const date = tx?.date ? new Date(tx.date) : null;
+      if (!date || Number.isNaN(date.getTime())) continue;
+      if (date.getFullYear() !== targetYear) continue;
+      const azienda = String(
+        tx?.companyName ||
+          tx?.company?.companyName ||
+          tx?.company?.businessName ||
+          extractCompanyFromDescription(tx?.description) ||
+          ""
+      ).trim();
+      if (!azienda) continue;
+      const key = companyKey(azienda);
+      const monthIndex = date.getMonth();
+      const quotaElav = getQuotaElavForReport(tx);
+      if (!Number.isFinite(quotaElav) || quotaElav <= 0) continue;
+      const bucket = monthlyPaid.get(key) || Array(12).fill(0);
+      bucket[monthIndex] += quotaElav;
+      monthlyPaid.set(key, bucket);
+    }
+
+    const recoveryRows = companyRows
+      .map((company) => {
+        const monthly = monthlyPaid.get(company.key) || Array(12).fill(0);
+        const missingMonths = periodMonths.filter((monthIndex) => Number(monthly[monthIndex] || 0) <= 0);
+        return { ...company, missingMonths };
+      })
+      .filter((company) => company.missingMonths.length > 0)
+      .sort((a, b) => {
+        const aMat = String(a.matricola || "").trim();
+        const bMat = String(b.matricola || "").trim();
+        if (aMat && bMat && aMat !== bMat) return aMat.localeCompare(bMat, "it");
+        if (aMat && !bMat) return -1;
+        if (!aMat && bMat) return 1;
+        return String(a.azienda || "").localeCompare(String(b.azienda || ""), "it");
+      })
+      .map((company) => {
+        const months = Array.from(company.missingMonths || [])
+          .sort((a, b) => a - b)
+          .map((month) => monthNames[month])
+          .filter((month): month is string => Boolean(month))
+          .map((month) => month.trim());
+        const formattedMonths = months.join(", ");
+        return [
+          company.matricola || "-",
+          company.azienda || "-",
+          "Inviare copia F24 e UNIEMENS per i mesi:",
+          formattedMonths,
+        ];
+      });
+
+    const aoa: any[][] = [];
+    aoa.push([`PROSPETTO QUOTE RACCOLTE E DA RECUPERARE ${targetYear}`]);
+    aoa.push([]);
+    aoa.push(["Matricola INPS", "Nome Azienda", ...monthNames]);
+
+    for (const company of companyRows) {
+      const monthly = monthlyPaid.get(company.key) || Array(12).fill(0);
+      aoa.push([
+        company.matricola || "-",
+        company.azienda || "-",
+        ...monthly.map((value) => (value > 0 ? formatEuro(value) : "-")),
+      ]);
+    }
+
+    aoa.push([]);
+    aoa.push(["RICHIESTA COPIA F24 ED UNIEMENS PER RECUPERO CREDITO VERSO INPS"]);
+    aoa.push(["Matricola INPS", "Nome Azienda", "Azione", "Mesi da recuperare"]);
+    if (recoveryRows.length) {
+      aoa.push(...recoveryRows);
+    } else {
+      aoa.push(["-", "-", "-", "-"]);
+    }
+
+    const ws = xlsx.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = [
+      { wch: 20 }, // A
+      { wch: 40 }, // B
+      { wch: 34 }, // C
+      { wch: 62 }, // D (mesi da recuperare)
+      ...Array.from({ length: 10 }, () => ({ wch: 14 })), // E-N
+    ];
+
+    const recoveryHeaderRow = 5 + companyRows.length;
+    const recoveryDataStart = recoveryHeaderRow + 2;
+    const recoveryDataEnd = recoveryDataStart + Math.max(recoveryRows.length, 1) - 1;
+    for (let row = recoveryDataStart; row <= recoveryDataEnd; row += 1) {
+      const monthsCellRef = `D${row}`;
+      const actionCellRef = `C${row}`;
+      if (ws[monthsCellRef]) {
+        ws[monthsCellRef].s = {
+          alignment: { wrapText: true, vertical: "top" },
+        } as any;
+      }
+      if (ws[actionCellRef]) {
+        ws[actionCellRef].s = {
+          alignment: { vertical: "top" },
+        } as any;
+      }
+    }
+    const wb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(wb, ws, "Quote raccolte");
+    const buffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
+
+    const filename = `prospetto-quote-raccolte-recupero-${targetYear}.xlsx`;
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    return res.send(buffer);
+  } catch (err: any) {
+    console.error("Export collected and recovery xlsx error:", err);
+    return res.status(500).json({ error: "Server error while exporting collected/recovery report" });
   }
 };
 

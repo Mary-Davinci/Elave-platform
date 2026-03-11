@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import '../styles/Dashboard.css';
 import '../styles/Conto.css';
-import { contoService, type AccountType, type Transaction, type ContoFilters, type Summary, getContoImports, deleteContoImport, type ContoImportItem, getNonRiconciliate, type NonRiconciliataItem, type BreakdownRow, createServiziInvoiceRequest, downloadProselitismoReportXlsx, downloadProselitismoMonthlyCompanyReportXlsx, previewProselitismoReport, previewProselitismoMonthlyCompanyReport, type ProselitismoReportPreviewResponse } from '../services/contoService';
+import { contoService, type AccountType, type Transaction, type ContoFilters, type Summary, getContoImports, deleteContoImport, type ContoImportItem, getNonRiconciliate, type NonRiconciliataItem, type BreakdownRow, createServiziInvoiceRequest, downloadProselitismoReportXlsx, downloadProselitismoMonthlyCompanyReportXlsx, downloadProselitismoCollectedRecoveryReportXlsx, previewProselitismoReport, previewProselitismoMonthlyCompanyReport, type ProselitismoReportPreviewResponse } from '../services/contoService';
 import { getCompanies } from '../services/companyService';
 import type { Company } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
@@ -183,7 +183,7 @@ const monthOptions = [
   const [reportPreview, setReportPreview] = useState<ProselitismoReportPreviewResponse | null>(null);
   const [pendingImportDelete, setPendingImportDelete] = useState<ContoImportItem | null>(null);
   const [importDeleting, setImportDeleting] = useState(false);
-  const [reportMode, setReportMode] = useState<'controllo' | 'fatturazione'>('controllo');
+  const [reportMode, setReportMode] = useState<'controllo' | 'fatturazione' | 'raccolte_recovery'>('controllo');
   const [reportFilters, setReportFilters] = useState<ContoFilters>({
     from: '',
     to: '',
@@ -410,7 +410,9 @@ const monthOptions = [
       const blob =
         reportMode === 'fatturazione'
           ? await downloadProselitismoMonthlyCompanyReportXlsx(filtersPayload)
-          : await downloadProselitismoReportXlsx(filtersPayload);
+          : reportMode === 'raccolte_recovery'
+            ? await downloadProselitismoCollectedRecoveryReportXlsx(filtersPayload)
+            : await downloadProselitismoReportXlsx(filtersPayload);
       const url = URL.createObjectURL(blob);
       const fromToken = reportFilters.from || 'all';
       const toToken = reportFilters.to || 'all';
@@ -419,7 +421,9 @@ const monthOptions = [
       a.download =
         reportMode === 'fatturazione'
           ? `prospetto-fatturazione-${fromToken}-${toToken}.xlsx`
-          : `prospetto-mensile-controllo-${fromToken}-${toToken}.xlsx`;
+          : reportMode === 'raccolte_recovery'
+            ? `prospetto-quote-raccolte-recupero-${fromToken}-${toToken}.xlsx`
+            : `prospetto-mensile-controllo-${fromToken}-${toToken}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -453,6 +457,7 @@ const monthOptions = [
   };
 
   const handlePreviewProselitismoReport = async () => {
+    if (reportMode === 'raccolte_recovery') return;
     if (reportPreviewLoading) return;
     try {
       setReportPreviewLoading(true);
@@ -1338,6 +1343,16 @@ const monthOptions = [
               >
                 Prospetto di fatturazione
               </button>
+              <button
+                type="button"
+                className="conto-report-button secondary"
+                onClick={() => {
+                  setReportMode('raccolte_recovery');
+                  setShowReportModal(true);
+                }}
+              >
+                Prospetto quote raccolte e da recuperare
+              </button>
             </div>
           )}
         </div>
@@ -1504,7 +1519,13 @@ const monthOptions = [
         <div className="conto-modal-overlay" onClick={() => setShowReportModal(false)}>
           <div className="conto-modal" onClick={(e) => e.stopPropagation()}>
             <div className="conto-modal-header">
-              <h3>{reportMode === 'fatturazione' ? 'Filtra prospetto di fatturazione' : 'Filtra prospetto mensile di controllo'}</h3>
+              <h3>
+                {reportMode === 'fatturazione'
+                  ? 'Filtra prospetto di fatturazione'
+                  : reportMode === 'raccolte_recovery'
+                    ? 'Filtra prospetto quote raccolte e da recuperare'
+                    : 'Filtra prospetto mensile di controllo'}
+              </h3>
               <button type="button" onClick={() => setShowReportModal(false)}>×</button>
             </div>
             <div className="conto-modal-grid">
@@ -1585,19 +1606,21 @@ const monthOptions = [
               </div>
             </div>
             <div className="conto-modal-actions">
-              <button
-                type="button"
-                className="conto-report-button secondary"
-                onClick={handlePreviewProselitismoReport}
-                disabled={reportPreviewLoading}
-              >
-                {reportPreviewLoading ? 'Anteprima...' : 'Anteprima'}
-              </button>
+              {reportMode !== 'raccolte_recovery' && (
+                <button
+                  type="button"
+                  className="conto-report-button secondary"
+                  onClick={handlePreviewProselitismoReport}
+                  disabled={reportPreviewLoading}
+                >
+                  {reportPreviewLoading ? 'Anteprima...' : 'Anteprima'}
+                </button>
+              )}
               <button type="button" className="conto-fattura-submit" onClick={handleGenerateProselitismoReport} disabled={reportLoading}>
                 {reportLoading ? 'Generazione...' : 'Genera prospetto XLSX'}
               </button>
             </div>
-            {reportPreview && (
+            {reportMode !== 'raccolte_recovery' && reportPreview && (
               <div style={{ marginTop: 14 }}>
                 <div style={{ fontSize: 13, color: '#475569', marginBottom: 8 }}>
                   Anteprima: {reportPreview.items.length} righe su {reportPreview.total}

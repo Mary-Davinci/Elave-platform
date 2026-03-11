@@ -7,6 +7,9 @@ export interface IServiziInvoiceRequest extends Document {
   selectedServices: string[];
   amount: number;
   attachmentName?: string;
+  attachmentStorageKey?: string;
+  attachmentMimeType?: string;
+  attachmentSize?: number;
   status: "pending" | "approved" | "rejected";
   approvalNote?: string;
   approvedBy?: mongoose.Types.ObjectId;
@@ -25,6 +28,9 @@ const ServiziInvoiceRequestSchema = new Schema<IServiziInvoiceRequest>(
     selectedServices: { type: [String], required: true, default: [] },
     amount: { type: Number, required: true, min: 0 },
     attachmentName: { type: String },
+    attachmentStorageKey: { type: String },
+    attachmentMimeType: { type: String },
+    attachmentSize: { type: Number },
     status: {
       type: String,
       enum: ["pending", "approved", "rejected"],
@@ -46,4 +52,3 @@ export default mongoose.model<IServiziInvoiceRequest>(
   "ServiziInvoiceRequest",
   ServiziInvoiceRequestSchema
 );
-

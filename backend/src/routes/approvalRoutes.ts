@@ -6,7 +6,8 @@ import {
   approveAgente, 
   approveUser,
   approveInvoice,
-  rejectItem 
+  rejectItem,
+  getInvoiceAttachmentPreviewUrl,
 } from '../controllers/approvalController';
 import { authMiddleware } from '../middleware/authMiddleware';
 import { adminRoleMiddleware } from '../middleware/roleMiddleware';
@@ -17,6 +18,7 @@ router.use(authMiddleware);
 router.use(adminRoleMiddleware);
 
 router.get('/pending', getPendingItems);
+router.get('/invoice/:id/attachment-url', getInvoiceAttachmentPreviewUrl);
 
 router.post('/approve/company/:id', approveCompany);
 router.post('/approve/sportello/:id', approveSportelloLavoro);

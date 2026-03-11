@@ -8,6 +8,7 @@ import User from "../models/User";
 import ServiziInvoiceRequest from "../models/ServiziInvoiceRequest";
 import ContoTransaction from "../models/ContoTransaction";
 import { clearComputedContoCaches } from "../services/contoCacheService";
+import { getObjectStorageDownloadUrl } from "../services/objectStorage";
 
 export const getPendingItems: CustomRequestHandler = async (req, res) => {
   try {
@@ -178,6 +179,7 @@ export const getPendingItems: CustomRequestHandler = async (req, res) => {
         amount: invoice.amount,
         selectedServices: invoice.selectedServices || [],
         attachmentName: invoice.attachmentName,
+        hasAttachment: Boolean(invoice.attachmentStorageKey || invoice.attachmentName),
         createdAt: invoice.createdAt,
         requester: invoice.requester,
         user: invoice.requester,
@@ -448,6 +450,36 @@ export const approveUser: CustomRequestHandler = async (req, res) => {
   } catch (err: any) {
     console.error(" Approve user error:", err);
     return res.status(500).json({ error: "Server error while approving user" });
+  }
+};
+
+export const getInvoiceAttachmentPreviewUrl: CustomRequestHandler = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+    if (!["admin", "super_admin"].includes(req.user.role)) {
+      return res.status(403).json({ error: "Access denied. Admin privileges required." });
+    }
+
+    const { id } = req.params;
+    const invoice = await ServiziInvoiceRequest.findById(id).lean();
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice request not found" });
+    }
+    if (!invoice.attachmentStorageKey) {
+      return res.status(404).json({ error: "Nessun allegato disponibile per questa fattura" });
+    }
+
+    const url = await getObjectStorageDownloadUrl(String(invoice.attachmentStorageKey), 900);
+    return res.json({
+      url,
+      attachmentName: invoice.attachmentName || null,
+      mimeType: invoice.attachmentMimeType || null,
+    });
+  } catch (err: any) {
+    console.error("Get invoice attachment preview url error:", err);
+    return res.status(500).json({ error: "Server error while generating preview url" });
   }
 };
 

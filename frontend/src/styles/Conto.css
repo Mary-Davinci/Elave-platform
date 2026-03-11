@@ -237,6 +237,74 @@
   border: 1px solid #b20000;
 }
 
+.conto-download-button {
+  position: relative;
+  width: 150px;
+  height: 40px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  border: 1px solid #17795e;
+  background-color: #209978;
+  overflow: hidden;
+  border-radius: 4px;
+}
+
+.conto-download-button,
+.conto-download-button__icon,
+.conto-download-button__text {
+  transition: all 0.3s;
+}
+
+.conto-download-button__text {
+  transform: translateX(22px);
+  color: #fff;
+  font-weight: 600;
+}
+
+.conto-download-button__icon {
+  position: absolute;
+  transform: translateX(109px);
+  height: 100%;
+  width: 39px;
+  background-color: #17795e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.conto-download-button__svg {
+  width: 20px;
+  height: 20px;
+  fill: #fff;
+}
+
+.conto-download-button:hover {
+  background: #17795e;
+}
+
+.conto-download-button:hover .conto-download-button__text {
+  color: transparent;
+}
+
+.conto-download-button:hover .conto-download-button__icon {
+  width: 148px;
+  transform: translateX(0);
+}
+
+.conto-download-button:active .conto-download-button__icon {
+  background-color: #146c54;
+}
+
+.conto-download-button:active {
+  border: 1px solid #146c54;
+}
+
+.conto-download-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 .conto-modal-overlay {
   position: fixed;
   inset: 0;

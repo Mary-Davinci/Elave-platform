@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import '../styles/Dashboard.css';
 import '../styles/Conto.css';
-import { contoService, type AccountType, type Transaction, type ContoFilters, type Summary, getContoImports, deleteContoImport, type ContoImportItem, getNonRiconciliate, type NonRiconciliataItem, type BreakdownRow, createServiziInvoiceRequest, downloadProselitismoReportXlsx, downloadProselitismoMonthlyCompanyReportXlsx, downloadProselitismoCollectedRecoveryReportXlsx, previewProselitismoReport, previewProselitismoMonthlyCompanyReport, type ProselitismoReportPreviewResponse } from '../services/contoService';
+import { contoService, type AccountType, type Transaction, type ContoFilters, type Summary, getContoImports, deleteContoImport, type ContoImportItem, getNonRiconciliate, type NonRiconciliataItem, type BreakdownRow, createServiziInvoiceRequest, getServiziInvoiceAttachmentUrl, downloadProselitismoReportXlsx, downloadProselitismoMonthlyCompanyReportXlsx, downloadProselitismoCollectedRecoveryReportXlsx, previewProselitismoReport, previewProselitismoMonthlyCompanyReport, type ProselitismoReportPreviewResponse } from '../services/contoService';
 import { getCompanies } from '../services/companyService';
 import type { Company } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
@@ -167,16 +167,19 @@ const monthOptions = [
     servizio: string[];
     importo: string;
     allegatoNome: string;
+    allegatoFile: File | null;
   }>({
     cliente: '',
     servizio: [],
     importo: '',
     allegatoNome: '',
+    allegatoFile: null,
   });
   const [serviziDropdownOpen, setServiziDropdownOpen] = useState(false);
   const serviziDropdownRef = useRef<HTMLDivElement | null>(null);
   const [invoiceSubmitting, setInvoiceSubmitting] = useState(false);
   const [invoiceFeedback, setInvoiceFeedback] = useState<string | null>(null);
+  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportPreviewLoading, setReportPreviewLoading] = useState(false);
@@ -380,6 +383,7 @@ const monthOptions = [
         selectedServices: services,
         amount,
         attachmentName: fatturaDraft.allegatoNome || undefined,
+        attachmentFile: fatturaDraft.allegatoFile || undefined,
       });
       setInvoiceFeedback('Fattura inviata in approvazione.');
       setFatturaDraft({
@@ -387,6 +391,7 @@ const monthOptions = [
         servizio: [],
         importo: '',
         allegatoNome: '',
+        allegatoFile: null,
       });
       setServiziDropdownOpen(false);
     } catch (err: any) {
@@ -433,6 +438,23 @@ const monthOptions = [
       setError(err?.response?.data?.error || 'Errore generazione report.');
     } finally {
       setReportLoading(false);
+    }
+  };
+
+  const handleDownloadServiziReceipt = async (invoiceId?: string) => {
+    if (!invoiceId || invoiceId === '-' || downloadingInvoiceId === invoiceId) return;
+    try {
+      setDownloadingInvoiceId(invoiceId);
+      const data = await getServiziInvoiceAttachmentUrl(invoiceId);
+      if (data?.url) {
+        window.open(data.url, '_blank', 'noopener,noreferrer');
+      } else {
+        setInvoiceFeedback('Ricevuta non disponibile per questa richiesta.');
+      }
+    } catch (err: any) {
+      setInvoiceFeedback(err?.response?.data?.error || 'Errore durante il download della ricevuta.');
+    } finally {
+      setDownloadingInvoiceId(null);
     }
   };
 
@@ -1494,6 +1516,7 @@ const monthOptions = [
                   setFatturaDraft((prev) => ({
                     ...prev,
                     allegatoNome: e.target.files?.[0]?.name || '',
+                    allegatoFile: e.target.files?.[0] || null,
                   }))
                 }
               />
@@ -1711,6 +1734,7 @@ const monthOptions = [
                     <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Servizi</th>
                     <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Uscita conto FIACOM</th>
                     <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Stato</th>
+                    <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Ricevuta</th>
                   </>
                 ) : (
                   <>
@@ -1797,6 +1821,28 @@ const monthOptions = [
                           {formatCurrency(Math.abs(Number(t.amount || 0)))}
                         </td>
                         <td style={{ padding: '8px', textTransform: 'capitalize' }}>{String(t.status || '').replace('_', ' ')}</td>
+                        <td style={{ padding: '8px' }}>
+                          {requestNumber !== '-' ? (
+                            <button
+                              type="button"
+                              className="conto-download-button"
+                              onClick={() => handleDownloadServiziReceipt(requestNumber)}
+                              disabled={downloadingInvoiceId === requestNumber}
+                              title="Scarica ricevuta"
+                            >
+                              <span className="conto-download-button__text">
+                                {downloadingInvoiceId === requestNumber ? 'Carico...' : 'Scarica'}
+                              </span>
+                              <span className="conto-download-button__icon" aria-hidden="true">
+                                <svg className="conto-download-button__svg" viewBox="0 0 24 24">
+                                  <path d="M12 3a1 1 0 0 1 1 1v8.59l2.3-2.3a1 1 0 1 1 1.4 1.42l-4 3.98a1 1 0 0 1-1.4 0l-4-3.98a1 1 0 1 1 1.4-1.42L11 12.59V4a1 1 0 0 1 1-1Zm-7 14a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z" />
+                                </svg>
+                              </span>
+                            </button>
+                          ) : (
+                            '-'
+                          )}
+                        </td>
                       </>
                     ) : (
                       <>
@@ -1818,7 +1864,7 @@ const monthOptions = [
               })}
               {filteredTx.length === 0 && (
                 <tr>
-                  <td colSpan={activeAccount === 'servizi' ? 7 : 9} style={{ padding: 16, color: '#666' }}>Nessun movimento trovato.</td>
+                  <td colSpan={activeAccount === 'servizi' ? 8 : 9} style={{ padding: 16, color: '#666' }}>Nessun movimento trovato.</td>
                 </tr>
               )}
             </tbody>

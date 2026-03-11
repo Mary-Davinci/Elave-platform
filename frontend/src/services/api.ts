@@ -160,6 +160,16 @@ export const approvalService = {
     }
   },
 
+  getInvoiceAttachmentPreviewUrl: async (id: string) => {
+    try {
+      const response = await api.get(`/api/approvals/invoice/${id}/attachment-url`);
+      return response.data as { url: string; attachmentName?: string; mimeType?: string };
+    } catch (error) {
+      console.error('Error loading invoice attachment preview URL:', error);
+      throw error;
+    }
+  },
+
   // Reject items
   rejectItem: async (type: string, id: string, reason?: string) => {
     try {

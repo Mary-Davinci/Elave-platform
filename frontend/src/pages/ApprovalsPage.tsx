@@ -34,6 +34,7 @@ interface PendingItem {
   amount?: number;
   selectedServices?: string[];
   attachmentName?: string;
+  hasAttachment?: boolean;
 }
 
 interface PendingItemsData {
@@ -60,6 +61,7 @@ const StyledApprovalsPage: React.FC = () => {
   const [processingItems, setProcessingItems] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [previewingInvoiceId, setPreviewingInvoiceId] = useState<string | null>(null);
 
   // Fetch pending items from API
   const fetchPendingItems = async () => {
@@ -241,6 +243,21 @@ const StyledApprovalsPage: React.FC = () => {
     }
   };
 
+  const handlePreviewInvoiceAttachment = async (invoiceId: string) => {
+    if (!invoiceId || previewingInvoiceId === invoiceId) return;
+    try {
+      setPreviewingInvoiceId(invoiceId);
+      const data = await approvalService.getInvoiceAttachmentPreviewUrl(invoiceId);
+      if (data?.url) {
+        window.open(data.url, '_blank', 'noopener,noreferrer');
+      }
+    } catch (err: any) {
+      setError(err?.response?.data?.error || 'Impossibile aprire anteprima allegato.');
+    } finally {
+      setPreviewingInvoiceId(null);
+    }
+  };
+
   const renderItemCard = (item: PendingItem, type: string) => {
     const itemName = item?.businessName || 
                     `${item?.firstName || ''} ${item?.lastName || ''}`.trim() || 
@@ -359,7 +376,27 @@ const StyledApprovalsPage: React.FC = () => {
               {item?.attachmentName && (
                 <div className="info-row">
                   <span className="info-label">Allegato:</span>
-                  <span className="info-value">{item.attachmentName}</span>
+                  <span className="info-value">
+                    {item.attachmentName}
+                    {type === 'invoice' && item?.hasAttachment && (
+                      <button
+                        type="button"
+                        onClick={() => handlePreviewInvoiceAttachment(item._id)}
+                        disabled={previewingInvoiceId === item._id}
+                        style={{
+                          marginLeft: 10,
+                          padding: '4px 10px',
+                          borderRadius: 6,
+                          border: '1px solid #d0d7e2',
+                          background: '#fff',
+                          color: '#253676',
+                          cursor: previewingInvoiceId === item._id ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        {previewingInvoiceId === item._id ? 'Apro...' : 'Anteprima'}
+                      </button>
+                    )}
+                  </span>
                 </div>
               )}
             </div>

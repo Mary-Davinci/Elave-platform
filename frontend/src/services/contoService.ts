@@ -123,6 +123,7 @@ export interface ServiziInvoiceRequestPayload {
   selectedServices: string[];
   amount: number;
   attachmentName?: string;
+  attachmentFile?: File;
 }
 
 export interface BreakdownRow {
@@ -393,8 +394,29 @@ export const getNonRiconciliate = async (
 export const createServiziInvoiceRequest = async (
   payload: ServiziInvoiceRequestPayload
 ): Promise<{ message: string; invoiceId: string }> => {
-  const res = await api.post('/api/conto/servizi/invoice-request', payload);
+  let res: any;
+  if (payload.attachmentFile) {
+    const formData = new FormData();
+    formData.append('selectedServices', JSON.stringify(payload.selectedServices || []));
+    formData.append('amount', String(payload.amount));
+    formData.append('attachment', payload.attachmentFile);
+    if (payload.attachmentName) {
+      formData.append('attachmentName', payload.attachmentName);
+    }
+    res = await api.post('/api/conto/servizi/invoice-request', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  } else {
+    res = await api.post('/api/conto/servizi/invoice-request', payload);
+  }
   return res.data as { message: string; invoiceId: string };
+};
+
+export const getServiziInvoiceAttachmentUrl = async (
+  invoiceId: string
+): Promise<{ url: string; attachmentName?: string; mimeType?: string; size?: number }> => {
+  const res = await api.get(`/api/conto/servizi/invoice-request/${invoiceId}/attachment-url`);
+  return res.data as { url: string; attachmentName?: string; mimeType?: string; size?: number };
 };
 
 export const downloadProselitismoReportXlsx = async (

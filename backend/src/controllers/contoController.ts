@@ -2565,6 +2565,7 @@ export const deleteContoImport: CustomRequestHandler = async (req, res) => {
     let importKeys = Array.isArray(importDoc.importKeys)
       ? importDoc.importKeys.filter((value) => typeof value === "string" && value.trim().length > 0)
       : [];
+    let legacyCreatedAtWindow: { start: Date; end: Date } | null = null;
 
     if (!importKeys.length) {
       // Legacy fallback: for older imports that did not store importKeys, try to
@@ -2577,68 +2578,91 @@ export const deleteContoImport: CustomRequestHandler = async (req, res) => {
             : null;
       if (batchCreatedAt && !Number.isNaN(batchCreatedAt.getTime())) {
         const createdAtMs = batchCreatedAt.getTime();
-        const windowStart = new Date(createdAtMs - 15 * 60 * 1000);
-        const windowEnd = new Date(createdAtMs + 2 * 60 * 1000);
+        const windows = [
+          { backMs: 15 * 60 * 1000, forwardMs: 2 * 60 * 1000 }, // 15m/2m
+          { backMs: 24 * 60 * 60 * 1000, forwardMs: 24 * 60 * 60 * 1000 }, // 24h
+          { backMs: 7 * 24 * 60 * 60 * 1000, forwardMs: 24 * 60 * 60 * 1000 }, // 7d/1d
+        ];
 
-        const [legacyTx, legacyNonRic] = await Promise.all([
-          ContoTransaction.find(
-            {
-              account: selectedAccount,
-              source: "xlsx",
-              createdAt: { $gte: windowStart, $lte: windowEnd },
-              importKey: { $exists: true, $ne: "" },
-            },
-            { importKey: 1, createdAt: 1 }
-          )
-            .sort({ createdAt: -1 })
-            .lean(),
-          ContoNonRiconciliata.find(
-            {
-              account: selectedAccount,
-              source: "xlsx",
-              createdAt: { $gte: windowStart, $lte: windowEnd },
-              importKey: { $exists: true, $ne: "" },
-            },
-            { importKey: 1, createdAt: 1 }
-          )
-            .sort({ createdAt: -1 })
-            .lean(),
-        ]);
+        for (const windowCfg of windows) {
+          const windowStart = new Date(createdAtMs - windowCfg.backMs);
+          const windowEnd = new Date(createdAtMs + windowCfg.forwardMs);
 
-        const bucketMap = new Map<
-          number,
-          {
-            keys: Set<string>;
-            docs: number;
+          const [legacyTx, legacyNonRic] = await Promise.all([
+            ContoTransaction.find(
+              {
+                account: selectedAccount,
+                source: "xlsx",
+                createdAt: { $gte: windowStart, $lte: windowEnd },
+              },
+              { importKey: 1, createdAt: 1 }
+            )
+              .sort({ createdAt: -1 })
+              .lean(),
+            ContoNonRiconciliata.find(
+              {
+                account: selectedAccount,
+                source: "xlsx",
+                createdAt: { $gte: windowStart, $lte: windowEnd },
+              },
+              { importKey: 1, createdAt: 1 }
+            )
+              .sort({ createdAt: -1 })
+              .lean(),
+          ]);
+
+          const bucketMap = new Map<
+            number,
+            {
+              keys: Set<string>;
+              docs: number;
+            }
+          >();
+          for (const row of [...legacyTx, ...legacyNonRic]) {
+            const key = String((row as any)?.importKey || "").trim();
+            const ts = new Date((row as any)?.createdAt || 0).getTime();
+            if (!key || !Number.isFinite(ts) || ts <= 0) continue;
+            const bucketTs = Math.floor(ts / 1000) * 1000; // second precision bucket
+            const bucket = bucketMap.get(bucketTs) || { keys: new Set<string>(), docs: 0 };
+            bucket.keys.add(key);
+            bucket.docs += 1;
+            bucketMap.set(bucketTs, bucket);
           }
-        >();
-        for (const row of [...legacyTx, ...legacyNonRic]) {
-          const key = String((row as any)?.importKey || "").trim();
-          const ts = new Date((row as any)?.createdAt || 0).getTime();
-          if (!key || !Number.isFinite(ts) || ts <= 0) continue;
-          const bucketTs = Math.floor(ts / 1000) * 1000; // second precision bucket
-          const bucket = bucketMap.get(bucketTs) || { keys: new Set<string>(), docs: 0 };
-          bucket.keys.add(key);
-          bucket.docs += 1;
-          bucketMap.set(bucketTs, bucket);
+
+          const allRows = [...legacyTx, ...legacyNonRic];
+          const allBucketMap = new Map<number, number>();
+          for (const row of allRows) {
+            const ts = new Date((row as any)?.createdAt || 0).getTime();
+            if (!Number.isFinite(ts) || ts <= 0) continue;
+            const bucketTs = Math.floor(ts / 1000) * 1000;
+            allBucketMap.set(bucketTs, (allBucketMap.get(bucketTs) || 0) + 1);
+          }
+
+          const targetRows = Number(importDoc.rowCount || 0);
+          const rankedBuckets = Array.from(allBucketMap.entries())
+            .map(([ts, docs]) => {
+              const keyedDocs = bucketMap.get(ts)?.docs || 0;
+              const timeDistance = Math.abs(createdAtMs - ts);
+              const sizeDistance = targetRows > 0 ? Math.abs(docs - targetRows) : 0;
+              return { ts, docs, keyedDocs, timeDistance, sizeDistance };
+            })
+            .sort((a, b) => {
+              if (a.sizeDistance !== b.sizeDistance) return a.sizeDistance - b.sizeDistance;
+              return a.timeDistance - b.timeDistance;
+            });
+
+          const chosen = rankedBuckets[0];
+          if (chosen) {
+            const start = new Date(chosen.ts);
+            const end = new Date(chosen.ts + 999);
+            legacyCreatedAtWindow = { start, end };
+            const chosenKeys = bucketMap.get(chosen.ts);
+            importKeys = chosenKeys ? Array.from(chosenKeys.keys) : [];
+            break;
+          }
         }
-
-        const targetRows = Number(importDoc.rowCount || 0);
-        const rankedBuckets = Array.from(bucketMap.entries())
-          .map(([ts, bucket]) => {
-            const timeDistance = Math.abs(createdAtMs - ts);
-            const sizeDistance = targetRows > 0 ? Math.abs(bucket.docs - targetRows) : 0;
-            return { ts, bucket, timeDistance, sizeDistance };
-          })
-          .sort((a, b) => {
-            if (a.sizeDistance !== b.sizeDistance) return a.sizeDistance - b.sizeDistance;
-            return a.timeDistance - b.timeDistance;
-          });
-
-        const chosen = rankedBuckets[0];
-        importKeys = chosen ? Array.from(chosen.bucket.keys) : [];
       }
-      if (!importKeys.length) {
+      if (!importKeys.length && !legacyCreatedAtWindow) {
         return res.status(409).json({
           error:
             "Impossibile eliminare questo flusso storico automaticamente: manca la mappatura righe/importKey. Ricarica i nuovi flussi per usare questa funzione.",
@@ -2646,17 +2670,17 @@ export const deleteContoImport: CustomRequestHandler = async (req, res) => {
       }
     }
 
+    const baseFilter = { account: selectedAccount, source: "xlsx" } as any;
+    const transactionFilter = importKeys.length
+      ? { ...baseFilter, importKey: { $in: importKeys } }
+      : { ...baseFilter, createdAt: { $gte: legacyCreatedAtWindow!.start, $lte: legacyCreatedAtWindow!.end } };
+    const nonRiconciliataFilter = importKeys.length
+      ? { ...baseFilter, importKey: { $in: importKeys } }
+      : { ...baseFilter, createdAt: { $gte: legacyCreatedAtWindow!.start, $lte: legacyCreatedAtWindow!.end } };
+
     const [deletedTransactions, deletedNonRiconciliate] = await Promise.all([
-      ContoTransaction.deleteMany({
-        account: selectedAccount,
-        source: "xlsx",
-        importKey: { $in: importKeys },
-      }),
-      ContoNonRiconciliata.deleteMany({
-        account: selectedAccount,
-        source: "xlsx",
-        importKey: { $in: importKeys },
-      }),
+      ContoTransaction.deleteMany(transactionFilter),
+      ContoNonRiconciliata.deleteMany(nonRiconciliataFilter),
     ]);
 
     await ContoImport.deleteOne({ _id: importDoc._id });
@@ -2666,6 +2690,7 @@ export const deleteContoImport: CustomRequestHandler = async (req, res) => {
       message: "File flusso eliminato con successo",
       deletedTransactions: deletedTransactions.deletedCount || 0,
       deletedNonRiconciliate: deletedNonRiconciliate.deletedCount || 0,
+      deletionMode: importKeys.length ? "importKeys" : "legacyCreatedAtWindow",
     });
   } catch (err: any) {
     console.error("Delete conto import error:", err);

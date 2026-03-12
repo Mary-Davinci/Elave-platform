@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+﻿import { Request, Response } from "express";
 import SportelloLavoro from "../models/sportello";
 import { CustomRequestHandler } from "../types/express";
 import mongoose from "mongoose";
@@ -10,9 +10,86 @@ import { IUser } from "../models/User";
 import { NotificationService } from "../models/notificationService";
 import User from "../models/User";
 import Company from "../models/Company";
+import {
+  deleteObjectFromObjectStorage,
+  downloadObjectFromObjectStorage,
+  isObjectStorageEnabled,
+  uploadBufferToObjectStorage,
+} from "../services/objectStorage";
 
 const isPrivileged = (role: string) => role === 'admin' || role === 'super_admin';
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const sanitizeFileName = (value: string) =>
+  String(value || "file")
+    .trim()
+    .replace(/[^\w.\- ]+/g, "_")
+    .replace(/\s+/g, "_");
+
+const buildSportelloDocumentStorageKey = (
+  file: Express.Multer.File,
+  kind: "signed-contract" | "legal-document"
+) => {
+  const now = new Date();
+  const dateSegment = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+  return `sportello-lavoro/${kind}/${dateSegment}/${Date.now()}-${sanitizeFileName(file.originalname)}`;
+};
+
+const isLocalFsPath = (value: string) =>
+  Boolean(value) && (path.isAbsolute(value) || value.includes("\\uploads\\") || value.includes("/uploads/"));
+
+const removeLocalFileIfExists = (filePath?: string) => {
+  if (!filePath) return;
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+  }
+};
+
+const buildSportelloFileMeta = async (
+  file: Express.Multer.File | undefined,
+  kind: "signed-contract" | "legal-document"
+) => {
+  if (!file) return undefined;
+
+  if (isObjectStorageEnabled()) {
+    const storageKey = buildSportelloDocumentStorageKey(file, kind);
+    const fileBuffer = fs.readFileSync(file.path);
+    await uploadBufferToObjectStorage(storageKey, fileBuffer, file.mimetype || "application/octet-stream");
+    removeLocalFileIfExists(file.path);
+    return {
+      filename: file.filename || file.originalname,
+      originalName: file.originalname,
+      path: storageKey,
+      mimetype: file.mimetype,
+      size: file.size
+    };
+  }
+
+  return {
+    filename: file.filename,
+    originalName: file.originalname,
+    path: file.path,
+    mimetype: file.mimetype,
+    size: file.size
+  };
+};
+
+const cleanupPreviousSportelloDocument = async (docPath?: string) => {
+  if (!docPath) return;
+
+  if (isLocalFsPath(docPath)) {
+    removeLocalFileIfExists(docPath);
+    return;
+  }
+
+  if (isObjectStorageEnabled()) {
+    try {
+      await deleteObjectFromObjectStorage(docPath);
+    } catch (err) {
+      console.warn("Unable to delete previous sportello document from object storage:", docPath, err);
+    }
+  }
+};
 
 interface MulterFiles {
   [fieldname: string]: Express.Multer.File[];
@@ -136,6 +213,65 @@ export const getSportelloLavoroById: CustomRequestHandler = async (req, res) => 
   }
 };
 
+export const downloadSportelloLavoroDocument: CustomRequestHandler = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+
+    const { id, type } = req.params as { id: string; type: string };
+    const normalizedType = String(type || "").toLowerCase();
+    if (normalizedType !== "contract" && normalizedType !== "legal") {
+      return res.status(400).json({ error: "Tipo documento non valido" });
+    }
+
+    const sportelloLavoro = await SportelloLavoro.findById(id);
+    if (!sportelloLavoro) {
+      return res.status(404).json({ error: "Sportello Lavoro not found" });
+    }
+
+    if (!isPrivileged(req.user.role) && !sportelloLavoro.user.equals(req.user._id)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const fileMeta =
+      normalizedType === "contract"
+        ? sportelloLavoro.signedContractFile
+        : sportelloLavoro.legalDocumentFile;
+
+    if (!fileMeta?.path) {
+      return res.status(404).json({ error: "Documento non disponibile" });
+    }
+
+    const fileName =
+      fileMeta.originalName ||
+      fileMeta.filename ||
+      (normalizedType === "contract" ? "contratto" : "documento-legale");
+
+    if (isLocalFsPath(fileMeta.path)) {
+      if (!fs.existsSync(fileMeta.path)) {
+        return res.status(404).json({ error: "Documento non trovato nel filesystem" });
+      }
+      return res.download(fileMeta.path, fileName);
+    }
+
+    if (!isObjectStorageEnabled()) {
+      return res.status(400).json({ error: "Object storage non configurato" });
+    }
+
+    const objectData = await downloadObjectFromObjectStorage(String(fileMeta.path));
+    res.setHeader("Content-Type", fileMeta.mimetype || objectData.contentType || "application/octet-stream");
+    res.setHeader("Content-Disposition", `attachment; filename=\"${encodeURIComponent(fileName)}\"`);
+    if (objectData.contentLength) {
+      res.setHeader("Content-Length", String(objectData.contentLength));
+    }
+    return res.send(objectData.buffer);
+  } catch (err: any) {
+    console.error("Download sportello lavoro document error:", err);
+    return res.status(500).json({ error: "Server error while downloading document" });
+  }
+};
+
 export const createSportelloLavoro: CustomRequestHandler = async (req, res) => {
   try {
     if (!req.user) {
@@ -148,7 +284,7 @@ export const createSportelloLavoro: CustomRequestHandler = async (req, res) => {
         return res.status(400).json({ error: err.message });
       }
 
-      // ✅ Narrow user for this callback scope
+      // âœ… Narrow user for this callback scope
       const user = (req as AuthenticatedRequest).user;
       if (!user) {
         return res.status(401).json({ error: "User not authenticated" });
@@ -194,7 +330,7 @@ export const createSportelloLavoro: CustomRequestHandler = async (req, res) => {
       if (!resolvedBusinessName) errors.push("Ragione Sociale is required");
       if (!vatNumber) errors.push("Partita IVA is required");
       if (!address) errors.push("Indirizzo is required");
-      if (!city) errors.push("Città is required");
+      if (!city) errors.push("CittÃ  is required");
       if (!postalCode) errors.push("CAP is required");
       if (!province) errors.push("Provincia is required");
       if (!Number.isFinite(commissionNum)) {
@@ -208,9 +344,10 @@ export const createSportelloLavoro: CustomRequestHandler = async (req, res) => {
         const files = req.files as MulterFiles | undefined;
         const signedContractFile = files?.signedContractFile?.[0];
         const legalDocumentFile = files?.legalDocumentFile?.[0];
+        const signedContractMeta = await buildSportelloFileMeta(signedContractFile, "signed-contract");
+        const legalDocumentMeta = await buildSportelloFileMeta(legalDocumentFile, "legal-document");
 
-        const isAutoApproved = ["admin", "super_admin"].includes(user.role);
-        const needsApproval = ["responsabile_territoriale"].includes(user.role);
+        const shouldRequireApproval = true;
 
         let resolvedUserId = user._id;
         if (isPrivileged(user.role) && agentId) {
@@ -236,45 +373,27 @@ export const createSportelloLavoro: CustomRequestHandler = async (req, res) => {
           agreedCommission: commissionNum,
           email: email || "",
           pec: pec || "",
-          signedContractFile: signedContractFile
-            ? {
-                filename: signedContractFile.filename,
-                originalName: signedContractFile.originalname,
-                path: signedContractFile.path,
-                mimetype: signedContractFile.mimetype,
-                size: signedContractFile.size
-              }
-            : undefined,
-          legalDocumentFile: legalDocumentFile
-            ? {
-                filename: legalDocumentFile.filename,
-                originalName: legalDocumentFile.originalname,
-                path: legalDocumentFile.path,
-                mimetype: legalDocumentFile.mimetype,
-                size: legalDocumentFile.size
-              }
-            : undefined,
-          isActive: isAutoApproved,
-          isApproved: isAutoApproved,
-          pendingApproval: needsApproval,
-          approvedBy: isAutoApproved ? user._id : undefined,
-          approvedAt: isAutoApproved ? new Date() : undefined,
+          signedContractFile: signedContractMeta,
+          legalDocumentFile: legalDocumentMeta,
+          isActive: false,
+          isApproved: false,
+          pendingApproval: shouldRequireApproval,
+          approvedBy: undefined,
+          approvedAt: undefined,
           user: new mongoose.Types.ObjectId(resolvedUserId)
         });
 
         await newSportelloLavoro.save();
 
-        if (needsApproval) {
-          await NotificationService.notifyAdminsOfPendingApproval({
-            title: "New Sportello Lavoro Pending Approval",
-            message: `${user.firstName || user.username} created a new Sportello Lavoro "${resolvedBusinessName}" that needs approval.`,
-            type: "sportello_pending",
-            entityId: (newSportelloLavoro._id as mongoose.Types.ObjectId).toString(),
-            entityName: resolvedBusinessName,
-            createdBy: user._id.toString(),
-            createdByName: user.firstName ? `${user.firstName} ${user.lastName}` : user.username
-          });
-        }
+        await NotificationService.notifyAdminsOfPendingApproval({
+          title: "New Sportello Lavoro Pending Approval",
+          message: `${user.firstName || user.username} created a new Sportello Lavoro "${resolvedBusinessName}" that needs approval.`,
+          type: "sportello_pending",
+          entityId: (newSportelloLavoro._id as mongoose.Types.ObjectId).toString(),
+          entityName: resolvedBusinessName,
+          createdBy: user._id.toString(),
+          createdByName: user.firstName ? `${user.firstName} ${user.lastName}` : user.username
+        });
 
         const DashboardStats = require("../models/Dashboard").default;
         await DashboardStats.findOneAndUpdate(
@@ -285,9 +404,7 @@ export const createSportelloLavoro: CustomRequestHandler = async (req, res) => {
 
         return res.status(201).json({
           ...newSportelloLavoro.toObject(),
-          message: needsApproval
-            ? "Sportello Lavoro created and submitted for approval"
-            : "Sportello Lavoro created successfully"
+          message: "Sportello Lavoro created and submitted for approval"
         });
       } catch (saveError: any) {
         console.error("Create sportello lavoro error:", saveError);
@@ -317,7 +434,7 @@ export const updateSportelloLavoro: CustomRequestHandler = async (req, res) => {
         return res.status(400).json({ error: err.message });
       }
 
-      // ✅ Narrow user for this callback scope
+      // âœ… Narrow user for this callback scope
       const user = (req as AuthenticatedRequest).user;
       if (!user) {
         return res.status(401).json({ error: "User not authenticated" });
@@ -350,7 +467,7 @@ export const updateSportelloLavoro: CustomRequestHandler = async (req, res) => {
       if (businessName === "") errors.push("Ragione Sociale cannot be empty");
       if (vatNumber === "") errors.push("Partita IVA cannot be empty");
       if (address === "") errors.push("Indirizzo cannot be empty");
-      if (city === "") errors.push("Città cannot be empty");
+      if (city === "") errors.push("CittÃ  cannot be empty");
       if (postalCode === "") errors.push("CAP cannot be empty");
       if (province === "") errors.push("Provincia cannot be empty");
       if (errors.length > 0) {
@@ -384,22 +501,12 @@ export const updateSportelloLavoro: CustomRequestHandler = async (req, res) => {
         if (pec !== undefined) sportelloLavoro.pec = pec;
 
         if (signedContractFile) {
-          sportelloLavoro.signedContractFile = {
-            filename: signedContractFile.filename,
-            originalName: signedContractFile.originalname,
-            path: signedContractFile.path,
-            mimetype: signedContractFile.mimetype,
-            size: signedContractFile.size
-          };
+          await cleanupPreviousSportelloDocument(sportelloLavoro.signedContractFile?.path);
+          sportelloLavoro.signedContractFile = await buildSportelloFileMeta(signedContractFile, "signed-contract");
         }
         if (legalDocumentFile) {
-          sportelloLavoro.legalDocumentFile = {
-            filename: legalDocumentFile.filename,
-            originalName: legalDocumentFile.originalname,
-            path: legalDocumentFile.path,
-            mimetype: legalDocumentFile.mimetype,
-            size: legalDocumentFile.size
-          };
+          await cleanupPreviousSportelloDocument(sportelloLavoro.legalDocumentFile?.path);
+          sportelloLavoro.legalDocumentFile = await buildSportelloFileMeta(legalDocumentFile, "legal-document");
         }
 
         await sportelloLavoro.save();
@@ -470,12 +577,8 @@ export const deleteSportelloLavoro: CustomRequestHandler = async (req, res) => {
       return res.status(403).json({ error: "Access denied" });
     }
 
-    if (sportelloLavoro.signedContractFile?.path && fs.existsSync(sportelloLavoro.signedContractFile.path)) {
-      fs.unlinkSync(sportelloLavoro.signedContractFile.path);
-    }
-    if (sportelloLavoro.legalDocumentFile?.path && fs.existsSync(sportelloLavoro.legalDocumentFile.path)) {
-      fs.unlinkSync(sportelloLavoro.legalDocumentFile.path);
-    }
+    await cleanupPreviousSportelloDocument(sportelloLavoro.signedContractFile?.path);
+    await cleanupPreviousSportelloDocument(sportelloLavoro.legalDocumentFile?.path);
 
     await sportelloLavoro.deleteOne();
 
@@ -505,7 +608,7 @@ export const uploadSportelloLavoroFromExcel: CustomRequestHandler = async (req, 
         return res.status(400).json({ error: err.message });
       }
 
-      // ✅ Narrow user for this callback scope
+      // âœ… Narrow user for this callback scope
       const user = (req as AuthenticatedRequest).user;
       if (!user) {
         return res.status(401).json({ error: "User not authenticated" });
@@ -538,7 +641,7 @@ export const uploadSportelloLavoroFromExcel: CustomRequestHandler = async (req, 
               businessName: row['Ragione Sociale'] || '',
               vatNumber: row['Partita IVA'] || '',
               address: row['Indirizzo'] || '',
-              city: row['Città'] || row["Citta'"] || '',
+              city: row['CittÃ '] || row["Citta'"] || '',
               postalCode: row['CAP'] || '',
               province: row['Provincia'] || '',
               agreedCommission: parseFloat(String(row['Competenze concordate al %'] || '0')) || 0,
@@ -550,7 +653,7 @@ export const uploadSportelloLavoroFromExcel: CustomRequestHandler = async (req, 
             if (!sportelloLavoroData.businessName) throw new Error("Ragione Sociale is required");
             if (!sportelloLavoroData.vatNumber) throw new Error("Partita IVA is required");
             if (!sportelloLavoroData.address) throw new Error("Indirizzo is required");
-            if (!sportelloLavoroData.city) throw new Error("Città is required");
+            if (!sportelloLavoroData.city) throw new Error("CittÃ  is required");
             if (!sportelloLavoroData.postalCode) throw new Error("CAP is required");
             if (!sportelloLavoroData.province) throw new Error("Provincia is required");
             if (!sportelloLavoroData.agreedCommission || sportelloLavoroData.agreedCommission <= 0) {

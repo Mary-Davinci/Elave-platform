@@ -156,6 +156,10 @@ export const getPendingItems: CustomRequestHandler = async (req, res) => {
           country: 'Italy'
         } : undefined,
         role: 'sportello_lavoro',
+        signedContractName: sportello.signedContractFile?.originalName || sportello.signedContractFile?.filename,
+        legalDocumentName: sportello.legalDocumentFile?.originalName || sportello.legalDocumentFile?.filename,
+        hasSignedContract: Boolean(sportello.signedContractFile?.path),
+        hasLegalDocument: Boolean(sportello.legalDocumentFile?.path),
         user: sportello.user,
         createdAt: sportello.createdAt,
         status: 'pending'
@@ -167,6 +171,10 @@ export const getPendingItems: CustomRequestHandler = async (req, res) => {
         email: agente.email || undefined,
         role: 'agente',
         address: agente.address ? `${agente.address}, ${agente.city || 'Unknown'} ${agente.postalCode || ''} (${agente.province || 'Unknown'})` : undefined,
+        signedContractName: agente.signedContractFile?.originalName || agente.signedContractFile?.filename,
+        legalDocumentName: agente.legalDocumentFile?.originalName || agente.legalDocumentFile?.filename,
+        hasSignedContract: Boolean(agente.signedContractFile?.path),
+        hasLegalDocument: Boolean(agente.legalDocumentFile?.path),
         user: agente.user,
         createdAt: agente.createdAt,
         status: 'pending'

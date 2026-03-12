@@ -170,6 +170,19 @@ export const approvalService = {
     }
   },
 
+  downloadPendingDocument: async (
+    type: 'agente' | 'sportello',
+    id: string,
+    docType: 'contract' | 'legal'
+  ) => {
+    const endpoint =
+      type === 'agente'
+        ? `/api/agenti/${id}/download?type=${docType}`
+        : `/api/sportello-lavoro/${id}/download/${docType}`;
+    const response = await api.get(endpoint, { responseType: 'blob' });
+    return response.data as Blob;
+  },
+
   // Reject items
   rejectItem: async (type: string, id: string, reason?: string) => {
     try {

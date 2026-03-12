@@ -1,7 +1,6 @@
 // src/services/employeeService.ts
 import api from './api';
 import { Employee } from '../types/interfaces';
-
 export interface EmployeeFormData {
   companyId: string;
   nome: string;

@@ -36,7 +36,7 @@ const ContoNonRiconciliataSchema = new Schema<IContoNonRiconciliata>(
   { timestamps: true }
 );
 
-// Query patterns used by non riconciliate filters (account/date + pagination sort)
+// Query patterns per le non riconciliate  (account/date + pagination sort)
 ContoNonRiconciliataSchema.index({ account: 1, date: -1, createdAt: -1 });
 ContoNonRiconciliataSchema.index({ account: 1, user: 1, date: -1, createdAt: -1 });
 ContoNonRiconciliataSchema.index({ account: 1, company: 1, date: -1, createdAt: -1 });

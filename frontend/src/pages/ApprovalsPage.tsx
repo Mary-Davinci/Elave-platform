@@ -35,6 +35,10 @@ interface PendingItem {
   selectedServices?: string[];
   attachmentName?: string;
   hasAttachment?: boolean;
+  signedContractName?: string;
+  legalDocumentName?: string;
+  hasSignedContract?: boolean;
+  hasLegalDocument?: boolean;
 }
 
 interface PendingItemsData {
@@ -62,6 +66,7 @@ const StyledApprovalsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [previewingInvoiceId, setPreviewingInvoiceId] = useState<string | null>(null);
+  const [previewingDocumentKey, setPreviewingDocumentKey] = useState<string | null>(null);
 
   // Fetch pending items from API
   const fetchPendingItems = async () => {
@@ -258,6 +263,27 @@ const StyledApprovalsPage: React.FC = () => {
     }
   };
 
+  const handlePreviewPendingDocument = async (
+    type: 'agente' | 'sportello',
+    id: string,
+    docType: 'contract' | 'legal'
+  ) => {
+    const key = `${type}:${id}:${docType}`;
+    if (previewingDocumentKey === key) return;
+
+    try {
+      setPreviewingDocumentKey(key);
+      const blob = await approvalService.downloadPendingDocument(type, id, docType);
+      const blobUrl = window.URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank', 'noopener,noreferrer');
+      window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 60000);
+    } catch (err: any) {
+      setError(err?.response?.data?.error || 'Impossibile aprire il documento.');
+    } finally {
+      setPreviewingDocumentKey(null);
+    }
+  };
+
   const renderItemCard = (item: PendingItem, type: string) => {
     const itemName = item?.businessName || 
                     `${item?.firstName || ''} ${item?.lastName || ''}`.trim() || 
@@ -396,6 +422,76 @@ const StyledApprovalsPage: React.FC = () => {
                         {previewingInvoiceId === item._id ? 'Apro...' : 'Anteprima'}
                       </button>
                     )}
+                  </span>
+                </div>
+              )}
+              {(type === 'agente' || type === 'sportello') && item?.hasSignedContract && (
+                <div className="info-row">
+                  <span className="info-label">Contratto firmato:</span>
+                  <span className="info-value">
+                    {item.signedContractName || 'Contratto'}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handlePreviewPendingDocument(
+                          type === 'agente' ? 'agente' : 'sportello',
+                          item._id,
+                          'contract'
+                        )
+                      }
+                      disabled={previewingDocumentKey === `${type === 'agente' ? 'agente' : 'sportello'}:${item._id}:contract`}
+                      style={{
+                        marginLeft: 10,
+                        padding: '4px 10px',
+                        borderRadius: 6,
+                        border: '1px solid #d0d7e2',
+                        background: '#fff',
+                        color: '#253676',
+                        cursor:
+                          previewingDocumentKey === `${type === 'agente' ? 'agente' : 'sportello'}:${item._id}:contract`
+                            ? 'not-allowed'
+                            : 'pointer'
+                      }}
+                    >
+                      {previewingDocumentKey === `${type === 'agente' ? 'agente' : 'sportello'}:${item._id}:contract`
+                        ? 'Apro...'
+                        : 'Anteprima'}
+                    </button>
+                  </span>
+                </div>
+              )}
+              {(type === 'agente' || type === 'sportello') && item?.hasLegalDocument && (
+                <div className="info-row">
+                  <span className="info-label">Documento legale:</span>
+                  <span className="info-value">
+                    {item.legalDocumentName || 'Documento'}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handlePreviewPendingDocument(
+                          type === 'agente' ? 'agente' : 'sportello',
+                          item._id,
+                          'legal'
+                        )
+                      }
+                      disabled={previewingDocumentKey === `${type === 'agente' ? 'agente' : 'sportello'}:${item._id}:legal`}
+                      style={{
+                        marginLeft: 10,
+                        padding: '4px 10px',
+                        borderRadius: 6,
+                        border: '1px solid #d0d7e2',
+                        background: '#fff',
+                        color: '#253676',
+                        cursor:
+                          previewingDocumentKey === `${type === 'agente' ? 'agente' : 'sportello'}:${item._id}:legal`
+                            ? 'not-allowed'
+                            : 'pointer'
+                      }}
+                    >
+                      {previewingDocumentKey === `${type === 'agente' ? 'agente' : 'sportello'}:${item._id}:legal`
+                        ? 'Apro...'
+                        : 'Anteprima'}
+                    </button>
                   </span>
                 </div>
               )}

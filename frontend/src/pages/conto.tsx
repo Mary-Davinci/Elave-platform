@@ -1733,7 +1733,6 @@ const monthOptions = [
                     <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Descrizione</th>
                     <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Servizi</th>
                     <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Uscita conto FIACOM</th>
-                    <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Stato</th>
                     <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Ricevuta</th>
                   </>
                 ) : (
@@ -1820,7 +1819,6 @@ const monthOptions = [
                         <td style={{ padding: '8px', color: '#e74c3c', fontWeight: 600 }}>
                           {formatCurrency(Math.abs(Number(t.amount || 0)))}
                         </td>
-                        <td style={{ padding: '8px', textTransform: 'capitalize' }}>{String(t.status || '').replace('_', ' ')}</td>
                         <td style={{ padding: '8px' }}>
                           {requestNumber !== '-' ? (
                             <button
@@ -1864,7 +1862,7 @@ const monthOptions = [
               })}
               {filteredTx.length === 0 && (
                 <tr>
-                  <td colSpan={activeAccount === 'servizi' ? 8 : 9} style={{ padding: 16, color: '#666' }}>Nessun movimento trovato.</td>
+                  <td colSpan={activeAccount === 'servizi' ? 7 : 9} style={{ padding: 16, color: '#666' }}>Nessun movimento trovato.</td>
                 </tr>
               )}
             </tbody>

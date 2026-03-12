@@ -1,7 +1,8 @@
-import express from 'express';
+﻿import express from 'express';
 import {
   getSportelloLavoro,
   getSportelloLavoroById,
+  downloadSportelloLavoroDocument,
   createSportelloLavoro,
   updateSportelloLavoro,
   deleteSportelloLavoro,
@@ -12,7 +13,6 @@ import { segnalaториRoleMiddleware, responsabileTerritorialeMiddleware } fro
 
 const router = express.Router();
 
-
 router.get('/test', (req, res) => {
   res.json({
     message: 'Sportello Lavoro router is working!',
@@ -20,11 +20,11 @@ router.get('/test', (req, res) => {
   });
 });
 
-
 router.post('/upload', authMiddleware, responsabileTerritorialeMiddleware, uploadSportelloLavoroFromExcel);
 
 router.get('/', authMiddleware, segnalaториRoleMiddleware, getSportelloLavoro);
 router.get('/:id', authMiddleware, segnalaториRoleMiddleware, getSportelloLavoroById);
+router.get('/:id/download/:type', authMiddleware, segnalaториRoleMiddleware, downloadSportelloLavoroDocument);
 
 router.post('/', authMiddleware, responsabileTerritorialeMiddleware, createSportelloLavoro);
 router.put('/:id', authMiddleware, responsabileTerritorialeMiddleware, updateSportelloLavoro);

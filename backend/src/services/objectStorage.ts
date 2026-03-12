@@ -81,6 +81,31 @@ export const deleteObjectFromObjectStorage = async (key: string) => {
   );
 };
 
+export const downloadObjectFromObjectStorage = async (key: string) => {
+  if (!client || !enabled) {
+    throw new Error("Object storage is not configured");
+  }
+
+  const response = await client.send(
+    new GetObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+    })
+  );
+
+  const body: any = response.Body;
+  if (!body) {
+    throw new Error("Object storage returned empty body");
+  }
+
+  const bytes = await body.transformToByteArray();
+  return {
+    buffer: Buffer.from(bytes),
+    contentType: response.ContentType || "application/octet-stream",
+    contentLength: response.ContentLength,
+  };
+};
+
 export const buildCompanyDocumentStorageKey = (file: Express.Multer.File) => {
   const now = new Date();
   const dateSegment = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;

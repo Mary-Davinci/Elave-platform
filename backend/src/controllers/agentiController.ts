@@ -9,6 +9,13 @@ import fs from 'fs';
 import xlsx from 'xlsx';
 import { IUser } from "../models/User";
 import User from "../models/User";
+import { NotificationService } from "../models/notificationService";
+import {
+  deleteObjectFromObjectStorage,
+  downloadObjectFromObjectStorage,
+  isObjectStorageEnabled,
+  uploadBufferToObjectStorage,
+} from "../services/objectStorage";
 
 interface MulterFiles {
   [fieldname: string]: Express.Multer.File[];
@@ -18,6 +25,84 @@ interface AuthenticatedRequest extends Request {
 }
 
 const isPrivileged = (role: string) => role === 'admin' || role === 'super_admin';
+
+const sanitizeFileName = (value: string) =>
+  String(value || "file")
+    .trim()
+    .replace(/[^\w.\- ]+/g, "_")
+    .replace(/\s+/g, "_");
+
+const buildAgenteDocumentStorageKey = (
+  file: Express.Multer.File,
+  kind: "signed-contract" | "legal-document"
+) => {
+  const now = new Date();
+  const dateSegment = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+  return `agenti/${kind}/${dateSegment}/${Date.now()}-${sanitizeFileName(file.originalname)}`;
+};
+
+const isLocalFsPath = (value: string) =>
+  Boolean(value) && (path.isAbsolute(value) || value.includes("\\uploads\\") || value.includes("/uploads/"));
+
+const removeLocalFileIfExists = (filePath?: string) => {
+  if (!filePath) return;
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+  }
+};
+
+const buildAgenteFileMeta = async (
+  file: Express.Multer.File | undefined,
+  kind: "signed-contract" | "legal-document"
+) => {
+  if (!file) return undefined;
+
+  if (isObjectStorageEnabled()) {
+    const storageKey = buildAgenteDocumentStorageKey(file, kind);
+    const fileBuffer = fs.readFileSync(file.path);
+    await uploadBufferToObjectStorage(storageKey, fileBuffer, file.mimetype || "application/octet-stream");
+
+    // no local retention when object storage is enabled
+    removeLocalFileIfExists(file.path);
+
+    return {
+      filename: file.filename || file.originalname,
+      originalName: file.originalname,
+      path: storageKey,
+      mimetype: file.mimetype,
+      size: file.size,
+    };
+  }
+
+  return {
+    filename: file.filename,
+    originalName: file.originalname,
+    path: file.path,
+    mimetype: file.mimetype,
+    size: file.size,
+  };
+};
+
+const cleanupPreviousAgenteDocument = async (docPath?: string) => {
+  if (!docPath) return;
+
+  if (isLocalFsPath(docPath)) {
+    removeLocalFileIfExists(docPath);
+    return;
+  }
+
+  if (isObjectStorageEnabled()) {
+    try {
+      await deleteObjectFromObjectStorage(docPath);
+    } catch (err) {
+      console.warn("Unable to delete previous agente document from object storage:", docPath, err);
+    }
+  }
+};
+
+const getAgenteDocumentByType = (agente: any, type: "contract" | "legal") => {
+  return type === "contract" ? agente?.signedContractFile : agente?.legalDocumentFile;
+};
 
 const storage = multer.diskStorage({
   destination: (req: Request, file: Express.Multer.File, cb) => {
@@ -120,6 +205,58 @@ export const getAgenteById: CustomRequestHandler = async (req, res) => {
   }
 };
 
+export const downloadAgenteDocument: CustomRequestHandler = async (req, res) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const user = authReq.user;
+    if (!user) return res.status(401).json({ error: "User not authenticated" });
+
+    const { id } = req.params;
+    const type = String(req.query.type || "").toLowerCase();
+    if (type !== "contract" && type !== "legal") {
+      return res.status(400).json({ error: "Tipo file non valido. Usa type=contract oppure type=legal" });
+    }
+
+    const agente = await Agente.findById(id);
+    if (!agente) return res.status(404).json({ error: "Agente not found" });
+
+    if (!isPrivileged(user.role)) {
+      const scopeIds = await getScopeUserIds(toId(user._id), user.role);
+      const inScope = scopeIds?.some(sid => agente.user.equals(sid));
+      if (!inScope) return res.status(403).json({ error: "Access denied" });
+    }
+
+    const fileMeta = getAgenteDocumentByType(agente, type as "contract" | "legal");
+    if (!fileMeta?.path) {
+      return res.status(404).json({ error: "Documento non disponibile" });
+    }
+
+    const fileName = fileMeta.originalName || fileMeta.filename || `${type}.bin`;
+
+    if (isLocalFsPath(fileMeta.path)) {
+      if (!fs.existsSync(fileMeta.path)) {
+        return res.status(404).json({ error: "Documento non trovato nel filesystem" });
+      }
+      return res.download(fileMeta.path, fileName);
+    }
+
+    if (!isObjectStorageEnabled()) {
+      return res.status(400).json({ error: "Object storage non configurato" });
+    }
+
+    const objectData = await downloadObjectFromObjectStorage(String(fileMeta.path));
+    res.setHeader("Content-Type", fileMeta.mimetype || objectData.contentType || "application/octet-stream");
+    res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(fileName)}"`);
+    if (objectData.contentLength) {
+      res.setHeader("Content-Length", String(objectData.contentLength));
+    }
+    return res.send(objectData.buffer);
+  } catch (err: any) {
+    console.error("Download agente document error:", err);
+    return res.status(500).json({ error: "Server error while downloading document" });
+  }
+};
+
 export const createAgente: CustomRequestHandler = async (req, res) => {
   try {
     const authReq = req as AuthenticatedRequest;
@@ -157,6 +294,8 @@ export const createAgente: CustomRequestHandler = async (req, res) => {
         const files = req.files as MulterFiles | undefined;
         const signedContractFile = files?.signedContractFile?.[0];
         const legalDocumentFile = files?.legalDocumentFile?.[0];
+        const signedContractMeta = await buildAgenteFileMeta(signedContractFile, "signed-contract");
+        const legalDocumentMeta = await buildAgenteFileMeta(legalDocumentFile, "legal-document");
 
         const newAgente = new Agente({
           businessName,
@@ -168,24 +307,25 @@ export const createAgente: CustomRequestHandler = async (req, res) => {
           agreedCommission: parseFloat(agreedCommission),
           email: email || '',
           pec: pec || '',
-          signedContractFile: signedContractFile ? {
-            filename: signedContractFile.filename,
-            originalName: signedContractFile.originalname,
-            path: signedContractFile.path,
-            mimetype: signedContractFile.mimetype,
-            size: signedContractFile.size
-          } : undefined,
-          legalDocumentFile: legalDocumentFile ? {
-            filename: legalDocumentFile.filename,
-            originalName: legalDocumentFile.originalname,
-            path: legalDocumentFile.path,
-            mimetype: legalDocumentFile.mimetype,
-            size: legalDocumentFile.size
-          } : undefined,
+          isActive: false,
+          isApproved: false,
+          pendingApproval: true,
+          signedContractFile: signedContractMeta,
+          legalDocumentFile: legalDocumentMeta,
           user: new mongoose.Types.ObjectId(user._id)
         });
 
         await newAgente.save();
+
+        await NotificationService.notifyAdminsOfPendingApproval({
+          title: "New Responsabile Territoriale Pending Approval",
+          message: `${user.firstName || user.username} created a new Responsabile Territoriale "${businessName}" that needs approval.`,
+          type: "agente_pending",
+          entityId: (newAgente._id as mongoose.Types.ObjectId).toString(),
+          entityName: businessName,
+          createdBy: user._id.toString(),
+          createdByName: user.firstName ? `${user.firstName} ${user.lastName}` : user.username,
+        });
 
         const DashboardStats = require("../models/Dashboard").default;
         await DashboardStats.findOneAndUpdate(
@@ -264,23 +404,13 @@ export const updateAgente: CustomRequestHandler = async (req, res) => {
         if (pec !== undefined) agente.pec = pec;
 
         if (signedContractFile) {
-          agente.signedContractFile = {
-            filename: signedContractFile.filename,
-            originalName: signedContractFile.originalname,
-            path: signedContractFile.path,
-            mimetype: signedContractFile.mimetype,
-            size: signedContractFile.size
-          };
+          await cleanupPreviousAgenteDocument(agente.signedContractFile?.path);
+          agente.signedContractFile = await buildAgenteFileMeta(signedContractFile, "signed-contract");
         }
 
         if (legalDocumentFile) {
-          agente.legalDocumentFile = {
-            filename: legalDocumentFile.filename,
-            originalName: legalDocumentFile.originalname,
-            path: legalDocumentFile.path,
-            mimetype: legalDocumentFile.mimetype,
-            size: legalDocumentFile.size
-          };
+          await cleanupPreviousAgenteDocument(agente.legalDocumentFile?.path);
+          agente.legalDocumentFile = await buildAgenteFileMeta(legalDocumentFile, "legal-document");
         }
 
         await agente.save();
@@ -314,12 +444,8 @@ export const deleteAgente: CustomRequestHandler = async (req, res) => {
       return res.status(403).json({ error: "Access denied" });
     }
 
-    if (agente.signedContractFile?.path && fs.existsSync(agente.signedContractFile.path)) {
-      fs.unlinkSync(agente.signedContractFile.path);
-    }
-    if (agente.legalDocumentFile?.path && fs.existsSync(agente.legalDocumentFile.path)) {
-      fs.unlinkSync(agente.legalDocumentFile.path);
-    }
+    await cleanupPreviousAgenteDocument(agente.signedContractFile?.path);
+    await cleanupPreviousAgenteDocument(agente.legalDocumentFile?.path);
 
     await agente.deleteOne();
 

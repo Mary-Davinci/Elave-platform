@@ -341,7 +341,7 @@ export const getContoImports = async (
 export const deleteContoImport = async (
   fileHash: string,
   account: AccountType = 'proselitismo'
-): Promise<{ message: string; deletedTransactions?: number; deletedNonRiconciliate?: number }> => {
+): Promise<{ message: string; deletedTransactions?: number; deletedNonRiconciliate?: number; deletionMode?: string }> => {
   let res: any;
   try {
     res = await api.delete(`/api/conto/${account}/imports/${encodeURIComponent(fileHash)}`);

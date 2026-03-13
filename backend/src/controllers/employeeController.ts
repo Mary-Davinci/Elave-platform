@@ -404,33 +404,63 @@ export const uploadEmployeesFromExcel: CustomRequestHandler = async (req, res) =
 
         const employees: any[] = [];
         const errors: string[] = [];
+        const normalizeHeader = (value: unknown) =>
+          String(value || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, '');
+        const readCell = (row: Record<string, unknown>, candidates: string[]) => {
+          const normalizedCandidates = candidates.map(normalizeHeader);
+          for (const [key, value] of Object.entries(row || {})) {
+            if (normalizedCandidates.includes(normalizeHeader(key))) {
+              return value;
+            }
+          }
+          return '';
+        };
+        const clean = (value: unknown) => String(value || '').trim();
 
-        for (const [index, row] of (data as any[]).entries()) {
-          try {
-            console.log(`Processing employee row ${index + 1}:`, JSON.stringify(row));
-            
-            const employeeData = {
+        const parsedRows = (data as any[]).map((row, index) => {
+          const rowObj = (row || {}) as Record<string, unknown>;
+          return {
+            rowNumber: index + 2,
+            employeeData: {
               companyId: new mongoose.Types.ObjectId(companyId),
-              nome: row['Nome'] || '',
-              cognome: row['Cognome'] || '',
-              dataNascita: row['Data di nascita'] || row['Data Nascita'] || '',
-              cittaNascita: row['Città di nascita'] || row['Citta Nascita'] || '',
-              provinciaNascita: row['Provincia di nascita'] || row['Provincia Nascita'] || '',
-              genere: row['Genere'] || '',
-              codiceFiscale: (row['Codice Fiscale'] || row['CF'] || '').toUpperCase(),
-              indirizzo: row['Indirizzo'] || '',
-              numeroCivico: row['Numero Civico'] || row['N. Civico'] || '',
-              citta: row['Città'] || row['Citta'] || '',
-              provincia: row['Provincia'] || '',
-              cap: row['CAP'] || '',
-              cellulare: row['Cellulare'] || '',
-              telefono: row['Telefono'] || '',
-              email: row['Email'] || '',
-              stato: (row['Attivo'] === 'si' || row['Attivo'] === 'yes' || row['Attivo'] === true || 
-                     row['Active'] === 'si' || row['Active'] === 'yes' || row['Active'] === true || 
-                     row['Stato'] === 'attivo') ? 'attivo' : 'inattivo'
-            };
+              nome: clean(readCell(rowObj, ['Nome', 'Firstname', 'First Name'])),
+              cognome: clean(readCell(rowObj, ['Cognome', 'Surname', 'Last Name', 'Lastname'])),
+              dataNascita: clean(readCell(rowObj, ['Data di nascita', 'Data Nascita', 'Birth Date'])),
+              cittaNascita: clean(readCell(rowObj, ['Citt? di nascita', 'Citta Nascita', 'Luogo di nascita'])),
+              provinciaNascita: clean(readCell(rowObj, ['Provincia di nascita', 'Provincia Nascita'])),
+              genere: clean(readCell(rowObj, ['Genere', 'Sesso'])),
+              codiceFiscale: clean(readCell(rowObj, ['Codice Fiscale', 'CodiceFiscale', 'CF', 'Fiscal Code'])).toUpperCase(),
+              indirizzo: clean(readCell(rowObj, ['Indirizzo', 'Address'])),
+              numeroCivico: clean(readCell(rowObj, ['Numero Civico', 'N. Civico', 'Civico'])),
+              citta: clean(readCell(rowObj, ['Citt?', 'Citta', 'Comune', 'City'])),
+              provincia: clean(readCell(rowObj, ['Provincia', 'Province'])),
+              cap: clean(readCell(rowObj, ['CAP', 'Zip'])),
+              cellulare: clean(readCell(rowObj, ['Cellulare', 'Mobile'])),
+              telefono: clean(readCell(rowObj, ['Telefono', 'Phone'])),
+              email: clean(readCell(rowObj, ['Email', 'E-mail'])),
+              stato: 'attivo'
+            }
+          };
+        });
 
+        const cfCandidates = parsedRows
+          .map((r) => r.employeeData.codiceFiscale)
+          .filter((cf) => Boolean(cf));
+        const existingCfDocs = await Employee.find(
+          { codiceFiscale: { $in: cfCandidates } },
+          { codiceFiscale: 1 }
+        ).lean();
+        const existingCfSet = new Set(
+          existingCfDocs.map((d: any) => String(d?.codiceFiscale || '').toUpperCase()).filter(Boolean)
+        );
+        const seenInFile = new Set<string>();
+
+        for (const { rowNumber, employeeData } of parsedRows) {
+          try {
             const requiredFields = ['nome', 'cognome', 'codiceFiscale'];
             for (const field of requiredFields) {
               if (!employeeData[field as keyof typeof employeeData]) {
@@ -438,15 +468,25 @@ export const uploadEmployeesFromExcel: CustomRequestHandler = async (req, res) =
               }
             }
 
+            if (seenInFile.has(employeeData.codiceFiscale)) {
+              throw new Error(`codiceFiscale duplicato nel file (${employeeData.codiceFiscale})`);
+            }
+            seenInFile.add(employeeData.codiceFiscale);
+
+            if (existingCfSet.has(employeeData.codiceFiscale)) {
+              throw new Error(`codiceFiscale già presente in archivio (${employeeData.codiceFiscale})`);
+            }
+
             console.log(`Saving employee: ${employeeData.nome} ${employeeData.cognome}`);
             
             const employee = new Employee(employeeData);
             await employee.save();
             employees.push(employee);
+            existingCfSet.add(employeeData.codiceFiscale);
             console.log(`Employee saved successfully: ${employee._id}`);
           } catch (rowError: any) {
-            console.error(`Error processing employee row ${index + 2}:`, rowError);
-            errors.push(`Row ${index + 2}: ${rowError.message}`);
+            console.error(`Error processing employee row ${rowNumber}:`, rowError);
+            errors.push(`Row ${rowNumber}: ${rowError.message}`);
           }
         }
 
@@ -455,7 +495,9 @@ export const uploadEmployeesFromExcel: CustomRequestHandler = async (req, res) =
 
         console.log(`Employee import complete: ${employees.length} employees created, ${errors.length} errors`);
         return res.status(201).json({
-          message: `${employees.length} employees imported successfully${errors.length > 0 ? ` with ${errors.length} errors` : ''}`,
+          message: `${employees.length} dipendenti importati${errors.length > 0 ? ` con ${errors.length} errori` : ''}`,
+          createdCount: employees.length,
+          errorCount: errors.length,
           employees,
           errors: errors.length > 0 ? errors : undefined
         });
@@ -471,6 +513,30 @@ export const uploadEmployeesFromExcel: CustomRequestHandler = async (req, res) =
   } catch (err: any) {
     console.error("Upload employees error:", err);
     return res.status(500).json({ error: "Server error: " + err.message });
+  }
+};
+
+export const downloadEmployeesTemplateXlsx: CustomRequestHandler = async (_req, res) => {
+  try {
+    const headers = ['Nome', 'Cognome', 'Codice Fiscale'];
+    const sampleRow = ['Mario', 'Rossi', 'RSSMRA80A01H501U'];
+    const ws = xlsx.utils.aoa_to_sheet([headers, sampleRow]);
+    ws['!cols'] = [{ wch: 22 }, { wch: 22 }, { wch: 24 }];
+
+    const wb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(wb, ws, 'Dipendenti');
+    const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    const filename = 'template_dipendenti.xlsx';
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(buffer);
+  } catch (err: any) {
+    console.error('Download employee template xlsx error:', err);
+    return res.status(500).json({ error: 'Errore durante la generazione del template XLSX' });
   }
 };
 

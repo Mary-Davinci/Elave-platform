@@ -75,10 +75,18 @@ const AgenteView: React.FC = () => {
   }
 
   // Optional file props if your API returns them
-  const contractName = (agente as any)?.signedContract?.originalName || (agente as any)?.signedContractName;
-  const contractSize = (agente as any)?.signedContract?.size || (agente as any)?.signedContractSize;
-  const legalName = (agente as any)?.legalDocument?.originalName || (agente as any)?.legalDocumentName;
-  const legalSize = (agente as any)?.legalDocument?.size || (agente as any)?.legalDocumentSize;
+  const signedContractMeta = (agente as any)?.signedContractFile || (agente as any)?.signedContract;
+  const legalDocumentMeta = (agente as any)?.legalDocumentFile || (agente as any)?.legalDocument;
+  const contractName =
+    signedContractMeta?.originalName ||
+    signedContractMeta?.filename ||
+    (agente as any)?.signedContractName;
+  const contractSize = signedContractMeta?.size || (agente as any)?.signedContractSize;
+  const legalName =
+    legalDocumentMeta?.originalName ||
+    legalDocumentMeta?.filename ||
+    (agente as any)?.legalDocumentName;
+  const legalSize = legalDocumentMeta?.size || (agente as any)?.legalDocumentSize;
 
   return (
     <div className="agentv-container">

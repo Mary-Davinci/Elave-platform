@@ -5,7 +5,8 @@ import {
   createEmployee,
   updateEmployee,
   deleteEmployee,
-  uploadEmployeesFromExcel
+  uploadEmployeesFromExcel,
+  downloadEmployeesTemplateXlsx
 } from '../controllers/employeeController';
 import { authMiddleware } from "../middleware/authMiddleware";
 
@@ -26,5 +27,6 @@ router.put('/:id', updateEmployee);
 router.delete('/:id', deleteEmployee);
 
 router.post('/company/:companyId/upload', uploadEmployeesFromExcel);
+router.get('/template/xlsx', downloadEmployeesTemplateXlsx);
 
 export default router;

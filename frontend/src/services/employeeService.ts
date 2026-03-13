@@ -150,7 +150,15 @@ export const deleteEmployee = async (id: string): Promise<void> => {
 };
 
 // Upload employees from Excel file
-export const uploadEmployeesFromExcel = async (companyId: string, formData: FormData): Promise<Employee[]> => {
+export interface EmployeeUploadResponse {
+  message: string;
+  createdCount: number;
+  errorCount: number;
+  employees: Employee[];
+  errors?: string[];
+}
+
+export const uploadEmployeesFromExcel = async (companyId: string, formData: FormData): Promise<EmployeeUploadResponse> => {
   try {
     console.log("Uploading employee Excel file...");
     
@@ -159,11 +167,7 @@ export const uploadEmployeesFromExcel = async (companyId: string, formData: Form
       console.log(`FormData contains: ${pair[0]}, ${pair[1] instanceof File ? pair[1].name : pair[1]}`);
     }
     
-    const response = await api.post<{
-      message: string;
-      employees: Employee[];
-      errors?: string[];
-    }>(`/api/employees/company/${companyId}/upload`, formData, {
+    const response = await api.post<EmployeeUploadResponse>(`/api/employees/company/${companyId}/upload`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       },
@@ -172,12 +176,13 @@ export const uploadEmployeesFromExcel = async (companyId: string, formData: Form
     
     console.log("Employee upload response:", response.data);
     
-    // Check if we have errors in the response
-    if (response.data.errors && response.data.errors.length > 0) {
-      throw new Error(response.data.errors.join(', '));
-    }
-    
-    return response.data.employees || [];
+    return {
+      message: response.data.message || 'Upload completato',
+      createdCount: Number(response.data.createdCount || response.data.employees?.length || 0),
+      errorCount: Number(response.data.errorCount || response.data.errors?.length || 0),
+      employees: response.data.employees || [],
+      errors: response.data.errors
+    };
   } catch (error: any) {
     console.error('Error uploading employees from Excel:', error);
     
@@ -190,4 +195,19 @@ export const uploadEmployeesFromExcel = async (companyId: string, formData: Form
     
     throw error;
   }
+};
+
+export const downloadEmployeesTemplateXlsx = async (): Promise<void> => {
+  const response = await api.get('/api/employees/template/xlsx', { responseType: 'blob' });
+  const blob = new Blob([response.data], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'template_dipendenti.xlsx';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(url);
 };

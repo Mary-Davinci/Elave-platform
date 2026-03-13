@@ -93,9 +93,8 @@ const SportelloLavoroDetail: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       const fallback = kind === 'contract' ? 'contratto.pdf' : 'documento_legale.pdf';
-      const name =
-        (kind === 'contract' ? data?.signedContractFile?.originalName : data?.legalDocumentFile?.originalName) ||
-        fallback;
+      const targetFile = kind === 'contract' ? data?.signedContractFile : data?.legalDocumentFile;
+      const name = targetFile?.originalName || targetFile?.filename || fallback;
       a.href = url;
       a.download = name;
       document.body.appendChild(a);
@@ -175,7 +174,7 @@ const SportelloLavoroDetail: React.FC = () => {
               {data.signedContractFile ? (
                 <>
                   <p style={{ marginBottom: 8 }}>
-                    <strong>File:</strong> {data.signedContractFile.originalName} ({Math.round(data.signedContractFile.size / 1024)} KB)
+                    <strong>File:</strong> {data.signedContractFile.originalName || data.signedContractFile.filename} ({Math.round((data.signedContractFile.size || 0) / 1024)} KB)
                   </p>
                   <button
                     className="upload-button"
@@ -195,7 +194,7 @@ const SportelloLavoroDetail: React.FC = () => {
               {data.legalDocumentFile ? (
                 <>
                   <p style={{ marginBottom: 8 }}>
-                    <strong>File:</strong> {data.legalDocumentFile.originalName} ({Math.round(data.legalDocumentFile.size / 1024)} KB)
+                    <strong>File:</strong> {data.legalDocumentFile.originalName || data.legalDocumentFile.filename} ({Math.round((data.legalDocumentFile.size || 0) / 1024)} KB)
                   </p>
                   <button
                     className="upload-button"

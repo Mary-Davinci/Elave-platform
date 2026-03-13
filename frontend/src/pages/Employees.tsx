@@ -6,7 +6,9 @@ import {
   createEmployee, 
   deleteEmployee, 
   uploadEmployeesFromExcel,
-  EmployeeFormData 
+  downloadEmployeesTemplateXlsx,
+  EmployeeFormData,
+  type EmployeeUploadResponse
 } from '../services/employeeService';
 import '../styles/Employees.css';
 
@@ -48,6 +50,7 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
   // File upload state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadLoading, setUploadLoading] = useState(false);
+  const [uploadResult, setUploadResult] = useState<EmployeeUploadResponse | null>(null);
 
   // Load employees when component mounts or companyId changes
   useEffect(() => {
@@ -158,19 +161,25 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
     try {
       setUploadLoading(true);
       setError(null);
+      setUploadResult(null);
       
       // Create FormData for file upload
       const formData = new FormData();
       formData.append('file', selectedFile);
       
       // Upload employees via API
-      const uploadedEmployees = await uploadEmployeesFromExcel(companyId, formData);
+      const result = await uploadEmployeesFromExcel(companyId, formData);
       
       // Add the new employees to the local state
-      setAllEmployees(prev => [...prev, ...uploadedEmployees]);
+      setAllEmployees(prev => [...prev, ...result.employees]);
+      setUploadResult(result);
       
       // Show success message
-      alert(`${uploadedEmployees.length} dipendenti importati con successo!`);
+      alert(
+        `${result.createdCount} dipendenti importati` +
+          (result.errorCount > 0 ? ` con ${result.errorCount} errori` : '') +
+          '!'
+      );
       
       // Close modal after submission
       setShowUploadModal(false);
@@ -191,6 +200,13 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
     } finally {
       setUploadLoading(false);
     }
+  };
+
+  const handleDownloadEmployeeTemplate = () => {
+    downloadEmployeesTemplateXlsx().catch((err) => {
+      console.error('Template download error:', err);
+      setError('Impossibile scaricare il template XLSX');
+    });
   };
 
   const handleDeleteEmployee = async (employeeId: string) => {
@@ -626,12 +642,27 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                       {selectedFile ? selectedFile.name : 'No file chosen'}
                     </div>
                   </div>
+                  <small style={{ color: '#64748b' }}>
+                    Colonne minime richieste: <b>Nome</b>, <b>Cognome</b>, <b>Codice Fiscale</b>.
+                  </small>
                 </div>
                 <div className="template-download">
-                  <button type="button" className="download-template-btn">
-                    <span className="icon">⬇️</span> Scarica file di esempio
+                  <button type="button" className="download-template-btn" onClick={handleDownloadEmployeeTemplate}>
+                    <span className="icon">↓</span> Scarica file di esempio
                   </button>
                 </div>
+                {uploadResult && (
+                  <div style={{ marginTop: 12, fontSize: 13, color: '#334155' }}>
+                    {uploadResult.message}
+                    {uploadResult.errors && uploadResult.errors.length > 0 && (
+                      <ul style={{ marginTop: 8, maxHeight: 120, overflowY: 'auto' }}>
+                        {uploadResult.errors.map((item, idx) => (
+                          <li key={`upload-employee-error-${idx}`}>{item}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="modal-footer">
                 <button type="submit" className="upload-btn" disabled={!selectedFile || uploadLoading}>

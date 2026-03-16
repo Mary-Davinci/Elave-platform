@@ -6,6 +6,7 @@ import { CompanyFormData } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
 import '../styles/NewCompany.css';
 import sportelloLavoroService, { SportelloLavoroResponse } from '../services/sportelloServices';
+import { getDefaultCcRecipients } from '../services/messageService';
 
 const normalizeSaluteAmicaPlan = (value?: string) => {
   const raw = String(value || '').trim();
@@ -24,11 +25,13 @@ const normalizeSaluteAmicaPlan = (value?: string) => {
 const NewCompany: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated , user } = useAuth();
+  const isSportelloLavoro = user?.role === 'sportello_lavoro';
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [consultants, setConsultants] = useState<SportelloLavoroResponse[]>([]);
   const [consultantsLoading, setConsultantsLoading] = useState(false);
   const [consultantsError, setConsultantsError] = useState<string | null>(null);
+  const [managerLoading, setManagerLoading] = useState(false);
   const [numeroAnagraficaLoading, setNumeroAnagraficaLoading] = useState(false);
   const [numeroAnagraficaError, setNumeroAnagraficaError] = useState<string | null>(null);
   const [companyFiles, setCompanyFiles] = useState<{
@@ -116,6 +119,41 @@ const [formData, setFormData] = useState<CompanyFormData>({
     }
   }, [user]);
 
+  useEffect(() => {
+    if (!isSportelloLavoro) return;
+
+    let ignore = false;
+    const loadDefaultManager = async () => {
+      try {
+        setManagerLoading(true);
+        const ccList = await getDefaultCcRecipients();
+        const responsabile = ccList?.[0];
+        const managerName =
+          (responsabile?.organization || '').trim() ||
+          `${(responsabile?.firstName || '').trim()} ${(responsabile?.lastName || '').trim()}`.trim() ||
+          (responsabile?.username || '').trim();
+
+        if (!ignore && managerName) {
+          setFormData((prev) => ({
+            ...prev,
+            territorialManager: managerName,
+          }));
+        }
+      } catch (e) {
+        if (!ignore) {
+          setConsultantsError((prev) => prev || 'Impossibile caricare il responsabile associato');
+        }
+      } finally {
+        if (!ignore) setManagerLoading(false);
+      }
+    };
+
+    loadDefaultManager();
+    return () => {
+      ignore = true;
+    };
+  }, [isSportelloLavoro]);
+
   // carica i consulenti del lavoro , solo quelli attivi!!
   useEffect(() => {
     const loadConsultants = async () => {
@@ -147,6 +185,79 @@ const [formData, setFormData] = useState<CompanyFormData>({
     });
     return Array.from(byLabel.values()).sort((a, b) => a.label.localeCompare(b.label, 'it'));
   }, [consultants]);
+
+  useEffect(() => {
+    if (!isSportelloLavoro || !user || consultants.length === 0) return;
+
+    const normalize = (value?: string) => String(value || '').trim().toLowerCase();
+    const fullName = `${String(user.firstName || '').trim()} ${String(user.lastName || '').trim()}`.trim();
+    const emailLocal = String(user.email || '').includes('@')
+      ? String(user.email || '').split('@')[0].trim()
+      : '';
+
+    const candidates = [
+      normalize(user.organization),
+      normalize(user.username),
+      normalize(fullName),
+      normalize(emailLocal),
+      normalize(user.email),
+    ].filter(Boolean);
+
+    const ownConsultant = consultants.find((c) => {
+      const consultantNames = [
+        normalize(c.agentName),
+        normalize(c.businessName),
+        normalize(c.email),
+      ].filter(Boolean);
+      return consultantNames.some((name) => candidates.includes(name));
+    });
+
+    if (!ownConsultant) return;
+
+    const label = String(ownConsultant.agentName || ownConsultant.businessName || '').trim();
+    setFormData((prev) => ({
+      ...prev,
+      contactInfo: {
+        ...prev.contactInfo,
+        laborConsultantId: ownConsultant._id,
+        laborConsultant: label,
+      },
+    }));
+  }, [consultants, isSportelloLavoro, user]);
+
+  const visibleConsultantOptions = useMemo(() => {
+    if (!isSportelloLavoro) return consultantOptions;
+    return consultantOptions.filter((c) => c.id === (formData.contactInfo?.laborConsultantId || ''));
+  }, [consultantOptions, formData.contactInfo?.laborConsultantId, isSportelloLavoro]);
+
+  const currentSportelloLabel = useMemo(() => {
+    if (!isSportelloLavoro) return '';
+    const selectedId = formData.contactInfo?.laborConsultantId || '';
+    const fromOptions = consultantOptions.find((c) => c.id === selectedId)?.label;
+    if (fromOptions) return fromOptions;
+    const fromForm = String(formData.contactInfo?.laborConsultant || '').trim();
+    if (fromForm) return fromForm;
+    const fromOrg = String(user?.organization || '').trim();
+    if (fromOrg) return fromOrg;
+    const fullName = `${String(user?.firstName || '').trim()} ${String(user?.lastName || '').trim()}`.trim();
+    if (fullName) return fullName;
+    const fromUsername = String(user?.username || '').trim();
+    if (fromUsername) return fromUsername;
+    const emailLocal = String(user?.email || '').includes('@')
+      ? String(user?.email || '').split('@')[0].trim()
+      : '';
+    return emailLocal;
+  }, [
+    consultantOptions,
+    formData.contactInfo?.laborConsultant,
+    formData.contactInfo?.laborConsultantId,
+    isSportelloLavoro,
+    user?.email,
+    user?.firstName,
+    user?.lastName,
+    user?.organization,
+    user?.username,
+  ]);
 
   useEffect(() => {
     let ignore = false;
@@ -496,41 +607,54 @@ const [formData, setFormData] = useState<CompanyFormData>({
         value={formData.territorialManager}
         onChange={handleChange}
         className="form-control"
+        readOnly={isSportelloLavoro}
+        disabled={isSportelloLavoro}
+        placeholder={isSportelloLavoro && managerLoading ? 'Caricamento responsabile...' : ''}
       />
     </div>
 
     <div className="form-group">
       <label>Consulente del Lavoro</label>
-      <select
-        name="contactInfo.laborConsultantId"
-        value={formData.contactInfo?.laborConsultantId || ''}
-        onChange={(e) => {
-          const selectedId = e.target.value;
-          const selected = consultants.find(c => c._id === selectedId);
-          const label = selected ? (selected.agentName || selected.businessName || '') : '';
-          setFormData(prev => ({
-            ...prev,
-            contactInfo: {
-              ...prev.contactInfo,
-              laborConsultantId: selectedId,
-              laborConsultant: label,
-            }
-          }));
-        }}
-        className="form-control"
-      >
-        <option value="">-- Seleziona consulente --</option>
-        {consultantsLoading && <option value="" disabled>Caricamento in corso...</option>}
-        {!consultantsLoading && consultants.length === 0 && (
-          <option value="" disabled>Nessun consulente attivo trovato</option>
-        )}
-        {!consultantsLoading && consultantOptions.map((c) => {
-          const label = c.label || 'Senza nome';
-          return (
-            <option key={c.id} value={c.id}>{label}</option>
-          );
-        })}
-      </select>
+      {isSportelloLavoro ? (
+        <input
+          type="text"
+          className="form-control"
+          value={currentSportelloLabel || 'Sportello associato non trovato'}
+          readOnly
+          disabled
+        />
+      ) : (
+        <select
+          name="contactInfo.laborConsultantId"
+          value={formData.contactInfo?.laborConsultantId || ''}
+          onChange={(e) => {
+            const selectedId = e.target.value;
+            const selected = consultants.find(c => c._id === selectedId);
+            const label = selected ? (selected.agentName || selected.businessName || '') : '';
+            setFormData(prev => ({
+              ...prev,
+              contactInfo: {
+                ...prev.contactInfo,
+                laborConsultantId: selectedId,
+                laborConsultant: label,
+              }
+            }));
+          }}
+          className="form-control"
+        >
+          <option value="">-- Seleziona consulente --</option>
+          {consultantsLoading && <option value="" disabled>Caricamento in corso...</option>}
+          {!consultantsLoading && visibleConsultantOptions.length === 0 && (
+            <option value="" disabled>Nessun consulente attivo trovato</option>
+          )}
+          {!consultantsLoading && visibleConsultantOptions.map((c) => {
+            const label = c.label || 'Senza nome';
+            return (
+              <option key={c.id} value={c.id}>{label}</option>
+            );
+          })}
+        </select>
+      )}
       {consultantsError && (
         <small style={{ color: 'red' }}>{consultantsError}</small>
       )}

@@ -142,6 +142,84 @@ const resolveSportelloByName = async (sportelloName?: string) => {
   return null;
 };
 
+const formatUserDisplayName = (userDoc?: {
+  organization?: string;
+  firstName?: string;
+  lastName?: string;
+  username?: string;
+}) => {
+  if (!userDoc) return "";
+  const organization = String(userDoc.organization || "").trim();
+  if (organization) return organization;
+  const fullName = `${String(userDoc.firstName || "").trim()} ${String(userDoc.lastName || "").trim()}`.trim();
+  if (fullName) return fullName;
+  return String(userDoc.username || "").trim();
+};
+
+const resolveSportelloContextForUser = async (userDoc: any) => {
+  if (!userDoc || userDoc.role !== "sportello_lavoro") {
+    return { sportello: null, responsabile: null };
+  }
+
+  let sportello: any = await SportelloLavoro.findOne({
+    user: userDoc._id,
+    isActive: { $ne: false },
+  })
+    .select("_id businessName agentName email user isActive")
+    .lean();
+
+  if (!sportello) {
+    const candidateNames = Array.from(
+      new Set(
+        [
+          String(userDoc.organization || "").trim(),
+          String(userDoc.username || "").trim(),
+          `${String(userDoc.firstName || "").trim()} ${String(userDoc.lastName || "").trim()}`.trim(),
+        ].filter(Boolean)
+      )
+    );
+    const email = String(userDoc.email || "").trim().toLowerCase();
+    const emailLocal = email.includes("@") ? email.split("@")[0].trim() : "";
+
+    const orClauses: any[] = [];
+    for (const value of [...candidateNames, emailLocal]) {
+      if (!value) continue;
+      const rx = buildExactRegex(value);
+      orClauses.push({ businessName: rx }, { agentName: rx }, { email: rx });
+    }
+
+    if (orClauses.length) {
+      sportello = await SportelloLavoro.findOne({
+        $or: orClauses,
+        isActive: { $ne: false },
+      })
+        .select("_id businessName agentName email user isActive")
+        .lean();
+    }
+  }
+
+  let responsabile: any = null;
+  if (userDoc.managedBy) {
+    responsabile = await User.findOne({
+      _id: userDoc.managedBy,
+      role: "responsabile_territoriale",
+      isActive: { $ne: false },
+      isApproved: { $ne: false },
+    }).select("_id username firstName lastName organization role");
+  }
+
+  if (!responsabile && sportello?.user) {
+    responsabile = await User.findOne({
+      _id: sportello.user,
+      role: "responsabile_territoriale",
+      isActive: { $ne: false },
+      isApproved: { $ne: false },
+    }).select("_id username firstName lastName organization role");
+  }
+
+  return { sportello, responsabile };
+};
+
 const normalizeNumeroAnagrafica = (value: unknown): string | undefined => {
   if (value === undefined || value === null) return undefined;
   const normalized = String(value).trim();
@@ -716,16 +794,51 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
       isActive 
     } = bodyData;
 
+    const normalizedContactInfo = { ...(contactInfo || {}) } as any;
+    const normalizedContractDetails = { ...(contractDetails || {}) } as any;
+    let forcedResponsabileId: mongoose.Types.ObjectId | undefined;
+    let forcedTerritorialManagerName =
+      String(normalizedContractDetails?.territorialManager || territorialManager || "").trim();
+
+    if (req.user.role === "sportello_lavoro") {
+      const { sportello, responsabile } = await resolveSportelloContextForUser(req.user);
+      if (!sportello) {
+        return res.status(400).json({
+          error:
+            "Sportello lavoro non associato o non attivo. Contatta l'amministratore per completare l'associazione.",
+        });
+      }
+
+      normalizedContactInfo.laborConsultantId = sportello._id;
+      normalizedContactInfo.laborConsultant =
+        String(sportello.agentName || sportello.businessName || "").trim();
+
+      if (!responsabile?._id) {
+        return res.status(400).json({
+          error:
+            "Responsabile territoriale non associato allo sportello. Contatta l'amministratore.",
+        });
+      }
+
+      forcedResponsabileId = responsabile._id as mongoose.Types.ObjectId;
+      forcedTerritorialManagerName = formatUserDisplayName(responsabile);
+      normalizedContractDetails.territorialManager = forcedTerritorialManagerName;
+    }
+
     // valida sportello lavoro se cè
-      if (contactInfo?.laborConsultantId) {
+      if (normalizedContactInfo?.laborConsultantId) {
         try {
-          const consultant = await SportelloLavoro.findById(contactInfo.laborConsultantId);
+          const consultant = await SportelloLavoro.findById(normalizedContactInfo.laborConsultantId);
           if (!consultant) {
-            console.warn("[createCompany] consultant not found", contactInfo.laborConsultantId);
+            console.warn("[createCompany] consultant not found", normalizedContactInfo.laborConsultantId);
             return res.status(400).json({ error: 'Invalid laborConsultantId: consultant not found' });
           }
           // Solo il proprietario o admin possono selezionare il consulente
-          if (!isPrivileged(req.user.role) && !consultant.user.equals(req.user._id)) {
+          if (
+            req.user.role !== "sportello_lavoro" &&
+            !isPrivileged(req.user.role) &&
+            !consultant.user.equals(req.user._id)
+          ) {
             console.warn("[createCompany] consultant ownership mismatch", {
               userId: req.user._id,
               consultantUser: consultant.user,
@@ -733,7 +846,7 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
             return res.status(403).json({ error: 'You do not own the selected consultant' });
           }
           if (!consultant.isActive) {
-            console.warn("[createCompany] consultant not active", contactInfo.laborConsultantId);
+            console.warn("[createCompany] consultant not active", normalizedContactInfo.laborConsultantId);
             return res.status(400).json({ error: 'Selected consultant is not active' });
           }
         } catch (e) {
@@ -758,8 +871,8 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
 
 
     // sanitize contactInfo: remove empty laborConsultantId to avoid ObjectId cast errors
-    if (contactInfo && contactInfo.laborConsultantId === '') {
-      delete contactInfo.laborConsultantId;
+    if (normalizedContactInfo && normalizedContactInfo.laborConsultantId === '') {
+      delete normalizedContactInfo.laborConsultantId;
     }
 
     const normalizedNumeroAnagrafica = normalizeNumeroAnagrafica(numeroAnagrafica);
@@ -772,17 +885,22 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
     }
 
     const territorialManagerName =
-      contractDetails?.territorialManager?.trim?.() ||
+      forcedTerritorialManagerName ||
+      normalizedContractDetails?.territorialManager?.trim?.() ||
       String(territorialManager || "").trim();
     let resolvedResponsabileId: mongoose.Types.ObjectId | undefined;
     if (territorialManagerName) {
-      const resolved = await resolveResponsabileByTerritorialManager(territorialManagerName);
-      if (!resolved) {
-        return res.status(400).json({
-          error: `Responsabile territoriale non trovato per "${territorialManagerName}"`,
-        });
+      if (forcedResponsabileId) {
+        resolvedResponsabileId = forcedResponsabileId;
+      } else {
+        const resolved = await resolveResponsabileByTerritorialManager(territorialManagerName);
+        if (!resolved) {
+          return res.status(400).json({
+            error: `Responsabile territoriale non trovato per "${territorialManagerName}"`,
+          });
+        }
+        resolvedResponsabileId = resolved._id as mongoose.Types.ObjectId;
       }
-      resolvedResponsabileId = resolved._id as mongoose.Types.ObjectId;
     }
 
     const uploadedFiles = (req as any).files as Record<string, Express.Multer.File[] | undefined> | undefined;
@@ -806,9 +924,9 @@ export const createCompany: CustomRequestHandler = async (req, res) => {
       inpsCode,
       numeroAnagrafica: resolvedNumeroAnagrafica,
       address: address || {},
-      contactInfo: contactInfo || {},
+      contactInfo: normalizedContactInfo || {},
       contractDetails: {
-        ...(contractDetails || {}),
+        ...(normalizedContractDetails || {}),
         ...(territorialManagerName ? { territorialManager: territorialManagerName } : {}),
       },
       industry: industry || '',

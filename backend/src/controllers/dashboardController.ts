@@ -9,6 +9,7 @@ import SportelloLavoro from "../models/sportello";      // <-- your SportelloLav
 import Agente from "../models/Agenti";                  // <-- your Agente model file name
 import Message from "../models/Message";
 import { CustomRequestHandler } from "../types/express";
+import { getSportelloScopedCompanyIds } from "../services/contoScopeService";
 
 const toId = (v: any) => new mongoose.Types.ObjectId(String(v));
 
@@ -57,7 +58,14 @@ export const getDashboardStats: CustomRequestHandler = async (req, res) => {
       accounts.find(a => a.type === "servizi") || ({ balance: 0 } as IAccount);
 
     // --- Companies (count) & Employees (sum) ---
-    const companyFilter = ownedByScopeFilter(scopeIds);
+    const companyFilter =
+      role === "sportello_lavoro"
+        ? {
+            _id: {
+              $in: await getSportelloScopedCompanyIds(userId),
+            },
+          }
+        : ownedByScopeFilter(scopeIds);
     const companiesCount = await Company.countDocuments(companyFilter);
     const employeesAgg = await Company.aggregate([
       { $match: (companyFilter as any) },

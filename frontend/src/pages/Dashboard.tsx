@@ -66,6 +66,7 @@ const Dashboard: React.FC = () => {
   // Roles / capabilities for REPORT buttons
   const role = user?.role ?? '';
   const isAdmin = role === 'admin' || role === 'super_admin';
+  const isSportelloLavoro = role === 'sportello_lavoro';
   const showReportAzienda =
     role === 'responsabile_territoriale' || role === 'sportello_lavoro' || isAdmin;
   const showReportSportello =
@@ -414,24 +415,26 @@ const Dashboard: React.FC = () => {
                 <div className="stat-value green">{dashboardData?.statistics.companies || 0}</div>
               </div>
               
+              <div>
+                {!isSportelloLavoro && (
+                  <div className="stat-row">
+                    <div className="stat-label">Responsabili Territoriali</div>
+                    <div className="stat-value">{dashboardData?.statistics.suppliers || 0}</div>
+                  </div>
+                )}
 
+                {!isSportelloLavoro && (
+                  <div className="stat-row">
+                    <div className="stat-label">Sportelli Lavoro</div>
+                    <div className="stat-value">{dashboardData?.statistics.actuators || 0}</div>
+                  </div>
+                )}
 
-                <div>
                 <div className="stat-row">
-  <div className="stat-label">Responsabili Territoriali</div>
-  <div className="stat-value">{dashboardData?.statistics.suppliers || 0}</div>
-</div>
-
-<div className="stat-row">
-  <div className="stat-label">Sportelli Lavoro</div>
-  <div className="stat-value">{dashboardData?.statistics.actuators || 0}</div>
-</div>
-
-<div className="stat-row">
-  <div className="stat-label">Segnalatori</div>
-  <div className="stat-value">{dashboardData?.statistics.segnalatori || 0}</div>
-</div>
-</div>
+                  <div className="stat-label">Segnalatori</div>
+                  <div className="stat-value">{dashboardData?.statistics.segnalatori || 0}</div>
+                </div>
+              </div>
           
             </div>
           </div>

@@ -661,7 +661,16 @@ export const getCompanyDocumentPreviewUrl: CustomRequestHandler = async (req, re
       return res.status(403).json({ error: "Access denied" });
     }
 
-    const doc: any = (company as any)?.companyDocuments?.[documentKey];
+    const legacyFieldMap: Record<CompanyDocumentKey, string> = {
+      signedContractFile: "signedContractFile",
+      privacyNoticeFile: "privacyNoticeFile",
+      legalRepresentativeDocumentFile: "legalRepresentativeDocumentFile",
+      chamberOfCommerceFile: "chamberOfCommerceFile",
+    };
+
+    const doc: any =
+      (company as any)?.companyDocuments?.[documentKey] ||
+      (company as any)?.[legacyFieldMap[documentKey]];
     if (!doc) {
       return res.status(404).json({ error: "Documento non caricato" });
     }
@@ -706,7 +715,16 @@ export const deleteCompanyDocument: CustomRequestHandler = async (req, res) => {
       return res.status(404).json({ error: "Company not found" });
     }
 
-    const doc: any = (company as any)?.companyDocuments?.[documentKey];
+    const legacyFieldMap: Record<CompanyDocumentKey, string> = {
+      signedContractFile: "signedContractFile",
+      privacyNoticeFile: "privacyNoticeFile",
+      legalRepresentativeDocumentFile: "legalRepresentativeDocumentFile",
+      chamberOfCommerceFile: "chamberOfCommerceFile",
+    };
+
+    const doc: any =
+      (company as any)?.companyDocuments?.[documentKey] ||
+      (company as any)?.[legacyFieldMap[documentKey]];
     if (!doc) {
       return res.status(404).json({ error: "Documento non caricato" });
     }
@@ -735,7 +753,12 @@ export const deleteCompanyDocument: CustomRequestHandler = async (req, res) => {
 
     await Company.updateOne(
       { _id: id },
-      { $unset: { [`companyDocuments.${documentKey}`]: 1 } }
+      {
+        $unset: {
+          [`companyDocuments.${documentKey}`]: 1,
+          [legacyFieldMap[documentKey]]: 1,
+        },
+      }
     );
 
     return res.json({ message: "Documento eliminato con successo" });

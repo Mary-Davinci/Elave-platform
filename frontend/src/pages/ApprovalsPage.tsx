@@ -36,8 +36,14 @@ interface PendingItem {
   attachmentName?: string;
   hasAttachment?: boolean;
   signedContractName?: string;
+  privacyNoticeName?: string;
+  legalRepresentativeDocumentName?: string;
+  chamberOfCommerceName?: string;
   legalDocumentName?: string;
   hasSignedContract?: boolean;
+  hasPrivacyNotice?: boolean;
+  hasLegalRepresentativeDocument?: boolean;
+  hasChamberOfCommerce?: boolean;
   hasLegalDocument?: boolean;
 }
 
@@ -284,6 +290,30 @@ const StyledApprovalsPage: React.FC = () => {
     }
   };
 
+  const handlePreviewCompanyDocument = async (
+    companyId: string,
+    documentKey:
+      | 'signedContractFile'
+      | 'privacyNoticeFile'
+      | 'legalRepresentativeDocumentFile'
+      | 'chamberOfCommerceFile'
+  ) => {
+    const key = `company:${companyId}:${documentKey}`;
+    if (previewingDocumentKey === key) return;
+
+    try {
+      setPreviewingDocumentKey(key);
+      const data = await approvalService.getCompanyDocumentPreviewUrl(companyId, documentKey);
+      if (data?.url) {
+        window.open(data.url, '_blank', 'noopener,noreferrer');
+      }
+    } catch (err: any) {
+      setError(err?.response?.data?.error || 'Impossibile aprire il documento aziendale.');
+    } finally {
+      setPreviewingDocumentKey(null);
+    }
+  };
+
   const renderItemCard = (item: PendingItem, type: string) => {
     const itemName = item?.businessName || 
                     `${item?.firstName || ''} ${item?.lastName || ''}`.trim() || 
@@ -491,6 +521,114 @@ const StyledApprovalsPage: React.FC = () => {
                       {previewingDocumentKey === `${type === 'agente' ? 'agente' : 'sportello'}:${item._id}:legal`
                         ? 'Apro...'
                         : 'Anteprima'}
+                    </button>
+                  </span>
+                </div>
+              )}
+              {type === 'company' && (
+                <div className="info-row">
+                  <span className="info-label">Contratto firmato:</span>
+                  <span className="info-value">
+                    {item.signedContractName || 'Non disponibile'}
+                    <button
+                      type="button"
+                      onClick={() => handlePreviewCompanyDocument(item._id, 'signedContractFile')}
+                      disabled={previewingDocumentKey === `company:${item._id}:signedContractFile`}
+                      style={{
+                        marginLeft: 10,
+                        padding: '4px 10px',
+                        borderRadius: 6,
+                        border: '1px solid #d0d7e2',
+                        background: '#fff',
+                        color: '#253676',
+                        cursor:
+                          previewingDocumentKey === `company:${item._id}:signedContractFile`
+                            ? 'not-allowed'
+                            : 'pointer'
+                      }}
+                    >
+                      {previewingDocumentKey === `company:${item._id}:signedContractFile` ? 'Apro...' : 'Anteprima'}
+                    </button>
+                  </span>
+                </div>
+              )}
+              {type === 'company' && (
+                <div className="info-row">
+                  <span className="info-label">Informativa privacy:</span>
+                  <span className="info-value">
+                    {item.privacyNoticeName || 'Non disponibile'}
+                    <button
+                      type="button"
+                      onClick={() => handlePreviewCompanyDocument(item._id, 'privacyNoticeFile')}
+                      disabled={previewingDocumentKey === `company:${item._id}:privacyNoticeFile`}
+                      style={{
+                        marginLeft: 10,
+                        padding: '4px 10px',
+                        borderRadius: 6,
+                        border: '1px solid #d0d7e2',
+                        background: '#fff',
+                        color: '#253676',
+                        cursor:
+                          previewingDocumentKey === `company:${item._id}:privacyNoticeFile`
+                            ? 'not-allowed'
+                            : 'pointer'
+                      }}
+                    >
+                      {previewingDocumentKey === `company:${item._id}:privacyNoticeFile` ? 'Apro...' : 'Anteprima'}
+                    </button>
+                  </span>
+                </div>
+              )}
+              {type === 'company' && (
+                <div className="info-row">
+                  <span className="info-label">Documento legale rapp.:</span>
+                  <span className="info-value">
+                    {item.legalRepresentativeDocumentName || 'Non disponibile'}
+                    <button
+                      type="button"
+                      onClick={() => handlePreviewCompanyDocument(item._id, 'legalRepresentativeDocumentFile')}
+                      disabled={previewingDocumentKey === `company:${item._id}:legalRepresentativeDocumentFile`}
+                      style={{
+                        marginLeft: 10,
+                        padding: '4px 10px',
+                        borderRadius: 6,
+                        border: '1px solid #d0d7e2',
+                        background: '#fff',
+                        color: '#253676',
+                        cursor:
+                          previewingDocumentKey === `company:${item._id}:legalRepresentativeDocumentFile`
+                            ? 'not-allowed'
+                            : 'pointer'
+                      }}
+                    >
+                      {previewingDocumentKey === `company:${item._id}:legalRepresentativeDocumentFile` ? 'Apro...' : 'Anteprima'}
+                    </button>
+                  </span>
+                </div>
+              )}
+              {type === 'company' && (
+                <div className="info-row">
+                  <span className="info-label">Visura camerale:</span>
+                  <span className="info-value">
+                    {item.chamberOfCommerceName || 'Non disponibile'}
+                    <button
+                      type="button"
+                      onClick={() => handlePreviewCompanyDocument(item._id, 'chamberOfCommerceFile')}
+                      disabled={previewingDocumentKey === `company:${item._id}:chamberOfCommerceFile`}
+                      style={{
+                        marginLeft: 10,
+                        padding: '4px 10px',
+                        borderRadius: 6,
+                        border: '1px solid #d0d7e2',
+                        background: '#fff',
+                        color: '#253676',
+                        cursor:
+                          previewingDocumentKey === `company:${item._id}:chamberOfCommerceFile`
+                            ? 'not-allowed'
+                            : 'pointer'
+                      }}
+                    >
+                      {previewingDocumentKey === `company:${item._id}:chamberOfCommerceFile` ? 'Apro...' : 'Anteprima'}
                     </button>
                   </span>
                 </div>

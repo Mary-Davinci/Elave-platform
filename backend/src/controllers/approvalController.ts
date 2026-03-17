@@ -129,6 +129,38 @@ export const getPendingItems: CustomRequestHandler = async (req, res) => {
 
     return res.json({
       companies: companies.map((company: any) => ({
+        // Support both new schema (companyDocuments.*) and legacy root-level fields.
+        // Some old pending companies were saved before document nesting was introduced.
+        ...(function () {
+          const signedContractDoc =
+            company.companyDocuments?.signedContractFile || company.signedContractFile;
+          const privacyDoc =
+            company.companyDocuments?.privacyNoticeFile || company.privacyNoticeFile;
+          const legalRepDoc =
+            company.companyDocuments?.legalRepresentativeDocumentFile ||
+            company.legalRepresentativeDocumentFile;
+          const chamberDoc =
+            company.companyDocuments?.chamberOfCommerceFile || company.chamberOfCommerceFile;
+          return {
+            signedContractName: signedContractDoc?.originalName || signedContractDoc?.filename,
+            privacyNoticeName: privacyDoc?.originalName || privacyDoc?.filename,
+            legalRepresentativeDocumentName:
+              legalRepDoc?.originalName || legalRepDoc?.filename,
+            chamberOfCommerceName: chamberDoc?.originalName || chamberDoc?.filename,
+            hasSignedContract: Boolean(
+              signedContractDoc?.storageKey || signedContractDoc?.path || signedContractDoc?.filename
+            ),
+            hasPrivacyNotice: Boolean(
+              privacyDoc?.storageKey || privacyDoc?.path || privacyDoc?.filename
+            ),
+            hasLegalRepresentativeDocument: Boolean(
+              legalRepDoc?.storageKey || legalRepDoc?.path || legalRepDoc?.filename
+            ),
+            hasChamberOfCommerce: Boolean(
+              chamberDoc?.storageKey || chamberDoc?.path || chamberDoc?.filename
+            ),
+          };
+        })(),
         _id: company._id,
         businessName: company.businessName || company.companyName || 'Unknown Company',
         vatNumber: company.vatNumber,

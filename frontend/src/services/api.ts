@@ -170,6 +170,23 @@ export const approvalService = {
     }
   },
 
+  getCompanyDocumentPreviewUrl: async (
+    companyId: string,
+    documentKey:
+      | 'signedContractFile'
+      | 'privacyNoticeFile'
+      | 'legalRepresentativeDocumentFile'
+      | 'chamberOfCommerceFile'
+  ) => {
+    try {
+      const response = await api.get(`/api/companies/${companyId}/documents/${documentKey}/url`);
+      return response.data as { url: string; source?: string; expiresIn?: number };
+    } catch (error) {
+      console.error('Error loading company document preview URL:', error);
+      throw error;
+    }
+  },
+
   downloadPendingDocument: async (
     type: 'agente' | 'sportello',
     id: string,

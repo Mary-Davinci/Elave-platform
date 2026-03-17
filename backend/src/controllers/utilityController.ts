@@ -4,8 +4,24 @@ import { CustomRequestHandler } from "../types/express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import {
+  deleteObjectFromObjectStorage,
+  getObjectStorageDownloadUrl,
+  isObjectStorageEnabled,
+  uploadBufferToObjectStorage,
+} from "../services/objectStorage";
 
 const isPrivileged = (role: string) => role === "admin" || role === "super_admin";
+const OBJECT_STORAGE_PREFIX = "object://";
+
+const toUtilityStorageKey = (file: Express.Multer.File) => {
+  const now = new Date();
+  const monthSegment = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+  const safeName = String(file.originalname || "file")
+    .replace(/[^\w.\- ]+/g, "_")
+    .replace(/\s+/g, "_");
+  return `utilities/${monthSegment}/${Date.now()}-${safeName}`;
+};
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -52,7 +68,16 @@ const upload = multer({
 });
 
 
-export const uploadMiddleware = upload.single('file');
+export const uploadMiddleware: CustomRequestHandler = async (req, res, next) => {
+  upload.single("file")(req as any, res as any, (err: any) => {
+    if (err) {
+      return res.status(400).json({
+        error: err.message || "Errore durante il caricamento del file",
+      });
+    }
+    return next();
+  });
+};
 
 const getFileType = (file: Express.Multer.File, providedType?: string): string => {
  
@@ -92,8 +117,24 @@ const getFileType = (file: Express.Multer.File, providedType?: string): string =
 export const getUtilities: CustomRequestHandler = async (req, res) => {
   try {
     
-    const utilities = await Utility.find().sort({ name: 1 });
-    return res.json(utilities);
+    const utilities = await Utility.find().sort({ name: 1 }).lean();
+    const hydrated = await Promise.all(
+      utilities.map(async (utility: any) => {
+        const fileUrl = String(utility.fileUrl || "");
+        if (fileUrl.startsWith(OBJECT_STORAGE_PREFIX) && isObjectStorageEnabled()) {
+          const key = fileUrl.replace(OBJECT_STORAGE_PREFIX, "");
+          try {
+            const signedUrl = await getObjectStorageDownloadUrl(key, 3600);
+            return { ...utility, fileUrl: signedUrl };
+          } catch (e) {
+            console.error("[utilities] signed url error:", key, e);
+            return utility;
+          }
+        }
+        return utility;
+      })
+    );
+    return res.json(hydrated);
   } catch (error) {
     console.error("Get utilities error:", error);
     return res.status(500).json({ error: "Server error" });
@@ -116,7 +157,16 @@ export const uploadUtility: CustomRequestHandler = async (req, res) => {
 
     const utilityName = name || req.file.originalname;
 
-    const fileUrl = `/uploads/utilities/${req.file.filename}`;
+    let fileUrl = `/uploads/utilities/${req.file.filename}`;
+    if (isObjectStorageEnabled()) {
+      const key = toUtilityStorageKey(req.file);
+      const fileBuffer = fs.readFileSync(req.file.path);
+      await uploadBufferToObjectStorage(key, fileBuffer, req.file.mimetype);
+      fileUrl = `${OBJECT_STORAGE_PREFIX}${key}`;
+      if (fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+    }
 
     const utilityType = getFileType(req.file, type);
 
@@ -125,7 +175,7 @@ export const uploadUtility: CustomRequestHandler = async (req, res) => {
       fileUrl: fileUrl,
       type: utilityType,
       isPublic: isPublic !== 'false',
-      category: category || 'uncategorized', 
+      category: category || 'Uncategorized', 
 
     });
 
@@ -187,7 +237,10 @@ export const deleteUtility: CustomRequestHandler = async (req, res) => {
       return res.status(404).json({ error: "Utility not found" });
     }
 
-    if (utility.fileUrl.startsWith('/uploads/')) {
+    if (utility.fileUrl.startsWith(`${OBJECT_STORAGE_PREFIX}`) && isObjectStorageEnabled()) {
+      const key = utility.fileUrl.replace(OBJECT_STORAGE_PREFIX, "");
+      await deleteObjectFromObjectStorage(key);
+    } else if (utility.fileUrl.startsWith('/uploads/')) {
       const filePath = path.join(__dirname, '../../', utility.fileUrl);
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
@@ -258,12 +311,23 @@ export const downloadUtility: CustomRequestHandler = async (req, res) => {
 
    
     if (utility.isPublic) {
+      if (utility.fileUrl.startsWith(OBJECT_STORAGE_PREFIX) && isObjectStorageEnabled()) {
+        const key = utility.fileUrl.replace(OBJECT_STORAGE_PREFIX, "");
+        const signedUrl = await getObjectStorageDownloadUrl(key, 3600);
+        return res.json({ fileUrl: signedUrl });
+      }
       return res.json({ fileUrl: utility.fileUrl });
     }
     
  
     if (!req.user) {
       return res.status(401).json({ error: "Authentication required" });
+    }
+
+    if (utility.fileUrl.startsWith(OBJECT_STORAGE_PREFIX) && isObjectStorageEnabled()) {
+      const key = utility.fileUrl.replace(OBJECT_STORAGE_PREFIX, "");
+      const signedUrl = await getObjectStorageDownloadUrl(key, 3600);
+      return res.json({ fileUrl: signedUrl });
     }
 
     return res.json({ fileUrl: utility.fileUrl });

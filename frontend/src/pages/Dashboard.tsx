@@ -440,7 +440,7 @@ const Dashboard: React.FC = () => {
           </div>
 
           <div>
-            <h1 className="welcome-header">Report</h1>
+            <h1 className="welcome-header">Tasti Rapidi</h1>
 
             <div className="projects-section">
               {showReportAzienda && (
@@ -639,7 +639,7 @@ const Dashboard: React.FC = () => {
           </div>
 
           <div className="Dowenload" style={{ width: '100%' }}>
-            <h2 className="section-header">Salute Amica</h2>
+            <h2 className="section-header">Fondo Sanitario</h2>
             <div className="utility-section">
               <div className="utility-header">
                 {isAdmin && (

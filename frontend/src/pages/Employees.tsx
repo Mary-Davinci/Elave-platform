@@ -4,6 +4,7 @@ import { Employee } from '../types/interfaces';
 import { 
   getEmployeesByCompany, 
   createEmployee, 
+  updateEmployee,
   deleteEmployee, 
   uploadEmployeesFromExcel,
   downloadEmployeesTemplateXlsx,
@@ -20,11 +21,15 @@ interface EmployeesProps {
 const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
   // State for all employees
   const [allEmployees, setAllEmployees] = useState<Employee[]>(employees || []);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [showViewModal, setShowViewModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // State for new employee form
   const [newEmployee, setNewEmployee] = useState<EmployeeFormData>({
@@ -84,6 +89,12 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
     }
   }, [employees]);
 
+  useEffect(() => {
+    if (!notice) return;
+    const timeout = window.setTimeout(() => setNotice(null), 3000);
+    return () => window.clearTimeout(timeout);
+  }, [notice]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     setNewEmployee({
@@ -118,6 +129,29 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
       email: '',
       attivo: true
     });
+    setEditingEmployeeId(null);
+  };
+
+  const fillFormFromEmployee = (employee: Employee) => {
+    setNewEmployee({
+      companyId,
+      nome: employee.nome || '',
+      cognome: employee.cognome || '',
+      dataNascita: employee.dataNascita || '',
+      cittaNascita: employee.cittaNascita || '',
+      provinciaNascita: employee.provinciaNascita || '',
+      genere: (employee.genere as any) || '',
+      codiceFiscale: employee.codiceFiscale || '',
+      indirizzo: employee.indirizzo || '',
+      numeroCivico: employee.numeroCivico || '',
+      citta: employee.citta || '',
+      provincia: employee.provincia || '',
+      cap: employee.cap || '',
+      cellulare: employee.cellulare || '',
+      telefono: employee.telefono || '',
+      email: employee.email || '',
+      attivo: employee.stato === 'attivo'
+    });
   };
 
   const handleAddEmployee = async (e: React.FormEvent) => {
@@ -134,7 +168,7 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
       setAllEmployees(prev => [...prev, createdEmployee]);
       
       // Show success message
-      alert("Dipendente aggiunto con successo!");
+      setNotice({ type: 'success', text: 'Dipendente aggiunto con successo.' });
       
       // Close modal after submission
       setShowAddModal(false);
@@ -144,7 +178,30 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
     } catch (error: any) {
       console.error('Error adding employee:', error);
       setError('Si è verificato un errore durante l\'aggiunta del dipendente: ' + error.message);
-      alert('Si è verificato un errore durante l\'aggiunta del dipendente: ' + error.message);
+      setNotice({ type: 'error', text: 'Si è verificato un errore durante l\'aggiunta del dipendente: ' + error.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateEmployee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingEmployeeId) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const updated = await updateEmployee(editingEmployeeId, newEmployee);
+      setAllEmployees(prev => prev.map(emp => (emp._id === editingEmployeeId ? updated : emp)));
+
+      setNotice({ type: 'success', text: 'Dipendente aggiornato con successo.' });
+      setShowAddModal(false);
+      resetForm();
+    } catch (error: any) {
+      console.error('Error updating employee:', error);
+      setError('Errore durante la modifica del dipendente: ' + error.message);
+      setNotice({ type: 'error', text: 'Errore durante la modifica del dipendente: ' + error.message });
     } finally {
       setLoading(false);
     }
@@ -154,7 +211,7 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
     e.preventDefault();
     
     if (!selectedFile) {
-      alert("Seleziona un file prima di caricare");
+      setNotice({ type: 'error', text: 'Seleziona un file prima di caricare.' });
       return;
     }
     
@@ -175,11 +232,12 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
       setUploadResult(result);
       
       // Show success message
-      alert(
-        `${result.createdCount} dipendenti importati` +
-          (result.errorCount > 0 ? ` con ${result.errorCount} errori` : '') +
-          '!'
-      );
+      setNotice({
+        type: result.errorCount > 0 ? 'error' : 'success',
+        text:
+          `${result.createdCount} dipendenti importati` +
+          (result.errorCount > 0 ? ` con ${result.errorCount} errori` : ''),
+      });
       
       // Close modal after submission
       setShowUploadModal(false);
@@ -196,7 +254,7 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
       console.error("Excel upload error:", error);
       const errorMessage = error.message || "Errore durante l'elaborazione del file Excel";
       setError(errorMessage);
-      alert(errorMessage);
+      setNotice({ type: 'error', text: errorMessage });
     } finally {
       setUploadLoading(false);
     }
@@ -223,12 +281,12 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
       // Remove employee from local state
       setAllEmployees(prev => prev.filter(emp => emp._id !== employeeId));
       
-      alert('Dipendente eliminato con successo!');
+      setNotice({ type: 'success', text: 'Dipendente eliminato con successo.' });
     } catch (error: any) {
       console.error('Error deleting employee:', error);
       const errorMessage = 'Errore durante l\'eliminazione del dipendente: ' + error.message;
       setError(errorMessage);
-      alert(errorMessage);
+      setNotice({ type: 'error', text: errorMessage });
     } finally {
       setLoading(false);
     }
@@ -238,7 +296,7 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
     // In a real app, this would generate a fiscal code based on the employee's details
     // For now, just show a placeholder
     if (!newEmployee.nome || !newEmployee.cognome || !newEmployee.dataNascita) {
-      alert('Compila prima Nome, Cognome e Data di nascita per generare il codice fiscale');
+      setNotice({ type: 'error', text: 'Compila Nome, Cognome e Data di nascita per generare il codice fiscale.' });
       return;
     }
     
@@ -250,7 +308,7 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
       codiceFiscale: mockCF
     });
     
-    alert('Codice fiscale generato! (Questo è solo un esempio - usa un generatore reale in produzione)');
+    setNotice({ type: 'success', text: 'Codice fiscale generato.' });
   };
 
   const filteredEmployees = allEmployees.filter(emp => 
@@ -258,6 +316,17 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
     emp.cognome.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (emp.email && emp.email.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+
+  const openEmployeeDetails = (employee: Employee) => {
+    setSelectedEmployee(employee);
+    setShowViewModal(true);
+  };
+
+  const openEmployeeEdit = (employee: Employee) => {
+    setEditingEmployeeId(employee._id);
+    fillFormFromEmployee(employee);
+    setShowAddModal(true);
+  };
 
   return (
     <div className="employees-container">
@@ -284,6 +353,19 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
       {error && (
         <div className="error-message" style={{ color: 'red', margin: '10px 0', padding: '10px', backgroundColor: '#ffebee', borderRadius: '4px' }}>
           {error}
+        </div>
+      )}
+      {notice && (
+        <div
+          style={{
+            margin: '10px 0',
+            padding: '10px',
+            borderRadius: '4px',
+            color: notice.type === 'success' ? '#166534' : '#991b1b',
+            backgroundColor: notice.type === 'success' ? '#dcfce7' : '#fee2e2',
+          }}
+        >
+          {notice.text}
         </div>
       )}
 
@@ -355,8 +437,8 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
                     </span>
                   </td>
                   <td className="actions">
-                    <button className="view-btn" title="Visualizza">👁️</button>
-                    <button className="edit-btn" title="Modifica">✏️</button>
+                    <button className="view-btn" title="Visualizza" onClick={() => openEmployeeDetails(employee)}>👁️</button>
+                    <button className="edit-btn" title="Modifica" onClick={() => openEmployeeEdit(employee)}>✏️</button>
                     <button 
                       className="delete-btn" 
                       title="Elimina"
@@ -379,15 +461,62 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
         </table>
       </div>
 
+      {/* View Employee Modal */}
+      {showViewModal && selectedEmployee && (
+        <div className="modal-overlay">
+          <div className="modal employee-detail-modal">
+            <div className="modal-header">
+              <h3>Dettaglio dipendente</h3>
+              <button className="close-btn" onClick={() => setShowViewModal(false)}>&times;</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-row">
+                <div className="form-group-employee">
+                  <label>Nome</label>
+                  <input className="employee-readonly" value={selectedEmployee.nome || ''} readOnly />
+                </div>
+                <div className="form-group-employee">
+                  <label>Cognome</label>
+                  <input className="employee-readonly" value={selectedEmployee.cognome || ''} readOnly />
+                </div>
+                <div className="form-group-employee">
+                  <label>Codice Fiscale</label>
+                  <input className="employee-readonly" value={selectedEmployee.codiceFiscale || ''} readOnly />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group-employee">
+                  <label>Cellulare</label>
+                  <input className="employee-readonly" value={selectedEmployee.cellulare || '-'} readOnly />
+                </div>
+                <div className="form-group-employee">
+                  <label>Email</label>
+                  <input className="employee-readonly" value={selectedEmployee.email || '-'} readOnly />
+                </div>
+                <div className="form-group-employee">
+                  <label>Stato</label>
+                  <input className="employee-readonly" value={selectedEmployee.stato || '-'} readOnly />
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="upload-btn" onClick={() => setShowViewModal(false)}>
+                Chiudi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Add Employee Modal */}
       {showAddModal && (
         <div className="modal-overlay">
           <div className="modal">
             <div className="modal-header">
-              <h3>Aggiungi un dipendente</h3>
-              <button className="close-btn" onClick={() => setShowAddModal(false)}>×</button>
+              <h3>{editingEmployeeId ? 'Modifica dipendente' : 'Aggiungi un dipendente'}</h3>
+              <button className="close-btn" onClick={() => { setShowAddModal(false); resetForm(); }}>&times;</button>
             </div>
-            <form onSubmit={handleAddEmployee}>
+            <form onSubmit={editingEmployeeId ? handleUpdateEmployee : handleAddEmployee}>
               <div className="modal-body">
                 <div className="form-row">
                   <div className="form-group-employee">
@@ -611,7 +740,7 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
               </div>
               <div className="modal-footer">
                 <button type="submit" className="add-btn" disabled={loading}>
-                  {loading ? 'Aggiungendo...' : 'Aggiungi'}
+                  {loading ? (editingEmployeeId ? 'Salvataggio...' : 'Aggiungendo...') : (editingEmployeeId ? 'Salva modifiche' : 'Aggiungi')}
                 </button>
               </div>
             </form>
@@ -625,7 +754,7 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
           <div className="modal upload-modal">
             <div className="modal-header">
               <h3>Aggiungi dipendenti da XLSX</h3>
-              <button className="close-btn" onClick={() => setShowUploadModal(false)}>×</button>
+              <button className="close-btn" onClick={() => setShowUploadModal(false)}>&times;</button>
             </div>
             <form onSubmit={handleUploadEmployees}>
               <div className="modal-body">
@@ -678,4 +807,9 @@ const Employees: React.FC<EmployeesProps> = ({ companyId, employees = [] }) => {
 };
 
 export default Employees;
+
+
+
+
+
 

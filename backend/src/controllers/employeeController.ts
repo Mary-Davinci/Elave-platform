@@ -420,6 +420,14 @@ export const uploadEmployeesFromExcel: CustomRequestHandler = async (req, res) =
           return '';
         };
         const clean = (value: unknown) => String(value || '').trim();
+        const normalizeGender = (value: unknown): 'M' | 'F' | 'A' | undefined => {
+          const raw = clean(value).toUpperCase();
+          if (!raw) return undefined;
+          if (['M', 'MASCHIO', 'UOMO'].includes(raw)) return 'M';
+          if (['F', 'FEMMINA', 'DONNA'].includes(raw)) return 'F';
+          if (['A', 'ALTRO', 'N', 'ND', 'NONBINARIO', 'NON BINARIO'].includes(raw)) return 'A';
+          return undefined;
+        };
 
         const parsedRows = (data as any[]).map((row, index) => {
           const rowObj = (row || {}) as Record<string, unknown>;
@@ -432,7 +440,7 @@ export const uploadEmployeesFromExcel: CustomRequestHandler = async (req, res) =
               dataNascita: clean(readCell(rowObj, ['Data di nascita', 'Data Nascita', 'Birth Date'])),
               cittaNascita: clean(readCell(rowObj, ['Citt? di nascita', 'Citta Nascita', 'Luogo di nascita'])),
               provinciaNascita: clean(readCell(rowObj, ['Provincia di nascita', 'Provincia Nascita'])),
-              genere: clean(readCell(rowObj, ['Genere', 'Sesso'])),
+              genere: normalizeGender(readCell(rowObj, ['Genere', 'Sesso'])),
               codiceFiscale: clean(readCell(rowObj, ['Codice Fiscale', 'CodiceFiscale', 'CF', 'Fiscal Code'])).toUpperCase(),
               indirizzo: clean(readCell(rowObj, ['Indirizzo', 'Address'])),
               numeroCivico: clean(readCell(rowObj, ['Numero Civico', 'N. Civico', 'Civico'])),

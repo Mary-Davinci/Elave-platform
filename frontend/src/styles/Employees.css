@@ -341,6 +341,21 @@
   max-width: 500px;
 }
 
+.employee-detail-modal {
+  max-width: 740px;
+}
+
+.employee-readonly {
+  background-color: #f8fafc;
+  color: #334155;
+  border-color: #e2e8f0;
+}
+
+.employee-readonly:focus {
+  box-shadow: none !important;
+  border-color: #e2e8f0 !important;
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;

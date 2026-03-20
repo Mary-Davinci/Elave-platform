@@ -18,6 +18,7 @@ import {
 } from "../services/objectStorage";
 
 const isPrivileged = (role: string) => role === 'admin' || role === 'super_admin';
+const SPORTELLO_DOCUMENT_MAX_SIZE_BYTES = 3 * 1024 * 1024; // 3MB
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const sanitizeFileName = (value: string) =>
@@ -42,6 +43,20 @@ const removeLocalFileIfExists = (filePath?: string) => {
   if (!filePath) return;
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath);
+  }
+};
+
+const validateSportelloPdfDocument = (file?: Express.Multer.File) => {
+  if (!file) return;
+  const isPdfByMime = String(file.mimetype || "").toLowerCase() === "application/pdf";
+  const isPdfByExtension = /\.pdf$/i.test(path.extname(file.originalname || ""));
+  if (!isPdfByMime && !isPdfByExtension) {
+    removeLocalFileIfExists(file.path);
+    throw new Error("Formato file non supportato: sono ammessi solo PDF.");
+  }
+  if (Number(file.size || 0) > SPORTELLO_DOCUMENT_MAX_SIZE_BYTES) {
+    removeLocalFileIfExists(file.path);
+    throw new Error("File troppo grande: dimensione massima 3MB per documento.");
   }
 };
 
@@ -146,13 +161,13 @@ const upload = multer({
     }
     
     if (file.fieldname === 'signedContractFile' || file.fieldname === 'legalDocumentFile') {
-      const validExtensions = /\.pdf$|\.doc$|\.docx$|\.jpg$|\.jpeg$|\.png$/i;
+      const validExtensions = /\.pdf$/i;
       const hasValidExtension = validExtensions.test(path.extname(file.originalname).toLowerCase());
       
       if (hasValidExtension) {
         return cb(null, true);
       } else {
-        return cb(new Error('Only PDF, DOC, DOCX, JPG, JPEG, PNG files are allowed for documents!'));
+        return cb(new Error('Formato file non supportato: sono ammessi solo PDF.'));
       }
     }
     
@@ -344,6 +359,8 @@ export const createSportelloLavoro: CustomRequestHandler = async (req, res) => {
         const files = req.files as MulterFiles | undefined;
         const signedContractFile = files?.signedContractFile?.[0];
         const legalDocumentFile = files?.legalDocumentFile?.[0];
+        validateSportelloPdfDocument(signedContractFile);
+        validateSportelloPdfDocument(legalDocumentFile);
         const signedContractMeta = await buildSportelloFileMeta(signedContractFile, "signed-contract");
         const legalDocumentMeta = await buildSportelloFileMeta(legalDocumentFile, "legal-document");
 
@@ -480,6 +497,8 @@ export const updateSportelloLavoro: CustomRequestHandler = async (req, res) => {
         const files = req.files as MulterFiles | undefined;
         const signedContractFile = files?.signedContractFile?.[0];
         const legalDocumentFile = files?.legalDocumentFile?.[0];
+        validateSportelloPdfDocument(signedContractFile);
+        validateSportelloPdfDocument(legalDocumentFile);
 
         if (agentName !== undefined) sportelloLavoro.agentName = agentName;
         if (businessName !== undefined) sportelloLavoro.businessName = businessName;

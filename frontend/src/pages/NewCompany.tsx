@@ -411,6 +411,17 @@ const [formData, setFormData] = useState<CompanyFormData>({
     key: 'signedContract' | 'privacyNotice' | 'legalRepresentativeDocument' | 'chamberOfCommerce',
     file: File | null
   ) => {
+    if (file) {
+      const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+      if (!isPdf) {
+        setError('La piattaforma accetta solo file PDF (max 3MB).');
+        return;
+      }
+      if (file.size > 3 * 1024 * 1024) {
+        setError('File troppo grande. La dimensione massima consentita è 3MB.');
+        return;
+      }
+    }
     setCompanyFiles((prev) => ({ ...prev, [key]: file }));
   };
 
@@ -728,6 +739,7 @@ const [formData, setFormData] = useState<CompanyFormData>({
                     id="company-file-signed-contract"
                     className="file-input"
                     type="file"
+                    accept=".pdf,application/pdf"
                     onChange={(e) => handleCompanyFileChange('signedContract', e.target.files?.[0] || null)}
                   />
                   <div className="file-select-button company-file-select-button">Scegli file</div>
@@ -744,6 +756,7 @@ const [formData, setFormData] = useState<CompanyFormData>({
                     id="company-file-privacy"
                     className="file-input"
                     type="file"
+                    accept=".pdf,application/pdf"
                     onChange={(e) => handleCompanyFileChange('privacyNotice', e.target.files?.[0] || null)}
                   />
                   <div className="file-select-button company-file-select-button">Scegli file</div>
@@ -760,6 +773,7 @@ const [formData, setFormData] = useState<CompanyFormData>({
                     id="company-file-legal"
                     className="file-input"
                     type="file"
+                    accept=".pdf,application/pdf"
                     onChange={(e) => handleCompanyFileChange('legalRepresentativeDocument', e.target.files?.[0] || null)}
                   />
                   <div className="file-select-button company-file-select-button">Scegli file</div>
@@ -776,6 +790,7 @@ const [formData, setFormData] = useState<CompanyFormData>({
                     id="company-file-visura"
                     className="file-input"
                     type="file"
+                    accept=".pdf,application/pdf"
                     onChange={(e) => handleCompanyFileChange('chamberOfCommerce', e.target.files?.[0] || null)}
                   />
                   <div className="file-select-button company-file-select-button">Scegli file</div>

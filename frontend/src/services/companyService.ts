@@ -59,6 +59,22 @@ export const deleteCompanyDocument = async (
   return response.data;
 };
 
+export const downloadCompanyDossierZip = async (companyId: string): Promise<Blob> => {
+  const response = await api.get(`/api/companies/${companyId}/dossier/download`, {
+    responseType: 'blob',
+    timeout: 0,
+  });
+  return response.data;
+};
+
+export const downloadAllCompaniesDossiersZip = async (): Promise<Blob> => {
+  const response = await api.get('/api/companies/dossier/download-all', {
+    responseType: 'blob',
+    timeout: 0,
+  });
+  return response.data;
+};
+
 export const exportCompaniesXlsx = async (filters?: {
   territorialManager?: string;
   sportelloLavoro?: string;

@@ -1,7 +1,11 @@
 // src/pages/CompanyDetail.tsx - Updated version
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getCompanyById, getCompanyDocumentPreviewUrl, deleteCompanyDocument } from '../services/companyService';
+import {
+  getCompanyById,
+  getCompanyDocumentPreviewUrl,
+  deleteCompanyDocument,
+} from '../services/companyService';
 import { getEmployeesByCompany } from '../services/employeeService';
 import { Company, Employee } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';

@@ -362,6 +362,26 @@ const monthOptions = [
     });
   };
 
+  const handleInvoiceAttachmentChange = (file: File | null) => {
+    if (file) {
+      const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+      if (!isPdf) {
+        setInvoiceFeedback('La piattaforma accetta solo file PDF (max 3MB).');
+        return;
+      }
+      if (file.size > 3 * 1024 * 1024) {
+        setInvoiceFeedback('File troppo grande. La dimensione massima consentita è 3MB.');
+        return;
+      }
+    }
+
+    setFatturaDraft((prev) => ({
+      ...prev,
+      allegatoNome: file?.name || '',
+      allegatoFile: file,
+    }));
+  };
+
   const handleServiziInvoiceSubmit = async () => {
     if (invoiceSubmitting) return;
     setInvoiceFeedback(null);
@@ -1512,13 +1532,8 @@ const monthOptions = [
               <input
                 className="filter-input"
                 type="file"
-                onChange={(e) =>
-                  setFatturaDraft((prev) => ({
-                    ...prev,
-                    allegatoNome: e.target.files?.[0]?.name || '',
-                    allegatoFile: e.target.files?.[0] || null,
-                  }))
-                }
+                accept=".pdf,application/pdf"
+                onChange={(e) => handleInvoiceAttachmentChange(e.target.files?.[0] || null)}
               />
             </div>
             {fatturaDraft.allegatoNome && (

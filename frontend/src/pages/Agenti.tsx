@@ -75,6 +75,17 @@ const Agenti: React.FC = () => {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'contract' | 'doc') => {
     const file = e.target.files?.[0] || null;
+    if (file) {
+      const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+      if (!isPdf) {
+        setErrors(['La piattaforma accetta solo file PDF (max 3MB).']);
+        return;
+      }
+      if (file.size > 3 * 1024 * 1024) {
+        setErrors(['File troppo grande. La dimensione massima consentita è 3MB.']);
+        return;
+      }
+    }
     if (type === 'contract') setSignedContract(file);
     else setLegalDoc(file);
   };
@@ -332,7 +343,7 @@ const Agenti: React.FC = () => {
                     Carica Contratto Responsabile Territoriale
                   </label>
                   <span style={{ fontSize: '12px', color: '#6c757d' }}>
-                    Formati supportati: PDF, DOC, DOCX
+                    Formato supportato: PDF (max 3MB)
                   </span>
                 </div>
                 {getAvailableTemplate('contract') && (
@@ -498,7 +509,7 @@ const Agenti: React.FC = () => {
                     id="signed-contract-upload"
                     ref={signedContractRef}
                     onChange={(e) => handleFileChange(e, 'contract')}
-                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                    accept=".pdf,application/pdf"
                     className="file-input"
                     disabled={isSubmitting}
                   />
@@ -522,7 +533,7 @@ const Agenti: React.FC = () => {
                     id="legal-doc-upload"
                     ref={legalDocRef}
                     onChange={(e) => handleFileChange(e, 'doc')}
-                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                    accept=".pdf,application/pdf"
                     className="file-input"
                     disabled={isSubmitting}
                   />

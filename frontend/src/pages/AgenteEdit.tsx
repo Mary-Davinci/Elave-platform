@@ -155,18 +155,13 @@ const AgenteEdit: React.FC = () => {
     const file = e.target.files?.[0] || null;
 
     if (file) {
-      const allowed = [
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'image/jpeg', 'image/jpg', 'image/png'
-      ];
-      if (!allowed.includes(file.type)) {
-        setErrors(['Sono permessi solo PDF, DOC, DOCX, JPG, JPEG, PNG']);
+      const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+      if (!isPdf) {
+        setErrors(['La piattaforma accetta solo file PDF (max 3MB).']);
         return;
       }
-      if (file.size > 5 * 1024 * 1024) {
-        setErrors(['Dimensione massima 5MB']);
+      if (file.size > 3 * 1024 * 1024) {
+        setErrors(['File troppo grande. La dimensione massima consentita è 3MB.']);
         return;
       }
     }
@@ -426,7 +421,7 @@ const AgenteEdit: React.FC = () => {
                     type="file"
                     ref={signedContractRef}
                     onChange={(e)=>handleFileChange(e,'contract')}
-                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                    accept=".pdf,application/pdf"
                     className="file-input"
                     disabled={isSubmitting}
                   />
@@ -457,7 +452,7 @@ const AgenteEdit: React.FC = () => {
                     type="file"
                     ref={legalDocRef}
                     onChange={(e)=>handleFileChange(e,'legal')}
-                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                    accept=".pdf,application/pdf"
                     className="file-input"
                     disabled={isSubmitting}
                   />

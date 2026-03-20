@@ -9,15 +9,18 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import xlsx from 'xlsx';
+import archiver from "archiver";
 import { NotificationService } from "../models/notificationService";
 import {
   buildCompanyDocumentStorageKey,
   deleteObjectFromObjectStorage,
+  downloadObjectFromObjectStorage,
   getObjectStorageDownloadUrl,
   isObjectStorageEnabled,
   uploadBufferToObjectStorage,
 } from "../services/objectStorage";
 import { getSportelloScopedCompanyIds } from "../services/contoScopeService";
+import Employee from "../models/Employee";
 
 const isPrivileged = (role: string) => role === 'admin' || role === 'super_admin';
 const COMPANY_ANAGRAFICA_COUNTER_ID = "companyNumeroAnagrafica";
@@ -227,6 +230,12 @@ const normalizeNumeroAnagrafica = (value: unknown): string | undefined => {
 };
 
 const normalizeText = (value: unknown): string => String(value ?? "").trim();
+const sanitizeFolderName = (value: string) =>
+  String(value || "azienda")
+    .trim()
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_")
+    .replace(/\s+/g, " ")
+    .slice(0, 120);
 
 const normalizeObjectId = (value: unknown): string => {
   if (!value) return "";
@@ -310,6 +319,7 @@ const COMPANY_DOCUMENT_KEYS = [
   "chamberOfCommerceFile",
 ] as const;
 type CompanyDocumentKey = (typeof COMPANY_DOCUMENT_KEYS)[number];
+const COMPANY_DOCUMENT_MAX_SIZE_BYTES = 3 * 1024 * 1024; // 3MB
 
 const storage = multer.diskStorage({
   destination: (req: Request, file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => {
@@ -362,9 +372,16 @@ const upload = multer({
 
 const companyDocumentsUpload = multer({
   storage: multer.memoryStorage(),
+  limits: {
+    fileSize: COMPANY_DOCUMENT_MAX_SIZE_BYTES,
+  },
   fileFilter: (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-    // Per documenti azienda accettiamo qualsiasi tipo file.
-    return cb(null, true);
+    const isPdfByMime = String(file.mimetype || "").toLowerCase() === "application/pdf";
+    const isPdfByExtension = /\.pdf$/i.test(path.extname(file.originalname || ""));
+    if (isPdfByMime || isPdfByExtension) {
+      return cb(null, true);
+    }
+    return cb(new Error("Formato non supportato: sono ammessi solo file PDF."));
   },
 }).fields([
   { name: "signedContractFile", maxCount: 1 },
@@ -376,6 +393,11 @@ const companyDocumentsUpload = multer({
 export const companyDocumentsUploadMiddleware: CustomRequestHandler = async (req, res, next) => {
   companyDocumentsUpload(req as any, res as any, (err: any) => {
     if (err) {
+      if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({
+          error: "File troppo grande: dimensione massima 3MB per documento.",
+        });
+      }
       return res.status(400).json({ error: err.message || "Errore caricamento documenti azienda" });
     }
     return next();
@@ -638,6 +660,278 @@ export const getCompanyById: CustomRequestHandler = async (req, res) => {
   } catch (err: any) {
     console.error("Get company error:", err);
     return res.status(500).json({ error: "Server error" });
+  }
+};
+
+export const downloadCompanyDossierZip: CustomRequestHandler = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+
+    const { id } = req.params;
+    const company = await Company.findById(id).lean();
+    if (!company) {
+      return res.status(404).json({ error: "Company not found" });
+    }
+
+    if (!isPrivileged(req.user.role) && String(company.user) !== String(req.user._id)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const employees = await Employee.find({ companyId: company._id })
+      .sort({ cognome: 1, nome: 1 })
+      .lean();
+
+    const companyFolder = sanitizeFolderName(
+      String((company as any).businessName || (company as any).companyName || "azienda")
+    );
+    const archiveFileName = `${companyFolder}-dossier.zip`;
+
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(archiveFileName)}"`);
+
+    const archive = archiver("zip", { zlib: { level: 9 } });
+    archive.on("error", (err) => {
+      throw err;
+    });
+    archive.pipe(res);
+
+    const legacyFieldMap: Record<CompanyDocumentKey, string> = {
+      signedContractFile: "signedContractFile",
+      privacyNoticeFile: "privacyNoticeFile",
+      legalRepresentativeDocumentFile: "legalRepresentativeDocumentFile",
+      chamberOfCommerceFile: "chamberOfCommerceFile",
+    };
+
+    const documentFileNames: Record<CompanyDocumentKey, string> = {
+      signedContractFile: "Contratto_Firmato.pdf",
+      privacyNoticeFile: "Informativa_Privacy.pdf",
+      legalRepresentativeDocumentFile: "Documento_Legale_Rappresentante.pdf",
+      chamberOfCommerceFile: "Visura_Camerale.pdf",
+    };
+
+    const readCompanyDocumentBuffer = async (doc: any): Promise<Buffer | null> => {
+      if (!doc) return null;
+
+      if (doc.storageKey && isObjectStorageEnabled()) {
+        const objectData = await downloadObjectFromObjectStorage(String(doc.storageKey));
+        return objectData.buffer;
+      }
+
+      const rawPath = String(doc.path || "");
+      if (!rawPath) return null;
+
+      if (path.isAbsolute(rawPath) && fs.existsSync(rawPath)) {
+        return fs.readFileSync(rawPath);
+      }
+
+      const fileName = rawPath.split(/[/\\]/).pop();
+      if (!fileName) return null;
+      const localPath = path.join(__dirname, "../uploads", fileName);
+      if (fs.existsSync(localPath)) {
+        return fs.readFileSync(localPath);
+      }
+
+      return null;
+    };
+
+    for (const key of COMPANY_DOCUMENT_KEYS) {
+      const doc: any =
+        (company as any)?.companyDocuments?.[key] ||
+        (company as any)?.[legacyFieldMap[key]];
+      if (!doc) continue;
+
+      try {
+        const buffer = await readCompanyDocumentBuffer(doc);
+        if (!buffer) continue;
+
+        const extByOriginal = path.extname(String(doc.originalName || doc.filename || "")).toLowerCase();
+        const extByMime = String(doc.mimetype || "").includes("pdf") ? ".pdf" : "";
+        const extension = extByOriginal || extByMime || ".pdf";
+        const baseName = documentFileNames[key].replace(/\.pdf$/i, "");
+        archive.append(buffer, { name: `${companyFolder}/documenti/${baseName}${extension}` });
+      } catch (err) {
+        console.warn("[company] skip document in dossier zip", {
+          companyId: String(company._id),
+          documentKey: key,
+          error: (err as any)?.message || err,
+        });
+      }
+    }
+
+    const employeeRows = employees.map((emp: any) => ({
+      Nome: String(emp.nome || ""),
+      Cognome: String(emp.cognome || ""),
+      "Codice Fiscale": String(emp.codiceFiscale || ""),
+      Stato: String(emp.stato || ""),
+      Email: String(emp.email || ""),
+      Cellulare: String(emp.cellulare || ""),
+    }));
+
+    const wb = xlsx.utils.book_new();
+    const ws = xlsx.utils.json_to_sheet(
+      employeeRows.length
+        ? employeeRows
+        : [{ Nome: "", Cognome: "", "Codice Fiscale": "", Stato: "", Email: "", Cellulare: "" }]
+    );
+    ws["!cols"] = [{ wch: 24 }, { wch: 24 }, { wch: 24 }, { wch: 12 }, { wch: 30 }, { wch: 18 }];
+    xlsx.utils.book_append_sheet(wb, ws, "Dipendenti");
+    const employeeWorkbookBuffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
+    archive.append(employeeWorkbookBuffer, {
+      name: `${companyFolder}/dipendenti/dipendenti.xlsx`,
+    });
+
+    archive.append(
+      `Dossier azienda: ${(company as any).businessName || (company as any).companyName || "N/A"}\n` +
+        `Partita IVA: ${(company as any).vatNumber || "N/A"}\n` +
+        `Matricola INPS: ${(company as any).inpsCode || (company as any).matricola || "N/A"}\n`,
+      { name: `${companyFolder}/README.txt` }
+    );
+
+    await archive.finalize();
+  } catch (err: any) {
+    console.error("Download company dossier zip error:", err);
+    if (!res.headersSent) {
+      return res.status(500).json({ error: "Server error while creating company dossier archive" });
+    }
+    return;
+  }
+};
+
+export const downloadAllCompaniesDossiersZip: CustomRequestHandler = async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+
+    let query: any = {};
+    if (!isPrivileged(req.user.role)) {
+      if (req.user.role === "sportello_lavoro") {
+        const companyIds = await getSportelloScopedCompanyIds(req.user._id);
+        query = { _id: { $in: companyIds } };
+      } else {
+        query = { user: req.user._id };
+      }
+    }
+
+    const companies = await Company.find(query).sort({ businessName: 1 }).lean();
+    if (!companies.length) {
+      return res.status(404).json({ error: "Nessuna azienda disponibile per il download" });
+    }
+
+    const companyIds = companies.map((c: any) => c._id);
+    const allEmployees = await Employee.find({ companyId: { $in: companyIds } })
+      .sort({ cognome: 1, nome: 1 })
+      .lean();
+    const employeesByCompany = new Map<string, any[]>();
+    for (const emp of allEmployees) {
+      const key = String(emp.companyId);
+      if (!employeesByCompany.has(key)) employeesByCompany.set(key, []);
+      employeesByCompany.get(key)!.push(emp);
+    }
+
+    const archiveName = `aziende-dossier-${new Date().toISOString().slice(0, 10)}.zip`;
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(archiveName)}"`);
+
+    const archive = archiver("zip", { zlib: { level: 9 } });
+    archive.on("error", (err) => {
+      throw err;
+    });
+    archive.pipe(res);
+
+    const legacyFieldMap: Record<CompanyDocumentKey, string> = {
+      signedContractFile: "signedContractFile",
+      privacyNoticeFile: "privacyNoticeFile",
+      legalRepresentativeDocumentFile: "legalRepresentativeDocumentFile",
+      chamberOfCommerceFile: "chamberOfCommerceFile",
+    };
+
+    const documentFileNames: Record<CompanyDocumentKey, string> = {
+      signedContractFile: "Contratto_Firmato.pdf",
+      privacyNoticeFile: "Informativa_Privacy.pdf",
+      legalRepresentativeDocumentFile: "Documento_Legale_Rappresentante.pdf",
+      chamberOfCommerceFile: "Visura_Camerale.pdf",
+    };
+
+    const readCompanyDocumentBuffer = async (doc: any): Promise<Buffer | null> => {
+      if (!doc) return null;
+
+      if (doc.storageKey && isObjectStorageEnabled()) {
+        const objectData = await downloadObjectFromObjectStorage(String(doc.storageKey));
+        return objectData.buffer;
+      }
+
+      const rawPath = String(doc.path || "");
+      if (!rawPath) return null;
+
+      if (path.isAbsolute(rawPath) && fs.existsSync(rawPath)) {
+        return fs.readFileSync(rawPath);
+      }
+
+      const fileName = rawPath.split(/[/\\]/).pop();
+      if (!fileName) return null;
+      const localPath = path.join(__dirname, "../uploads", fileName);
+      if (fs.existsSync(localPath)) {
+        return fs.readFileSync(localPath);
+      }
+
+      return null;
+    };
+
+    for (const company of companies as any[]) {
+      const companyFolder = sanitizeFolderName(String(company.businessName || company.companyName || "azienda"));
+
+      for (const key of COMPANY_DOCUMENT_KEYS) {
+        const doc: any = company?.companyDocuments?.[key] || company?.[legacyFieldMap[key]];
+        if (!doc) continue;
+        try {
+          const buffer = await readCompanyDocumentBuffer(doc);
+          if (!buffer) continue;
+
+          const extByOriginal = path.extname(String(doc.originalName || doc.filename || "")).toLowerCase();
+          const extByMime = String(doc.mimetype || "").includes("pdf") ? ".pdf" : "";
+          const extension = extByOriginal || extByMime || ".pdf";
+          const baseName = documentFileNames[key].replace(/\.pdf$/i, "");
+          archive.append(buffer, { name: `${companyFolder}/documenti/${baseName}${extension}` });
+        } catch (err) {
+          console.warn("[company] skip document in bulk dossier zip", {
+            companyId: String(company._id),
+            documentKey: key,
+            error: (err as any)?.message || err,
+          });
+        }
+      }
+
+      const employeeRows = (employeesByCompany.get(String(company._id)) || []).map((emp: any) => ({
+        Nome: String(emp.nome || ""),
+        Cognome: String(emp.cognome || ""),
+        "Codice Fiscale": String(emp.codiceFiscale || ""),
+        Stato: String(emp.stato || ""),
+        Email: String(emp.email || ""),
+        Cellulare: String(emp.cellulare || ""),
+      }));
+
+      const wb = xlsx.utils.book_new();
+      const ws = xlsx.utils.json_to_sheet(
+        employeeRows.length
+          ? employeeRows
+          : [{ Nome: "", Cognome: "", "Codice Fiscale": "", Stato: "", Email: "", Cellulare: "" }]
+      );
+      ws["!cols"] = [{ wch: 24 }, { wch: 24 }, { wch: 24 }, { wch: 12 }, { wch: 30 }, { wch: 18 }];
+      xlsx.utils.book_append_sheet(wb, ws, "Dipendenti");
+      const employeeWorkbookBuffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
+      archive.append(employeeWorkbookBuffer, { name: `${companyFolder}/dipendenti/dipendenti.xlsx` });
+    }
+
+    await archive.finalize();
+  } catch (err: any) {
+    console.error("Download all companies dossiers zip error:", err);
+    if (!res.headersSent) {
+      return res.status(500).json({ error: "Server error while creating companies archive" });
+    }
+    return;
   }
 };
 

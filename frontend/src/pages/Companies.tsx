@@ -1,7 +1,12 @@
 // src/pages/Companies.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getCompanies, deleteCompany, exportCompaniesXlsx } from '../services/companyService';
+import {
+  getCompanies,
+  deleteCompany,
+  exportCompaniesXlsx,
+  downloadAllCompaniesDossiersZip,
+} from '../services/companyService';
 import { Company } from '../types/interfaces';
 import { useAuth } from '../contexts/AuthContext';
 import '../styles/Companies.css';
@@ -11,6 +16,7 @@ const Companies: React.FC = () => {
   const [filteredCompanies, setFilteredCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [downloadingAllDossiers, setDownloadingAllDossiers] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportFilters, setExportFilters] = useState({
     territorialManager: '',
@@ -372,6 +378,7 @@ const Companies: React.FC = () => {
     }
   };
 
+
   const handleExportCompanies = async () => {
     try {
       setExporting(true);
@@ -396,6 +403,28 @@ const Companies: React.FC = () => {
       setError('Errore durante esportazione aziende');
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleDownloadAllCompaniesDossier = async () => {
+    if (downloadingAllDossiers) return;
+    try {
+      setDownloadingAllDossiers(true);
+      const blob = await downloadAllCompaniesDossiersZip();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const date = new Date().toISOString().slice(0, 10);
+      link.href = url;
+      link.download = `aziende-dossier-${date}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error('Error downloading all companies dossier:', err);
+      alert(err?.response?.data?.error || 'Errore durante il download archivio aziende');
+    } finally {
+      setDownloadingAllDossiers(false);
     }
   };
 
@@ -493,6 +522,13 @@ const Companies: React.FC = () => {
       <div className="companies-header">
         <h1>Aziende</h1>
         <div className="header-actions">
+          <button
+            className="export-button"
+            onClick={handleDownloadAllCompaniesDossier}
+            disabled={downloadingAllDossiers}
+          >
+            {downloadingAllDossiers ? 'Preparazione archivio...' : 'Scarica Archivio Aziende ZIP'}
+          </button>
           <button
             className="export-button"
             onClick={openExportModal}

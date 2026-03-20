@@ -17,10 +17,20 @@ import {
   uploadBufferToObjectStorage,
 } from "../services/objectStorage";
 
+const SERVIZI_INVOICE_MAX_SIZE_BYTES = 3 * 1024 * 1024; // 3MB
+
 const serviziInvoiceUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 25 * 1024 * 1024, // 25MB
+    fileSize: SERVIZI_INVOICE_MAX_SIZE_BYTES,
+  },
+  fileFilter: (_req, file, cb) => {
+    const isPdfByMime = String(file.mimetype || "").toLowerCase() === "application/pdf";
+    const isPdfByExtension = /\.pdf$/i.test(file.originalname || "");
+    if (isPdfByMime || isPdfByExtension) {
+      return cb(null, true);
+    }
+    return cb(new Error("Formato file non supportato: sono ammessi solo PDF."));
   },
 });
 
@@ -36,7 +46,19 @@ const buildServiziInvoiceStorageKey = (file: Express.Multer.File) => {
   return `servizi-invoices/${dateSegment}/${Date.now()}-${sanitizeFileName(file.originalname)}`;
 };
 
-export const uploadServiziInvoiceAttachment = serviziInvoiceUpload.single("attachment");
+export const uploadServiziInvoiceAttachment: CustomRequestHandler = async (req, res, next) => {
+  serviziInvoiceUpload.single("attachment")(req as any, res as any, (err: any) => {
+    if (err) {
+      if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+        return res
+          .status(400)
+          .json({ error: "File troppo grande: dimensione massima 3MB per allegato." });
+      }
+      return res.status(400).json({ error: err.message || "Errore upload allegato." });
+    }
+    return next();
+  });
+};
 
 const forceServiziAccount = (req: Parameters<CustomRequestHandler>[0]) => {
   req.query = { ...req.query, account: "servizi" };

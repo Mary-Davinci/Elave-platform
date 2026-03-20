@@ -25,6 +25,7 @@ interface AuthenticatedRequest extends Request {
 }
 
 const isPrivileged = (role: string) => role === 'admin' || role === 'super_admin';
+const AGENTE_DOCUMENT_MAX_SIZE_BYTES = 3 * 1024 * 1024; // 3MB
 
 const sanitizeFileName = (value: string) =>
   String(value || "file")
@@ -48,6 +49,20 @@ const removeLocalFileIfExists = (filePath?: string) => {
   if (!filePath) return;
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath);
+  }
+};
+
+const validateAgentePdfDocument = (file?: Express.Multer.File) => {
+  if (!file) return;
+  const isPdfByMime = String(file.mimetype || "").toLowerCase() === "application/pdf";
+  const isPdfByExtension = /\.pdf$/i.test(path.extname(file.originalname || ""));
+  if (!isPdfByMime && !isPdfByExtension) {
+    removeLocalFileIfExists(file.path);
+    throw new Error("Formato file non supportato: sono ammessi solo PDF.");
+  }
+  if (Number(file.size || 0) > AGENTE_DOCUMENT_MAX_SIZE_BYTES) {
+    removeLocalFileIfExists(file.path);
+    throw new Error("File troppo grande: dimensione massima 3MB per documento.");
   }
 };
 
@@ -151,10 +166,10 @@ const upload = multer({
     }
 
     if (file.fieldname === 'signedContractFile' || file.fieldname === 'legalDocumentFile') {
-      const validExtensions = /\.pdf$|\.doc$|\.docx$|\.jpg$|\.jpeg$|\.png$/i;
+      const validExtensions = /\.pdf$/i;
       const hasValidExtension = validExtensions.test(path.extname(file.originalname).toLowerCase());
       if (hasValidExtension) return cb(null, true);
-      return cb(new Error('Only PDF, DOC, DOCX, JPG, JPEG, PNG files are allowed for documents!'));
+      return cb(new Error('Formato file non supportato: sono ammessi solo PDF.'));
     }
 
     cb(new Error('Invalid file field'));
@@ -294,6 +309,8 @@ export const createAgente: CustomRequestHandler = async (req, res) => {
         const files = req.files as MulterFiles | undefined;
         const signedContractFile = files?.signedContractFile?.[0];
         const legalDocumentFile = files?.legalDocumentFile?.[0];
+        validateAgentePdfDocument(signedContractFile);
+        validateAgentePdfDocument(legalDocumentFile);
         const signedContractMeta = await buildAgenteFileMeta(signedContractFile, "signed-contract");
         const legalDocumentMeta = await buildAgenteFileMeta(legalDocumentFile, "legal-document");
 
@@ -392,6 +409,8 @@ export const updateAgente: CustomRequestHandler = async (req, res) => {
         const files = req.files as MulterFiles | undefined;
         const signedContractFile = files?.signedContractFile?.[0];
         const legalDocumentFile = files?.legalDocumentFile?.[0];
+        validateAgentePdfDocument(signedContractFile);
+        validateAgentePdfDocument(legalDocumentFile);
 
         if (businessName !== undefined) agente.businessName = businessName;
         if (vatNumber !== undefined) agente.vatNumber = vatNumber;

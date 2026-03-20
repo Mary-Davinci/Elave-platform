@@ -195,18 +195,13 @@ useEffect(() => {
     const file = e.target.files?.[0] || null;
 
     if (file) {
-      const allowed = [
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'image/jpeg', 'image/jpg', 'image/png'
-      ];
-      if (!allowed.includes(file.type)) {
-        setErrors(['Only PDF, DOC, DOCX, JPG, JPEG, PNG files are allowed for documents!']);
+      const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+      if (!isPdf) {
+        setErrors(['La piattaforma accetta solo file PDF (max 3MB).']);
         return;
       }
-      if (file.size > 5 * 1024 * 1024) {
-        setErrors(['File size must be less than 5MB']);
+      if (file.size > 3 * 1024 * 1024) {
+        setErrors(['File troppo grande. La dimensione massima consentita è 3MB.']);
         return;
       }
     }
@@ -512,7 +507,7 @@ useEffect(() => {
                     Carica Contratto Sportello Lavoro
                   </label>
                   <span style={{ fontSize: '12px', color: '#6c757d' }}>
-                    Formati supportati: PDF, DOC, DOCX
+                    Formato supportato: PDF (max 3MB)
                   </span>
                 </div>
                 {getAvailableTemplate('contract') && (
@@ -854,7 +849,7 @@ useEffect(() => {
                   id="signed-contract-upload"
                   ref={signedContractRef}
                   onChange={(e) => handleFileChange(e, 'contract')}
-                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  accept=".pdf,application/pdf"
                   className="file-input"
                   disabled={isSubmitting}
                 />
@@ -888,7 +883,7 @@ useEffect(() => {
                   id="legal-doc-upload"
                   ref={legalDocRef}
                   onChange={(e) => handleFileChange(e, 'legal')}
-                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  accept=".pdf,application/pdf"
                   className="file-input"
                   disabled={isSubmitting}
                 />

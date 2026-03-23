@@ -67,8 +67,19 @@ export const downloadCompanyDossierZip = async (companyId: string): Promise<Blob
   return response.data;
 };
 
-export const downloadAllCompaniesDossiersZip = async (): Promise<Blob> => {
+export const downloadAllCompaniesDossiersZip = async (filters?: {
+  fromNumeroAnagrafica?: number;
+  toNumeroAnagrafica?: number;
+}): Promise<Blob> => {
   const response = await api.get('/api/companies/dossier/download-all', {
+    params: {
+      ...(typeof filters?.fromNumeroAnagrafica === 'number'
+        ? { fromNumeroAnagrafica: filters.fromNumeroAnagrafica }
+        : {}),
+      ...(typeof filters?.toNumeroAnagrafica === 'number'
+        ? { toNumeroAnagrafica: filters.toNumeroAnagrafica }
+        : {}),
+    },
     responseType: 'blob',
     timeout: 0,
   });

@@ -815,7 +815,51 @@ export const downloadAllCompaniesDossiersZip: CustomRequestHandler = async (req,
       }
     }
 
-    const companies = await Company.find(query).sort({ businessName: 1 }).lean();
+    const parseAnagrafica = (value: any): number | null => {
+      const raw = String(value ?? "").trim();
+      if (!raw) return null;
+      const parsed = Number.parseInt(raw, 10);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    const fromNumeroAnagraficaRaw = String((req.query as any)?.fromNumeroAnagrafica || "").trim();
+    const toNumeroAnagraficaRaw = String((req.query as any)?.toNumeroAnagrafica || "").trim();
+    const fromNumeroAnagrafica = fromNumeroAnagraficaRaw
+      ? Number.parseInt(fromNumeroAnagraficaRaw, 10)
+      : null;
+    const toNumeroAnagrafica = toNumeroAnagraficaRaw
+      ? Number.parseInt(toNumeroAnagraficaRaw, 10)
+      : null;
+
+    if (
+      (fromNumeroAnagraficaRaw && !Number.isFinite(fromNumeroAnagrafica as number)) ||
+      (toNumeroAnagraficaRaw && !Number.isFinite(toNumeroAnagrafica as number))
+    ) {
+      return res.status(400).json({ error: "Intervallo anagrafica non valido" });
+    }
+
+    if (
+      Number.isFinite(fromNumeroAnagrafica as number) &&
+      Number.isFinite(toNumeroAnagrafica as number) &&
+      (fromNumeroAnagrafica as number) > (toNumeroAnagrafica as number)
+    ) {
+      return res
+        .status(400)
+        .json({ error: "Intervallo anagrafica non valido: 'da' deve essere <= 'a'" });
+    }
+
+    const allScopedCompanies = await Company.find(query).sort({ businessName: 1 }).lean();
+    const companies = allScopedCompanies.filter((company: any) => {
+      const numero = parseAnagrafica(company.numeroAnagrafica);
+      if (fromNumeroAnagrafica !== null && fromNumeroAnagrafica !== undefined) {
+        if (numero === null || numero < fromNumeroAnagrafica) return false;
+      }
+      if (toNumeroAnagrafica !== null && toNumeroAnagrafica !== undefined) {
+        if (numero === null || numero > toNumeroAnagrafica) return false;
+      }
+      return true;
+    });
+
     if (!companies.length) {
       return res.status(404).json({ error: "Nessuna azienda disponibile per il download" });
     }
@@ -831,15 +875,42 @@ export const downloadAllCompaniesDossiersZip: CustomRequestHandler = async (req,
       employeesByCompany.get(key)!.push(emp);
     }
 
-    const archiveName = `aziende-dossier-${new Date().toISOString().slice(0, 10)}.zip`;
+    const selectedAnagrafiche = companies
+      .map((company: any) => parseAnagrafica(company.numeroAnagrafica))
+      .filter((value): value is number => value !== null)
+      .sort((a, b) => a - b);
+    const lastNumeroAnagrafica =
+      selectedAnagrafiche.length > 0
+        ? selectedAnagrafiche[selectedAnagrafiche.length - 1]
+        : null;
+
+    const rangePrefix =
+      fromNumeroAnagrafica !== null || toNumeroAnagrafica !== null
+        ? `-da-${fromNumeroAnagrafica ?? "min"}-a-${toNumeroAnagrafica ?? "max"}`
+        : "";
+    const lastSuffix = lastNumeroAnagrafica ? `-last-${lastNumeroAnagrafica}` : "";
+    const archiveName = `aziende-dossier-${new Date().toISOString().slice(0, 10)}${rangePrefix}${lastSuffix}.zip`;
     res.setHeader("Content-Type", "application/zip");
     res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(archiveName)}"`);
+    if (lastNumeroAnagrafica) {
+      res.setHeader("X-Last-Numero-Anagrafica", String(lastNumeroAnagrafica));
+    }
+    res.setHeader("X-Total-Aziende", String(companies.length));
 
     const archive = archiver("zip", { zlib: { level: 9 } });
     archive.on("error", (err) => {
       throw err;
     });
     archive.pipe(res);
+
+    const infoLines = [
+      "Archivio dossier aziende",
+      `Generato il: ${new Date().toISOString()}`,
+      `Intervallo anagrafica: ${fromNumeroAnagrafica ?? "min"} - ${toNumeroAnagrafica ?? "max"}`,
+      `Totale aziende incluse: ${companies.length}`,
+      `Ultima anagrafica inclusa: ${lastNumeroAnagrafica ?? "N/D"}`,
+    ];
+    archive.append(Buffer.from(infoLines.join("\n"), "utf8"), { name: "_download_info.txt" });
 
     const legacyFieldMap: Record<CompanyDocumentKey, string> = {
       signedContractFile: "signedContractFile",

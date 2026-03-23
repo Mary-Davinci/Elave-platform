@@ -1,12 +1,14 @@
 import { Request, Response } from "express";
 import Employee from "../models/Employee";
 import Company from "../models/Company";
+import EmployeeImport from "../models/EmployeeImport";
 import { CustomRequestHandler } from "../types/express";
 import mongoose from "mongoose";
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import xlsx from 'xlsx';
+import crypto from "crypto";
 
 const isPrivileged = (role: string) => role === 'admin' || role === 'super_admin';
 
@@ -239,7 +241,7 @@ export const createEmployee: CustomRequestHandler = async (req, res) => {
     if (err.code === 11000) {
       console.error("Duplicate key error:", err.keyPattern, err.keyValue);
       if (err.keyPattern && err.keyPattern.codiceFiscale) {
-        return res.status(400).json({ error: "Codice fiscale already exists" });
+        return res.status(400).json({ error: "Codice fiscale già presente per questa azienda" });
       }
       return res.status(400).json({ error: "Duplicate data detected" });
     }
@@ -316,7 +318,7 @@ export const updateEmployee: CustomRequestHandler = async (req, res) => {
     
     if (err.code === 11000) {
       if (err.keyPattern && err.keyPattern.codiceFiscale) {
-        return res.status(400).json({ error: "Codice fiscale already exists" });
+        return res.status(400).json({ error: "Codice fiscale già presente per questa azienda" });
       }
     }
     
@@ -389,6 +391,30 @@ export const uploadEmployeesFromExcel: CustomRequestHandler = async (req, res) =
 
       try {
         console.log("Employee Excel file uploaded successfully:", req.file.path);
+        const fileBuffer = fs.readFileSync(req.file.path);
+        const fileHash = crypto.createHash("sha256").update(fileBuffer).digest("hex");
+
+        const existingImport = await EmployeeImport.findOne({
+          companyId: new mongoose.Types.ObjectId(companyId),
+          fileHash,
+        }).lean();
+
+        if (existingImport) {
+          fs.unlinkSync(req.file.path);
+
+          const existingEmployees = existingImport.createdEmployeeIds?.length
+            ? await Employee.find({ _id: { $in: existingImport.createdEmployeeIds } })
+            : [];
+
+          return res.status(200).json({
+            message: `Import già elaborato in precedenza: ${existingImport.createdCount} dipendenti importati`,
+            createdCount: existingImport.createdCount,
+            errorCount: existingImport.errorCount,
+            employees: existingEmployees,
+            errors: existingImport.errorCount > 0 ? existingImport.importErrors : undefined,
+            idempotentReplay: true,
+          });
+        }
         
         const workbook = xlsx.readFile(req.file.path);
         const sheetName = workbook.SheetNames[0];
@@ -459,7 +485,7 @@ export const uploadEmployeesFromExcel: CustomRequestHandler = async (req, res) =
           .map((r) => r.employeeData.codiceFiscale)
           .filter((cf) => Boolean(cf));
         const existingCfDocs = await Employee.find(
-          { codiceFiscale: { $in: cfCandidates } },
+          { companyId, codiceFiscale: { $in: cfCandidates } },
           { codiceFiscale: 1 }
         ).lean();
         const existingCfSet = new Set(
@@ -482,7 +508,7 @@ export const uploadEmployeesFromExcel: CustomRequestHandler = async (req, res) =
             seenInFile.add(employeeData.codiceFiscale);
 
             if (existingCfSet.has(employeeData.codiceFiscale)) {
-              throw new Error(`codiceFiscale già presente in archivio (${employeeData.codiceFiscale})`);
+              throw new Error(`codiceFiscale già presente per questa azienda (${employeeData.codiceFiscale})`);
             }
 
             console.log(`Saving employee: ${employeeData.nome} ${employeeData.cognome}`);
@@ -500,6 +526,23 @@ export const uploadEmployeesFromExcel: CustomRequestHandler = async (req, res) =
 
         fs.unlinkSync(req.file.path);
         console.log("Employee uploaded file cleaned up");
+
+        try {
+          await EmployeeImport.create({
+            companyId: new mongoose.Types.ObjectId(companyId),
+            fileHash,
+            originalName: req.file.originalname,
+            uploadedBy: req.user?._id,
+            createdCount: employees.length,
+            errorCount: errors.length,
+            importErrors: errors,
+            createdEmployeeIds: employees.map((employee: any) => employee._id),
+          });
+        } catch (importErr: any) {
+          if (importErr?.code !== 11000) {
+            console.warn("Employee import idempotency save warning:", importErr?.message || importErr);
+          }
+        }
 
         console.log(`Employee import complete: ${employees.length} employees created, ${errors.length} errors`);
         return res.status(201).json({

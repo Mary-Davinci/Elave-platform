@@ -38,7 +38,12 @@ router.get(
 
 router.get("/", authMiddleware, segnalatoriRoleMiddleware, getCompanies);
 router.get("/export", authMiddleware, segnalatoriRoleMiddleware, exportCompaniesXlsx);
-router.get("/dossier/download-all", authMiddleware, segnalatoriRoleMiddleware, downloadAllCompaniesDossiersZip);
+router.get(
+  "/dossier/download-all",
+  authMiddleware,
+  adminRoleMiddleware,
+  downloadAllCompaniesDossiersZip
+);
 router.get("/:id/dossier/download", authMiddleware, segnalatoriRoleMiddleware, downloadCompanyDossierZip);
 router.get(
   "/:id/documents/:documentKey/url",

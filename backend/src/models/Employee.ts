@@ -75,7 +75,6 @@ const EmployeeSchema: Schema = new Schema(
       required: [true, 'Codice fiscale is required'],
       trim: true,
       uppercase: true,
-      unique: true,
       minlength: [16, 'Codice fiscale must be exactly 16 characters'],
       maxlength: [16, 'Codice fiscale must be exactly 16 characters'],
       validate: {
@@ -166,7 +165,7 @@ const EmployeeSchema: Schema = new Schema(
   }
 );
 
-EmployeeSchema.index({ companyId: 1, codiceFiscale: 1 });
+EmployeeSchema.index({ companyId: 1, codiceFiscale: 1 }, { unique: true });
 EmployeeSchema.index({ companyId: 1, stato: 1 });
 EmployeeSchema.index({ nome: 1, cognome: 1 });
 
@@ -179,4 +178,3 @@ EmployeeSchema.set('toJSON', {
 });
 
 export default mongoose.model<IEmployee>('Employee', EmployeeSchema);
-

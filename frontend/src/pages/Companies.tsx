@@ -12,12 +12,18 @@ import { useAuth } from '../contexts/AuthContext';
 import '../styles/Companies.css';
 
 const Companies: React.FC = () => {
+  const LAST_DOSSIER_TO_KEY = 'companies_dossier_last_to_numero_anagrafica';
   const [companies, setCompanies] = useState<Company[]>([]);
   const [filteredCompanies, setFilteredCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [downloadingAllDossiers, setDownloadingAllDossiers] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showDossierModal, setShowDossierModal] = useState(false);
+  const [dossierRange, setDossierRange] = useState({
+    fromNumeroAnagrafica: '',
+    toNumeroAnagrafica: '',
+  });
   const [exportFilters, setExportFilters] = useState({
     territorialManager: '',
     sportelloLavoro: '',
@@ -26,7 +32,8 @@ const Companies: React.FC = () => {
   });
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  const isAdminUser = user?.role === 'admin' || user?.role === 'super_admin';
   const [dropdownPositions, setDropdownPositions] = useState({});
   
 
@@ -115,6 +122,11 @@ const Companies: React.FC = () => {
     company.inpsCode || company.matricola || '-';
   const getNumeroAnagrafica = (company: Company) =>
     company.numeroAnagrafica || '-';
+
+  const toAnagraficaNumber = (value: any): number | null => {
+    const parsed = Number.parseInt(String(value ?? '').trim(), 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
 
   
   const positionFilterDropdown = useCallback((field: string) => {
@@ -406,26 +418,84 @@ const Companies: React.FC = () => {
     }
   };
 
-  const handleDownloadAllCompaniesDossier = async () => {
+  const handleDownloadAllCompaniesDossier = async (fromNumeroAnagrafica?: number, toNumeroAnagrafica?: number) => {
     if (downloadingAllDossiers) return;
     try {
       setDownloadingAllDossiers(true);
-      const blob = await downloadAllCompaniesDossiersZip();
+      const blob = await downloadAllCompaniesDossiersZip({
+        ...(typeof fromNumeroAnagrafica === 'number' ? { fromNumeroAnagrafica } : {}),
+        ...(typeof toNumeroAnagrafica === 'number' ? { toNumeroAnagrafica } : {}),
+      });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       const date = new Date().toISOString().slice(0, 10);
+      const lastNumberInRange = companies
+        .map((company) => toAnagraficaNumber(company.numeroAnagrafica))
+        .filter((value): value is number => value !== null)
+        .filter((value) =>
+          (typeof fromNumeroAnagrafica !== 'number' || value >= fromNumeroAnagrafica) &&
+          (typeof toNumeroAnagrafica !== 'number' || value <= toNumeroAnagrafica)
+        )
+        .sort((a, b) => a - b)
+        .pop();
       link.href = url;
-      link.download = `aziende-dossier-${date}.zip`;
+      const rangePart =
+        typeof fromNumeroAnagrafica === 'number' || typeof toNumeroAnagrafica === 'number'
+          ? `-da-${typeof fromNumeroAnagrafica === 'number' ? fromNumeroAnagrafica : 'min'}-a-${typeof toNumeroAnagrafica === 'number' ? toNumeroAnagrafica : 'max'}`
+          : '';
+      const lastPart = lastNumberInRange ? `-last-${lastNumberInRange}` : '';
+      link.download = `aziende-dossier-${date}${rangePart}${lastPart}.zip`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
+      if (typeof toNumeroAnagrafica === 'number') {
+        localStorage.setItem(LAST_DOSSIER_TO_KEY, String(toNumeroAnagrafica));
+      }
+      if (lastNumberInRange) {
+        alert(`Download completato. Ultima anagrafica inclusa: ${lastNumberInRange}`);
+      }
     } catch (err: any) {
       console.error('Error downloading all companies dossier:', err);
       alert(err?.response?.data?.error || 'Errore durante il download archivio aziende');
     } finally {
       setDownloadingAllDossiers(false);
     }
+  };
+
+  const openDossierModal = () => {
+    const anagraficaValues = companies
+      .map((company) => toAnagraficaNumber(company.numeroAnagrafica))
+      .filter((value): value is number => value !== null)
+      .sort((a, b) => a - b);
+    const minAvailable = anagraficaValues.length ? anagraficaValues[0] : null;
+    const maxAvailable = anagraficaValues.length ? anagraficaValues[anagraficaValues.length - 1] : null;
+    const storedLastTo = Number.parseInt(localStorage.getItem(LAST_DOSSIER_TO_KEY) || '', 10);
+    const hasStoredLastTo = Number.isFinite(storedLastTo);
+    const suggestedFrom = hasStoredLastTo
+      ? Math.min(Math.max(storedLastTo, minAvailable ?? storedLastTo), maxAvailable ?? storedLastTo)
+      : (minAvailable ?? null);
+
+    setDossierRange({
+      fromNumeroAnagrafica: suggestedFrom !== null ? String(suggestedFrom) : '',
+      toNumeroAnagrafica: maxAvailable !== null ? String(maxAvailable) : '',
+    });
+    setShowDossierModal(true);
+  };
+
+  const confirmDossierDownload = async () => {
+    const fromNumero = Number.parseInt(dossierRange.fromNumeroAnagrafica, 10);
+    const toNumero = Number.parseInt(dossierRange.toNumeroAnagrafica, 10);
+    if (!Number.isFinite(fromNumero) || !Number.isFinite(toNumero)) {
+      alert('Inserisci un intervallo valido per Numero Anagrafica (Da / A).');
+      return;
+    }
+    if (fromNumero > toNumero) {
+      alert('Intervallo non valido: "Da" deve essere minore o uguale a "A".');
+      return;
+    }
+    setShowDossierModal(false);
+    await handleDownloadAllCompaniesDossier(fromNumero, toNumero);
   };
 
   const openExportModal = () => {
@@ -522,13 +592,15 @@ const Companies: React.FC = () => {
       <div className="companies-header">
         <h1>Aziende</h1>
         <div className="header-actions">
-          <button
-            className="export-button"
-            onClick={handleDownloadAllCompaniesDossier}
-            disabled={downloadingAllDossiers}
-          >
-            {downloadingAllDossiers ? 'Preparazione archivio...' : 'Scarica Archivio Aziende ZIP'}
-          </button>
+          {isAdminUser && (
+            <button
+              className="export-button"
+              onClick={openDossierModal}
+              disabled={downloadingAllDossiers}
+            >
+              {downloadingAllDossiers ? 'Preparazione archivio...' : 'Scarica Archivio Aziende ZIP'}
+            </button>
+          )}
           <button
             className="export-button"
             onClick={openExportModal}
@@ -1025,6 +1097,75 @@ const Companies: React.FC = () => {
               ))}
             </tbody>
           </table>
+          </div>
+        </div>
+      )}
+
+      {showDossierModal && (
+        <div className="companies-export-modal-overlay" onClick={() => setShowDossierModal(false)}>
+          <div
+            className="companies-export-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="companies-export-modal-header">
+              <h3>Scarica archivio ZIP aziende</h3>
+              <button
+                className="companies-export-close"
+                onClick={() => setShowDossierModal(false)}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="companies-export-grid">
+              <div className="companies-export-field">
+                <label>N. anagrafica da</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={dossierRange.fromNumeroAnagrafica}
+                  onChange={(e) =>
+                    setDossierRange((prev) => ({
+                      ...prev,
+                      fromNumeroAnagrafica: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div className="companies-export-field">
+                <label>N. anagrafica a</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={dossierRange.toNumeroAnagrafica}
+                  onChange={(e) =>
+                    setDossierRange((prev) => ({
+                      ...prev,
+                      toNumeroAnagrafica: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="companies-export-actions">
+              <button
+                className="filter-cancel-button"
+                type="button"
+                onClick={() => setShowDossierModal(false)}
+              >
+                Annulla
+              </button>
+              <button
+                className="filter-ok-button"
+                type="button"
+                onClick={confirmDossierDownload}
+                disabled={downloadingAllDossiers}
+              >
+                {downloadingAllDossiers ? 'Generazione...' : 'Scarica ZIP'}
+              </button>
+            </div>
           </div>
         </div>
       )}

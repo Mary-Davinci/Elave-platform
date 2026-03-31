@@ -1754,13 +1754,13 @@ const monthOptions = [
                   <>
                     <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Mese</th>
                     <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Anno</th>
+                    <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Matricola INPS</th>
                     <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Aziende</th>
                     <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Responsabile Territoriale</th>
                     <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Sportello Lavoro</th>
                     <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Quota ELAV</th>
                     <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Tipo</th>
                     <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Stato</th>
-                    <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Categoria</th>
                   </>
                 )}
               </tr>
@@ -1861,6 +1861,7 @@ const monthOptions = [
                       <>
                         <td style={{ padding: '8px' }}>{dateParts.month}</td>
                         <td style={{ padding: '8px' }}>{dateParts.year}</td>
+                        <td style={{ padding: '8px' }}>{matricola || '-'}</td>
                         <td style={{ padding: '8px' }}>{companyName}</td>
                         <td style={{ padding: '8px' }}>{responsabile}</td>
                         <td style={{ padding: '8px' }}>{sportello}</td>
@@ -1869,7 +1870,6 @@ const monthOptions = [
                         </td>
                         <td style={{ padding: '8px', textTransform: 'capitalize' }}>{t.type}</td>
                         <td style={{ padding: '8px', textTransform: 'capitalize' }}>{t.status.replace('_', ' ')}</td>
-                        <td style={{ padding: '8px' }}>{t.category}</td>
                       </>
                     )}
                   </tr>
@@ -2168,6 +2168,7 @@ const monthOptions = [
                 <tr style={{ textAlign: 'left' }}>
                   <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Mese</th>
                   <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Anno</th>
+                  <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Matricola INPS</th>
                   <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Aziende</th>
                   <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Responsabile Territoriale</th>
                   <th style={{ padding: '10px 8px', borderBottom: '1px solid #eee' }}>Sportello Lavoro</th>
@@ -2177,10 +2178,12 @@ const monthOptions = [
               <tbody>
                 {pagedNonRiconciliate.map((t) => {
                   const dateParts = getMonthYearParts(t.date);
+                  const matricola = extractMatricolaFromDescription(t.description);
                   return (
                     <tr key={t._id} style={{ borderBottom: '1px solid #f1f1f1' }}>
                       <td style={{ padding: '8px' }}>{dateParts.month}</td>
                       <td style={{ padding: '8px' }}>{dateParts.year}</td>
+                      <td style={{ padding: '8px' }}>{matricola || '-'}</td>
                       <td style={{ padding: '8px' }}>{t.companyName || '-'}</td>
                       <td style={{ padding: '8px' }}>{t.responsabileName || '-'}</td>
                       <td style={{ padding: '8px' }}>{t.sportelloName || '-'}</td>
@@ -2192,7 +2195,7 @@ const monthOptions = [
                 })}
                 {nonRiconciliate.length === 0 && (
                   <tr>
-                    <td colSpan={6} style={{ padding: 16, color: '#666' }}>Nessuna quota non riconciliata.</td>
+                    <td colSpan={7} style={{ padding: 16, color: '#666' }}>Nessuna quota non riconciliata.</td>
                   </tr>
                 )}
               </tbody>

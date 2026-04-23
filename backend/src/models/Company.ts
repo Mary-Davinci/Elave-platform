@@ -152,7 +152,7 @@ const CompanySchema = new Schema<ICompany>(
       elavAdhesion: { type: Boolean, default: false },        // NEW
             saluteAmicaAdhesion: {
         type: String,
-        enum: ["5.00 Basic", "12.00 Standard", "16.00 Premium", ""],
+        enum: ["0.00 Nessuna adesione", "5.00 Basic", "12.00 Standard", "16.00 Premium", ""],
         default: "",
       },
       territorialManager: { type: String, trim: true },

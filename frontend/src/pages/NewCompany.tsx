@@ -19,6 +19,7 @@ const normalizeSaluteAmicaPlan = (value?: string) => {
   if (lower.includes('5') && lower.includes('basic')) return '5.00 Basic';
   if (lower.includes('12') && lower.includes('standard')) return '12.00 Standard';
   if (lower.includes('16') && lower.includes('premium')) return '16.00 Premium';
+  if (lower.includes('0') && (lower.includes('nessuna') || lower.includes('adesione'))) return '0.00 Nessuna adesione';
   return raw;
 };
 
@@ -720,6 +721,7 @@ const [formData, setFormData] = useState<CompanyFormData>({
     required
   >
     <option value="">-- Seleziona un piano --</option>
+    <option value="0.00 Nessuna adesione">0.00 € - Nessuna adesione</option>
     <option value="5.00 Basic">5.00 Basic</option>
     <option value="12.00 Standard">12.00 Standard</option>
     <option value="16.00 Premium">16.00 Premium</option>

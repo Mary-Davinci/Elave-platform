@@ -1150,25 +1150,50 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
               ],
             },
             responsabileName: {
-              $ifNull: [
-                "$responsabileName",
-                {
-                  $ifNull: [
-                    "$companyDoc.contractDetails.territorialManager",
+              $let: {
+                vars: {
+                  stored: { $ifNull: ["$responsabileName", ""] },
+                  org: { $ifNull: ["$responsabileDoc.organization", ""] },
+                  manager: { $ifNull: ["$companyDoc.contractDetails.territorialManager", ""] },
+                  full: {
+                    $trim: {
+                      input: {
+                        $concat: [
+                          { $ifNull: ["$responsabileDoc.firstName", ""] },
+                          " ",
+                          { $ifNull: ["$responsabileDoc.lastName", ""] },
+                        ],
+                      },
+                    },
+                  },
+                  username: { $ifNull: ["$responsabileDoc.username", ""] },
+                },
+                in: {
+                  $cond: [
+                    { $gt: [{ $strLenCP: "$$stored" }, 0] },
+                    "$$stored",
                     {
-                      $trim: {
-                        input: {
-                          $concat: [
-                            { $ifNull: ["$responsabileDoc.firstName", ""] },
-                            " ",
-                            { $ifNull: ["$responsabileDoc.lastName", ""] },
+                      $cond: [
+                        { $gt: [{ $strLenCP: "$$org" }, 0] },
+                        "$$org",
+                        {
+                          $cond: [
+                            { $gt: [{ $strLenCP: "$$manager" }, 0] },
+                            "$$manager",
+                            {
+                              $cond: [
+                                { $gt: [{ $strLenCP: "$$full" }, 0] },
+                                "$$full",
+                                "$$username",
+                              ],
+                            },
                           ],
                         },
-                      },
+                      ],
                     },
                   ],
                 },
-              ],
+              },
             },
             sportelloName: {
               $ifNull: [
@@ -1243,7 +1268,7 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
             path: "company",
             select: "businessName companyName user contactInfo.laborConsultantId contactInfo.laborConsultant contractDetails.territorialManager",
             populate: [
-              { path: "user", select: "firstName lastName username profitSharePercentage" },
+              { path: "user", select: "firstName lastName username organization profitSharePercentage" },
               { path: "contactInfo.laborConsultantId", select: "businessName agentName agreedCommission" },
             ],
           })
@@ -1262,7 +1287,9 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
       const company = tx.company;
       const companyName = tx.companyName || company?.companyName || company?.businessName;
       const responsabileFromCompanyUser = company?.user
-        ? `${company.user.firstName || ""} ${company.user.lastName || ""}`.trim() || company.user.username
+        ? company.user.organization ||
+          `${company.user.firstName || ""} ${company.user.lastName || ""}`.trim() ||
+          company.user.username
         : undefined;
       const sportello = company?.contactInfo?.laborConsultantId;
       const sportelloFromId = sportello?.agentName || sportello?.businessName;
@@ -1272,7 +1299,7 @@ export const getContoTransactions: CustomRequestHandler = async (req, res) => {
           ? sportelloRaw
           : sportelloRaw?.businessName || sportelloRaw?.agentName || "";
       const responsabileName =
-        tx.responsabileName || company?.contractDetails?.territorialManager || responsabileFromCompanyUser;
+        tx.responsabileName || responsabileFromCompanyUser || company?.contractDetails?.territorialManager;
       const sportelloName = tx.sportelloName || sportelloFromId || sportelloFromRaw;
       const requesterRaw = tx.user;
       const requesterName =
